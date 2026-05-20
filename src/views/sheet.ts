@@ -485,6 +485,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
   const container = h("div", { class: "view view-sheet" }, [
     h("h1", { class: "view-title", text: "Routines" }),
     head,
+    logoSection,
     h("div", { class: "btn-row" }, [
       h("button", {
         class: "btn btn-small",
@@ -511,7 +512,6 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
     routinesHost,
     statusEl,
     ...(SHOW_SHEET_ACTIONS ? [exportSection] : []),
-    logoSection,
     dataSection,
   ]);
 
