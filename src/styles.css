@@ -854,6 +854,14 @@ textarea:focus {
   border-left: 2px solid rgba(201, 245, 58, 0.4);
 }
 
+/* Per-routine action row (Run / Share / PNG / PDF / Save), set off from the
+   exercise editor above it. */
+.routine-actions {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
 .routine-head {
   display: flex;
   align-items: center;

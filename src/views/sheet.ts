@@ -1,7 +1,7 @@
 import { clear, h } from "../dom";
 import { canShareFiles, exportSheetPdf, exportSheetPng, shareSheet } from "../exporters";
 import type { Cleanup, Nav } from "../router";
-import { blankRoutine, blankRoutineExercise, blankSheet } from "../sheet";
+import { blankRoutine, blankRoutineExercise, blankSheet, singleRoutineSheet } from "../sheet";
 import { deleteSheet, loadSheets, saveSheet } from "../sheetStorage";
 import { state } from "../state";
 import type { Routine, RoutineExercise } from "../types";
@@ -13,6 +13,10 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
   // Captured once: state.editingSheet IS this object, so edits persist across
   // navigation and the export reads exactly what's on screen.
   const sheet = state.editingSheet;
+
+  // Whole-sheet Run/Export/Save are hidden for now — each routine card carries
+  // its own actions instead. Flip to true to bring the sheet-wide controls back.
+  const SHOW_SHEET_ACTIONS = false;
 
   const statusEl = h("p", { class: "status", role: "status", aria: { live: "polite" } });
   const setStatus = (msg: string, kind: StatusKind): void => {
@@ -139,6 +143,68 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
           },
         },
       }),
+      // Per-routine actions — run, export, or save just this routine. Each
+      // builds a fresh single-routine sheet on click, so it reflects live edits.
+      h("div", { class: "btn-row routine-actions" }, [
+        h("button", {
+          class: "btn btn-small btn-accent",
+          type: "button",
+          text: "Run ▸",
+          aria: { label: `run routine ${rIndex + 1}` },
+          on: { click: () => nav.runSheet(singleRoutineSheet(sheet, routine, rIndex)) },
+        }),
+        h("button", {
+          class: "btn btn-small",
+          type: "button",
+          text: "Share ▸",
+          aria: { label: `share routine ${rIndex + 1}` },
+          on: {
+            click: () =>
+              runExport("Share", async () => {
+                const result = await shareSheet(singleRoutineSheet(sheet, routine, rIndex));
+                setStatus(
+                  result === "shared"
+                    ? "Opened the share sheet — pick WhatsApp."
+                    : "Sharing isn't available here, so the PNG was downloaded instead.",
+                  "ok",
+                );
+              }),
+          },
+        }),
+        h("button", {
+          class: "btn btn-small",
+          type: "button",
+          text: "PNG",
+          aria: { label: `save routine ${rIndex + 1} as PNG` },
+          on: {
+            click: () =>
+              runExport("Save PNG", () => exportSheetPng(singleRoutineSheet(sheet, routine, rIndex))),
+          },
+        }),
+        h("button", {
+          class: "btn btn-small",
+          type: "button",
+          text: "PDF",
+          aria: { label: `save routine ${rIndex + 1} as PDF` },
+          on: {
+            click: () =>
+              runExport("Save PDF", () => exportSheetPdf(singleRoutineSheet(sheet, routine, rIndex))),
+          },
+        }),
+        h("button", {
+          class: "btn btn-small btn-primary",
+          type: "button",
+          text: "Save",
+          aria: { label: `save routine ${rIndex + 1} to library` },
+          on: {
+            click: () => {
+              const saved = saveSheet(singleRoutineSheet(sheet, routine, rIndex));
+              setStatus(`Saved "${saved.name}" to your library.`, "ok");
+              renderSaved();
+            },
+          },
+        }),
+      ]),
     ]);
   };
 
@@ -232,7 +298,6 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
         on: { click: () => runExport("Save PDF", () => exportSheetPdf(sheet)) },
       }),
     ]),
-    statusEl,
   ]);
 
   // ---- Saved sheets ---------------------------------------------------------
@@ -294,35 +359,39 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
   const dataSection = h("section", { class: "card data" }, [
     h("h2", { class: "section-title", text: "Save · Library" }),
     h("div", { class: "btn-row" }, [
-      h("button", {
-        class: "btn btn-primary",
-        type: "button",
-        text: "Save",
-        on: {
-          click: () => {
-            sheet.updatedAt = saveSheet(sheet).updatedAt;
-            setStatus(`Saved "${sheet.name}" to this browser.`, "ok");
-            renderSaved();
-          },
-        },
-      }),
-      h("button", {
-        class: "btn",
-        type: "button",
-        text: "Download JSON",
-        on: {
-          click: () => {
-            const blob = new Blob([sheetToJson(sheet)], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            const a = h("a", { href: url, download: `${slug(sheet.name)}.sheet.json` });
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(url);
-            setStatus("Downloaded JSON file.", "ok");
-          },
-        },
-      }),
+      ...(SHOW_SHEET_ACTIONS
+        ? [
+            h("button", {
+              class: "btn btn-primary",
+              type: "button",
+              text: "Save",
+              on: {
+                click: () => {
+                  sheet.updatedAt = saveSheet(sheet).updatedAt;
+                  setStatus(`Saved "${sheet.name}" to this browser.`, "ok");
+                  renderSaved();
+                },
+              },
+            }),
+            h("button", {
+              class: "btn",
+              type: "button",
+              text: "Download JSON",
+              on: {
+                click: () => {
+                  const blob = new Blob([sheetToJson(sheet)], { type: "application/json" });
+                  const url = URL.createObjectURL(blob);
+                  const a = h("a", { href: url, download: `${slug(sheet.name)}.sheet.json` });
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                  URL.revokeObjectURL(url);
+                  setStatus("Downloaded JSON file.", "ok");
+                },
+              },
+            }),
+          ]
+        : []),
       h("button", {
         class: "btn",
         type: "button",
@@ -349,15 +418,20 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
           },
         },
       }),
-      h("button", {
-        class: "btn btn-small btn-accent",
-        type: "button",
-        text: "Run ▸",
-        on: { click: () => nav.runSheet(cloneSheet(sheet)) },
-      }),
+      ...(SHOW_SHEET_ACTIONS
+        ? [
+            h("button", {
+              class: "btn btn-small btn-accent",
+              type: "button",
+              text: "Run ▸",
+              on: { click: () => nav.runSheet(cloneSheet(sheet)) },
+            }),
+          ]
+        : []),
     ]),
     routinesHost,
-    exportSection,
+    statusEl,
+    ...(SHOW_SHEET_ACTIONS ? [exportSection] : []),
     dataSection,
   ]);
 
