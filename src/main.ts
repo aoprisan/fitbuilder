@@ -1,9 +1,10 @@
 import "./styles.css";
 import { clear, h } from "./dom";
 import type { Cleanup, Nav, ViewName } from "./router";
-import { setEditing, setEditingSheet, setSession, state } from "./state";
-import { clonePlan } from "./util";
+import { setEditing, setEditingSheet, setExecuting, setSession, state } from "./state";
+import { clonePlan, cloneSheet } from "./util";
 import { mountBuilder } from "./views/builder";
+import { mountExecute } from "./views/execute";
 import { mountHome } from "./views/home";
 import { mountSaved } from "./views/saved";
 import { mountSession } from "./views/session";
@@ -15,6 +16,7 @@ const NAV_ITEMS: ReadonlyArray<{ name: ViewName; label: string }> = [
   { name: "sheet", label: "Routines" },
   { name: "saved", label: "Saved" },
   { name: "session", label: "Session" },
+  { name: "execute", label: "Execute" },
 ];
 
 function boot(): void {
@@ -41,6 +43,10 @@ function boot(): void {
     editSheet: (sheet) => {
       setEditingSheet(sheet);
       navigate("sheet");
+    },
+    runSheet: (sheet) => {
+      setExecuting(sheet);
+      navigate("execute");
     },
   };
 
@@ -74,6 +80,9 @@ function boot(): void {
       case "sheet":
         result = mountSheet(viewHost, nav);
         break;
+      case "execute":
+        result = mountExecute(viewHost, nav);
+        break;
     }
     cleanup = typeof result === "function" ? result : null;
     window.scrollTo(0, 0);
@@ -85,8 +94,9 @@ function boot(): void {
     NAV_ITEMS.map((item) => {
       const btn = h("button", { class: "nav-btn", type: "button", text: item.label });
       btn.addEventListener("click", () => {
-        // The Session tab always runs the current working plan as a snapshot.
+        // Session/Execute tabs run the current working plan/sheet as a snapshot.
         if (item.name === "session") nav.start(clonePlan(state.editing));
+        else if (item.name === "execute") nav.runSheet(cloneSheet(state.editingSheet));
         else nav.go(item.name);
       });
       navButtons.set(item.name, btn);

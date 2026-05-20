@@ -262,6 +262,12 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
           ]),
           h("div", { class: "btn-row saved-actions" }, [
             h("button", {
+              class: "btn btn-small btn-accent",
+              type: "button",
+              text: "Run ▸",
+              on: { click: () => nav.runSheet(cloneSheet(s)) },
+            }),
+            h("button", {
               class: "btn btn-small",
               type: "button",
               text: "Open",
@@ -342,6 +348,12 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
             renderRoutines();
           },
         },
+      }),
+      h("button", {
+        class: "btn btn-small btn-accent",
+        type: "button",
+        text: "Run ▸",
+        on: { click: () => nav.runSheet(cloneSheet(sheet)) },
       }),
     ]),
     routinesHost,

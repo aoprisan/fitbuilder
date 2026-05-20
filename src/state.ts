@@ -12,6 +12,8 @@ interface AppState {
   session: ExercisePlan | null;
   /** The working copy currently open in the Routine Sheet builder. */
   editingSheet: RoutineSheet;
+  /** The sheet selected to run in the Execute view, if any. */
+  executing: RoutineSheet | null;
 }
 
 function initialEditing(): ExercisePlan {
@@ -48,6 +50,7 @@ export const state: AppState = {
   editing: initialEditing(),
   session: null,
   editingSheet: initialEditingSheet(),
+  executing: null,
 };
 
 /** Replace the Builder working copy (e.g. after import or "Edit"). */
@@ -63,4 +66,9 @@ export function setSession(plan: ExercisePlan | null): void {
 /** Replace the Routine Sheet builder working copy. */
 export function setEditingSheet(sheet: RoutineSheet): void {
   state.editingSheet = sheet;
+}
+
+/** Choose the sheet that the Execute view will run. */
+export function setExecuting(sheet: RoutineSheet | null): void {
+  state.executing = sheet;
 }
