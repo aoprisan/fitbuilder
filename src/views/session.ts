@@ -3,8 +3,8 @@ import { h } from "../dom";
 import type { Cleanup, Nav } from "../router";
 import { SessionController } from "../session";
 import { state } from "../state";
-import type { ExercisePlan } from "../types";
-import { formatClock } from "../util";
+import { EQUIPMENT_LABELS, type ExercisePlan } from "../types";
+import { formatClock, formatLoad } from "../util";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const DIAL_R = 52;
@@ -175,11 +175,11 @@ export function mountSession(root: HTMLElement, nav: Nav): Cleanup {
             ? "PAUSED — UP NEXT"
             : "RESTING — UP NEXT",
     );
-    equip.textContent = step.equipment === "cable" ? "Cable" : "Dumbbell";
+    equip.textContent = EQUIPMENT_LABELS[step.equipment];
     equip.className = `badge badge-${step.equipment}`;
     setText(nameEl, step.name);
     setText(setEl, `SET ${step.setIndex + 1} OF ${step.setCount}`);
-    setText(targetEl, `${step.reps} reps · ${step.weightKg} kg`);
+    setText(targetEl, `${step.reps} reps · ${formatLoad(step.equipment, step.weightKg)}`);
   }
 
   let running = true;

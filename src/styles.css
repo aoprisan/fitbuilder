@@ -712,10 +712,10 @@ textarea:focus {
 
 /* ---- Toggle (segmented) -------------------------------------------------- */
 .toggle {
-  display: inline-flex;
+  display: flex;
+  flex-wrap: wrap;
   border: 1px solid var(--line-strong);
-  border-radius: 999px;
-  overflow: hidden;
+  border-radius: var(--radius-sm);
   margin: 4px 0 16px;
   background: rgba(0, 0, 0, 0.25);
   padding: 3px;
@@ -726,7 +726,7 @@ textarea:focus {
   background: transparent;
   border: none;
   border-radius: 999px;
-  padding: 9px 20px;
+  padding: 9px 16px;
   color: var(--ink-soft);
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -956,6 +956,30 @@ textarea:focus {
   color: var(--amber);
   border-color: rgba(255, 194, 75, 0.45);
   background: rgba(255, 194, 75, 0.06);
+}
+
+.badge-barbell {
+  color: var(--coral);
+  border-color: rgba(255, 90, 60, 0.45);
+  background: rgba(255, 90, 60, 0.06);
+}
+
+.badge-kettlebell {
+  color: #b388ff;
+  border-color: rgba(179, 136, 255, 0.45);
+  background: rgba(179, 136, 255, 0.06);
+}
+
+.badge-trx {
+  color: #4dd6c4;
+  border-color: rgba(77, 214, 196, 0.45);
+  background: rgba(77, 214, 196, 0.06);
+}
+
+.badge-calisthenics {
+  color: #ff7eb6;
+  border-color: rgba(255, 126, 182, 0.45);
+  background: rgba(255, 126, 182, 0.06);
 }
 
 .now-name {

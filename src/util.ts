@@ -1,4 +1,4 @@
-import type { ExercisePlan } from "./types";
+import { isBodyweight, type Equipment, type ExercisePlan } from "./types";
 
 /** Generate a RFC4122 v4 uuid, falling back when crypto.randomUUID is absent. */
 export function uuid(): string {
@@ -75,4 +75,15 @@ export function slug(name: string): string {
 /** Round to at most 2 decimals, avoiding float drift from repeated steps. */
 export function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+/**
+ * Format a set's load for display. Bodyweight equipment reads as "Bodyweight"
+ * (optionally "Bodyweight +5 kg" when extra load is added); everything else as "12.5 kg".
+ */
+export function formatLoad(equipment: Equipment, weightKg: number): string {
+  if (isBodyweight(equipment)) {
+    return weightKg > 0 ? `Bodyweight +${round2(weightKg)} kg` : "Bodyweight";
+  }
+  return `${round2(weightKg)} kg`;
 }

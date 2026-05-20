@@ -3,7 +3,7 @@ import { blankExercise } from "../plan";
 import type { Nav } from "../router";
 import { state } from "../state";
 import { savePlan } from "../storage";
-import { EQUIPMENT, type Equipment, type Exercise } from "../types";
+import { EQUIPMENT, EQUIPMENT_LABELS, isBodyweight, type Equipment, type Exercise } from "../types";
 import { clonePlan, planToJson, round2, slug, totalSets } from "../util";
 import { parsePlanJson, ValidationError } from "../validate";
 
@@ -99,7 +99,7 @@ export function mountBuilder(root: HTMLElement, nav: Nav): void {
         h("button", {
           class: ex.equipment === eq ? "toggle-btn active" : "toggle-btn",
           type: "button",
-          text: eq === "cable" ? "Cable" : "Dumbbell",
+          text: EQUIPMENT_LABELS[eq],
           aria: { pressed: String(ex.equipment === eq) },
           on: {
             click: () => {
@@ -126,7 +126,7 @@ export function mountBuilder(root: HTMLElement, nav: Nav): void {
         },
       }),
       numberField({
-        label: "Weight (kg)",
+        label: isBodyweight(ex.equipment) ? "Added weight (kg)" : "Weight (kg)",
         value: ws.weightKg,
         step: 2.5,
         min: 0,
