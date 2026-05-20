@@ -60,3 +60,40 @@ export const BODYWEIGHT_EQUIPMENT: readonly Equipment[] = ["trx", "calisthenics"
 export function isBodyweight(equipment: Equipment): boolean {
   return (BODYWEIGHT_EQUIPMENT as readonly Equipment[]).includes(equipment);
 }
+
+/* =============================================================================
+   Routine sheets — free-text, shareable training documents.
+   A sheet stacks several routines (like the printed gym wall-charts); each
+   exercise carries a free-text prescription ("30-50 repetari", a rep pyramid,
+   "20 sec x 4/6 runde") that the structured ExercisePlan model can't express.
+   Sheets are built to be exported as PNG/PDF and shared (e.g. on WhatsApp).
+   ========================================================================== */
+
+export interface RoutineExercise {
+  name: string;
+  /** Free-text prescription, e.g. "30-50 repetari" or "1-2-3-...-3-2-1". */
+  prescription: string;
+}
+
+export interface Routine {
+  /** e.g. "RUTINA IMPINS". */
+  title: string;
+  /** Free-text labels rendered as chips, e.g. ["INTERMEDIAR+", "PARC", "60-100 antrenamente"]. */
+  tags: string[];
+  exercises: RoutineExercise[];
+}
+
+export interface RoutineSheet {
+  schema: "gymlog.routine-sheet";
+  version: 1;
+  /** uuid; regenerated on import if missing or blank. */
+  id: string;
+  /** Document title, e.g. "Rutina Impins — Calisthenics". */
+  name: string;
+  routines: Routine[];
+  /** ISO timestamp of last save. */
+  updatedAt?: string;
+}
+
+export const SHEET_SCHEMA_ID = "gymlog.routine-sheet" as const;
+export const SHEET_SCHEMA_VERSION = 1 as const;
