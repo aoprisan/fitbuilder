@@ -1,0 +1,17 @@
+{
+  "name": "gym-log-exercise-builder",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Gym Log — Exercise Builder: build workout plans, export them as JSON, and run a live training session.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7"
+  }
+}
