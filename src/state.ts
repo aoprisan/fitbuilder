@@ -1,6 +1,6 @@
 import { defaultPlan } from "./plan";
-import { defaultSheet } from "./sheet";
-import { loadSheets, saveSheet } from "./sheetStorage";
+import { defaultPullSheet, defaultSheet } from "./sheet";
+import { loadSheets, saveSheet, seedSheetOnce } from "./sheetStorage";
 import { loadPlans, savePlan } from "./storage";
 import type { ExercisePlan, RoutineSheet } from "./types";
 import { clonePlan, cloneSheet } from "./util";
@@ -32,18 +32,17 @@ function initialEditing(): ExercisePlan {
 }
 
 function initialEditingSheet(): RoutineSheet {
-  const sheets = loadSheets();
-  if (sheets.length === 0) {
-    // First run: seed and persist the default sheet.
-    const seeded = defaultSheet();
-    saveSheet(seeded);
-    return seeded;
+  if (loadSheets().length === 0) {
+    // First run: seed and persist the default push-day sheet.
+    saveSheet(defaultSheet());
   }
+  // Ensure the bundled "RUTINA TRAS" pull-day chart is present (added once).
+  seedSheetOnce(defaultPullSheet());
   // Open the most recently updated sheet as a fresh working copy.
-  const sorted = [...sheets].sort(
+  const sorted = [...loadSheets()].sort(
     (a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""),
   );
-  return cloneSheet(sorted[0]!);
+  return cloneSheet(sorted[0] ?? defaultPullSheet());
 }
 
 export const state: AppState = {
