@@ -1,8 +1,20 @@
 import { clear, h } from "../dom";
 import { ExecuteController } from "../execute";
+import { loadLogo } from "../logo";
 import type { Cleanup, Nav } from "../router";
 import { state } from "../state";
+import { loadTrainer } from "../trainer";
 import type { RoutineSheet } from "../types";
+
+/** Brand-logo banner for the top of the Execute screen, or null when unset. */
+function logoBanner(): HTMLElement | null {
+  const url = loadLogo();
+  if (!url) return null;
+  const img = h("img", { class: "screen-logo-img" });
+  img.src = url;
+  img.alt = "Brand logo";
+  return h("div", { class: "screen-logo" }, [img]);
+}
 
 function setText(el: HTMLElement, value: string): void {
   if (el.textContent !== value) el.textContent = value;
@@ -160,9 +172,12 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
     renderChecklist();
   }
 
+  const trainer = loadTrainer();
   const container = h("div", { class: "view view-execute" }, [
+    logoBanner(),
     h("h1", { class: "view-title", text: "Execute" }),
     h("p", { class: "session-plan-name", text: sheet.name }),
+    trainer ? h("p", { class: "session-trainer", text: `Trainer · ${trainer}` }) : null,
     empty
       ? h("p", { class: "empty", text: "This sheet has no exercises. Add some in Routines first." })
       : nowCard,

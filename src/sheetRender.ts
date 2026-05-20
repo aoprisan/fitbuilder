@@ -1,3 +1,5 @@
+import { loadLogoImage } from "./logo";
+import { loadTrainer } from "./trainer";
 import type { Routine, RoutineSheet } from "./types";
 
 /* Renders a routine sheet onto a <canvas> using the Canvas 2D API directly —
@@ -42,7 +44,33 @@ const nameColW = (contentW - COL_GAP) * 0.54;
 const presColW = (contentW - COL_GAP) * 0.46;
 const presX = contentX + nameColW + COL_GAP;
 
+// Brand-logo banner: drawn top-left in the header, capped to these logical
+// bounds (aspect ratio preserved). Replaces the "GYM LOG" eyebrow when present.
+const LOGO_MAX_H = 60;
+const LOGO_MAX_W = 320;
+
 type Ctx = CanvasRenderingContext2D;
+
+/** A resolved logo plus the display size it should occupy on the sheet. */
+interface SheetLogo {
+  img: HTMLImageElement;
+  w: number;
+  h: number;
+}
+
+/** Load the global brand logo (if any) and fit it within the banner bounds. */
+async function resolveLogo(): Promise<SheetLogo | null> {
+  const img = await loadLogoImage();
+  if (!img || !img.naturalWidth || !img.naturalHeight) return null;
+  const ar = img.naturalWidth / img.naturalHeight;
+  let h = LOGO_MAX_H;
+  let w = h * ar;
+  if (w > LOGO_MAX_W) {
+    w = LOGO_MAX_W;
+    h = w / ar;
+  }
+  return { img, w, h };
+}
 
 /** Ensure the web fonts are rasterizable before we draw, so canvas text isn't
     silently rendered in a fallback face. Falls back gracefully on failure. */
@@ -229,17 +257,30 @@ function drawRoutine(ctx: Ctx, routine: Routine, top: number, paint: boolean): n
 }
 
 /** Lay out (and optionally paint) the whole sheet; returns total logical height. */
-function drawSheet(ctx: Ctx, sheet: RoutineSheet, paint: boolean): number {
+function drawSheet(
+  ctx: Ctx,
+  sheet: RoutineSheet,
+  paint: boolean,
+  logo: SheetLogo | null,
+  trainer: string,
+): number {
   let y = PAD;
-
-  // Eyebrow.
-  ctx.font = `700 12px ${MONO}`;
+  // Everything below positions text from its top edge.
   ctx.textBaseline = "top";
-  if (paint) {
-    ctx.fillStyle = C.lime;
-    ctx.fillText("GYM LOG", PAD, y);
+
+  if (logo) {
+    // Brand banner stands in for the eyebrow.
+    if (paint) ctx.drawImage(logo.img, PAD, y, logo.w, logo.h);
+    y += logo.h + 14;
+  } else {
+    // Eyebrow.
+    ctx.font = `700 12px ${MONO}`;
+    if (paint) {
+      ctx.fillStyle = C.lime;
+      ctx.fillText("GYM LOG", PAD, y);
+    }
+    y += 22;
   }
-  y += 22;
 
   // Document title.
   ctx.font = `400 40px ${DISPLAY}`;
@@ -259,6 +300,16 @@ function drawSheet(ctx: Ctx, sheet: RoutineSheet, paint: boolean): number {
     ctx.fillRect(PAD, y, 120, 5);
   }
   y += 16;
+
+  // Trainer byline.
+  if (trainer) {
+    ctx.font = `700 12px ${MONO}`;
+    if (paint) {
+      ctx.fillStyle = C.lime;
+      ctx.fillText(`TRAINER · ${trainer.toUpperCase()}`, PAD, y);
+    }
+    y += 20;
+  }
 
   // Generated date.
   const date = new Date().toLocaleDateString(undefined, {
@@ -314,12 +365,14 @@ function drawSheet(ctx: Ctx, sheet: RoutineSheet, paint: boolean): number {
 /** Render a sheet to a freshly created (high-DPI) canvas. */
 export async function renderSheetToCanvas(sheet: RoutineSheet): Promise<HTMLCanvasElement> {
   await ensureFonts();
+  const logo = await resolveLogo();
+  const trainer = loadTrainer();
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas 2D context unavailable.");
 
   // Pass 1: measure (text metrics don't depend on bitmap size).
-  const totalH = drawSheet(ctx, sheet, false);
+  const totalH = drawSheet(ctx, sheet, false, logo, trainer);
 
   // Resizing the canvas resets the context, so configure and paint afterwards.
   canvas.width = Math.round(W * SCALE);
@@ -328,7 +381,7 @@ export async function renderSheetToCanvas(sheet: RoutineSheet): Promise<HTMLCanv
   ctx.fillStyle = C.bg;
   ctx.fillRect(0, 0, W, totalH);
   ctx.textAlign = "left";
-  drawSheet(ctx, sheet, true);
+  drawSheet(ctx, sheet, true, logo, trainer);
 
   return canvas;
 }

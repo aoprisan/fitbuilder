@@ -1,9 +1,11 @@
 import { clear, h } from "../dom";
 import { canShareFiles, exportSheetPdf, exportSheetPng, shareSheet } from "../exporters";
+import { clearLogo, fileToLogoDataUrl, loadLogo, LogoError, saveLogo } from "../logo";
 import type { Cleanup, Nav } from "../router";
 import { blankRoutine, blankRoutineExercise, blankSheet, singleRoutineSheet } from "../sheet";
 import { deleteSheet, loadSheets, saveSheet } from "../sheetStorage";
 import { state } from "../state";
+import { loadTrainer, saveTrainer } from "../trainer";
 import type { Routine, RoutineExercise } from "../types";
 import { cloneSheet, sheetToJson, slug } from "../util";
 
@@ -240,6 +242,83 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
     metaEl,
   ]);
 
+  // ---- Branding: trainer name + logo ----------------------------------------
+  // Global settings (stored in this browser) that brand every routine — shown
+  // on every export and on the Execute screen.
+  const trainerInput = h("input", {
+    class: "trainer-input",
+    type: "text",
+    value: loadTrainer(),
+    placeholder: "e.g. Andrei — your name on every routine",
+    aria: { label: "Trainer name" },
+  });
+  trainerInput.addEventListener("input", () => {
+    saveTrainer(trainerInput.value);
+  });
+
+  const logoPreview = h("div", { class: "logo-preview" });
+  const removeLogoBtn = h("button", {
+    class: "btn btn-small danger",
+    type: "button",
+    text: "Remove logo",
+    on: {
+      click: () => {
+        clearLogo();
+        renderLogo();
+        setStatus("Logo removed — routines show the GYM LOG mark again.", "info");
+      },
+    },
+  });
+
+  const logoFile = h("input", {
+    class: "file-input",
+    type: "file",
+    accept: "image/png",
+    aria: { label: "Upload a PNG logo" },
+  });
+  logoFile.addEventListener("change", async () => {
+    const file = logoFile.files?.[0];
+    logoFile.value = ""; // Allow re-selecting the same file later.
+    if (!file) return;
+    try {
+      saveLogo(await fileToLogoDataUrl(file));
+      renderLogo();
+      setStatus("Logo updated — it now brands every routine.", "ok");
+    } catch (err) {
+      setStatus(err instanceof LogoError ? err.message : "Couldn't set that logo.", "err");
+    }
+  });
+
+  function renderLogo(): void {
+    clear(logoPreview);
+    const url = loadLogo();
+    if (url) {
+      const img = h("img", { class: "logo-preview-img" });
+      img.src = url;
+      img.alt = "Current brand logo";
+      logoPreview.appendChild(img);
+    } else {
+      logoPreview.appendChild(
+        h("p", { class: "empty", text: "No logo yet — routines show the GYM LOG mark." }),
+      );
+    }
+    removeLogoBtn.hidden = url === null;
+  }
+
+  const logoSection = h("section", { class: "card data logo-card" }, [
+    h("h2", { class: "section-title", text: "Branding" }),
+    h("label", { class: "field" }, [
+      h("span", { class: "field-label", text: "Trainer name" }),
+      trainerInput,
+    ]),
+    h("p", {
+      class: "export-hint",
+      text: "Upload a PNG logo to brand every routine — it appears with your name at the top of each export and on the Execute screen.",
+    }),
+    logoPreview,
+    h("div", { class: "btn-row" }, [logoFile, removeLogoBtn]),
+  ]);
+
   // ---- Export ---------------------------------------------------------------
   // Guard against double-taps while the (async) render/encode runs.
   let busy = false;
@@ -432,10 +511,12 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
     routinesHost,
     statusEl,
     ...(SHOW_SHEET_ACTIONS ? [exportSection] : []),
+    logoSection,
     dataSection,
   ]);
 
   renderRoutines();
+  renderLogo();
   renderSaved();
   root.appendChild(container);
   return () => {};

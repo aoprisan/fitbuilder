@@ -678,6 +678,55 @@ textarea:focus {
   color: var(--lime);
 }
 
+/* ---- Brand logo ---------------------------------------------------------- */
+.logo-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.logo-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 92px;
+  padding: 16px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  /* Checkerboard so transparent PNGs read clearly against the dark UI. */
+  background-color: var(--bg-2);
+  background-image:
+    linear-gradient(45deg, rgba(255, 255, 255, 0.03) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(255, 255, 255, 0.03) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.03) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.03) 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+}
+
+.logo-preview .empty {
+  margin: 0;
+}
+
+.logo-preview-img {
+  max-width: 100%;
+  max-height: 72px;
+  object-fit: contain;
+}
+
+/* On-screen brand banner (Execute view). */
+.screen-logo {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.screen-logo-img {
+  max-width: min(280px, 70%);
+  max-height: 64px;
+  object-fit: contain;
+}
+
 .builder-head {
   display: flex;
   flex-direction: column;
@@ -1064,6 +1113,16 @@ textarea:focus {
   font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;
+}
+
+.session-trainer {
+  font-family: var(--mono);
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-top: 2px;
 }
 
 .session-now {
