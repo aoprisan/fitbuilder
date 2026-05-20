@@ -1,16 +1,18 @@
 import "./styles.css";
 import { clear, h } from "./dom";
 import type { Cleanup, Nav, ViewName } from "./router";
-import { setEditing, setSession, state } from "./state";
+import { setEditing, setEditingSheet, setSession, state } from "./state";
 import { clonePlan } from "./util";
 import { mountBuilder } from "./views/builder";
 import { mountHome } from "./views/home";
 import { mountSaved } from "./views/saved";
 import { mountSession } from "./views/session";
+import { mountSheet } from "./views/sheet";
 
 const NAV_ITEMS: ReadonlyArray<{ name: ViewName; label: string }> = [
   { name: "home", label: "Home" },
   { name: "builder", label: "Builder" },
+  { name: "sheet", label: "Routines" },
   { name: "saved", label: "Saved" },
   { name: "session", label: "Session" },
 ];
@@ -35,6 +37,10 @@ function boot(): void {
     start: (plan) => {
       setSession(plan);
       navigate("session");
+    },
+    editSheet: (sheet) => {
+      setEditingSheet(sheet);
+      navigate("sheet");
     },
   };
 
@@ -64,6 +70,9 @@ function boot(): void {
         break;
       case "session":
         result = mountSession(viewHost, nav);
+        break;
+      case "sheet":
+        result = mountSheet(viewHost, nav);
         break;
     }
     cleanup = typeof result === "function" ? result : null;

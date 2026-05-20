@@ -21,8 +21,8 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
       }),
       h("button", {
         class: "btn",
-        text: "Saved Plans",
-        on: { click: () => nav.go("saved") },
+        text: "Routine Sheets",
+        on: { click: () => nav.go("sheet") },
       }),
       h("button", {
         class: "btn btn-accent",
@@ -47,6 +47,7 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
       h("li", { text: "Build & tweak your plan in the Builder." }),
       h("li", { text: "Save it, download the JSON, or copy it for another tool." }),
       h("li", { text: "Start a session and train set-by-set with rest countdowns." }),
+      h("li", { text: "Or build a Routine Sheet and share it as a PNG/PDF on WhatsApp." }),
     ]),
   ]);
 

@@ -1,6 +1,6 @@
-import type { ExercisePlan } from "./types";
+import type { ExercisePlan, RoutineSheet } from "./types";
 
-export type ViewName = "home" | "builder" | "saved" | "session";
+export type ViewName = "home" | "builder" | "saved" | "session" | "sheet";
 
 export type Cleanup = () => void;
 
@@ -12,4 +12,6 @@ export interface Nav {
   edit(plan: ExercisePlan): void;
   /** Open the Session runner on the given plan. */
   start(plan: ExercisePlan): void;
+  /** Open the Routine Sheet builder on the given sheet (a working copy). */
+  editSheet(sheet: RoutineSheet): void;
 }

@@ -1,4 +1,4 @@
-import { isBodyweight, type Equipment, type ExercisePlan } from "./types";
+import { isBodyweight, type Equipment, type ExercisePlan, type RoutineSheet } from "./types";
 
 /** Generate a RFC4122 v4 uuid, falling back when crypto.randomUUID is absent. */
 export function uuid(): string {
@@ -37,6 +37,27 @@ export function clonePlan(plan: ExercisePlan): ExercisePlan {
     })),
     ...(plan.updatedAt !== undefined ? { updatedAt: plan.updatedAt } : {}),
   };
+}
+
+/** Deep clone a routine sheet so editing never mutates stored data. */
+export function cloneSheet(sheet: RoutineSheet): RoutineSheet {
+  return {
+    schema: sheet.schema,
+    version: sheet.version,
+    id: sheet.id,
+    name: sheet.name,
+    routines: sheet.routines.map((r) => ({
+      title: r.title,
+      tags: [...r.tags],
+      exercises: r.exercises.map((e) => ({ name: e.name, prescription: e.prescription })),
+    })),
+    ...(sheet.updatedAt !== undefined ? { updatedAt: sheet.updatedAt } : {}),
+  };
+}
+
+/** Pretty-print a routine sheet as interop JSON. */
+export function sheetToJson(sheet: RoutineSheet): string {
+  return JSON.stringify(sheet, null, 2);
 }
 
 /** Clamp a number into [min, max]. */
