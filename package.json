@@ -8,10 +8,25 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "cap:sync": "cap sync",
+    "cap:copy": "cap copy",
+    "cap:add:android": "cap add android",
+    "cap:add:ios": "cap add ios",
+    "build:mobile": "npm run build && cap sync",
+    "android": "npm run build && cap sync android && cap open android",
+    "android:run": "npm run build && cap run android",
+    "ios": "npm run build && cap sync ios && cap open ios",
+    "ios:run": "npm run build && cap run ios"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.3.4",
     "typescript": "^5.7.3",
     "vite": "^6.0.7"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.3.4",
+    "@capacitor/core": "^8.3.4",
+    "@capacitor/ios": "^8.3.4"
   }
 }
