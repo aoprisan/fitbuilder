@@ -241,6 +241,147 @@ textarea {
   color: var(--signal);
 }
 
+/* ───────────────── ROUTINES SUB-NAV · ledger index tabs ───────────────── */
+/* Card-file divider tabs that section the Routines view: Edit / Import /
+   Library / Brand. Inactive tabs sit recessed; the active one pulls forward
+   with a hard block-shadow and a signal-red marker stripe, like a tab tugged
+   out of a physical ledger. */
+.ledger-tabs {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 5px;
+  align-items: end;
+  margin: 20px 0 0;
+}
+
+.ledger-tab {
+  font-family: var(--font-stamp);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 9px 4px 8px;
+  background: var(--paper-ash);
+  color: var(--ink-faint);
+  border: 2px solid var(--ink-ghost);
+  border-bottom: none;
+  cursor: pointer;
+  position: relative;
+  transform: translateY(3px);
+  transition: transform 150ms var(--ease), background 140ms ease, color 140ms ease;
+}
+
+.ledger-tab__no {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--ink-faint);
+}
+
+.ledger-tab__label {
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.ledger-tab:hover {
+  background: var(--paper-deep);
+  color: var(--ink-soft);
+}
+
+.ledger-tab.active {
+  background: var(--paper);
+  color: var(--ink);
+  border-color: var(--ink);
+  border-top: 4px solid var(--signal);
+  box-shadow: 3px 3px 0 0 var(--ink);
+  transform: translateY(0);
+}
+
+.ledger-tab.active .ledger-tab__no {
+  color: var(--signal);
+}
+
+/* Oxblood count stamp on the Library tab — struck slightly askew. */
+.ledger-tab__badge {
+  position: absolute;
+  top: -8px;
+  right: -7px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.35;
+  padding: 0 4px;
+  background: var(--brick);
+  color: var(--paper);
+  border: 1.5px solid var(--ink);
+  box-shadow: 1.5px 1.5px 0 0 var(--ink);
+  transform: rotate(3deg);
+}
+
+.ledger-tab__badge[hidden] {
+  display: none;
+}
+
+/* The active panel hangs off the tab strip; a baseline rule ties them together. */
+.ledger-panel {
+  border-top: var(--rule);
+  margin-top: -2px;
+  padding-top: 18px;
+  animation: panel-in 220ms var(--ease) both;
+}
+
+.ledger-panel[hidden] {
+  display: none;
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ledger-panel {
+    animation: none;
+  }
+}
+
+/* Compact import control folded into the Edit panel — a ruled inset, lighter
+   than a full card, marked with an oxblood tick so it reads as a side door
+   into the sheet rather than the main build flow. */
+.import-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 14px 0 4px;
+  padding: 11px 14px;
+  background: var(--paper-deep);
+  border: 1.5px dashed var(--ink-faint);
+  border-left: 4px solid var(--brick);
+}
+
+.import-strip__label {
+  font-family: var(--font-stamp);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.import-strip__hint {
+  flex-basis: 100%;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
 /* ─────────────────────────── VIEW SHELL ─────────────────────────── */
 
 .view-host {

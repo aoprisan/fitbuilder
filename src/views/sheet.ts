@@ -384,13 +384,15 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
     }
   });
 
-  const importSection = h("section", { class: "card data" }, [
-    h("h2", { class: "section-title", text: "Import" }),
+  // Folded into the Edit panel as a compact strip — a side door for starting a
+  // sheet from a file, kept lighter than the manual build flow below it.
+  const importStrip = h("div", { class: "import-strip" }, [
+    h("span", { class: "import-strip__label", text: "Or import a chart" }),
+    importFile,
     h("p", {
-      class: "export-hint",
-      text: "Bring in a routine chart from an Excel file (.xlsx/.xls) or a text PDF. Each is read into routine cards you can edit, run, and share. Tabs or pages that are just images can't be read.",
+      class: "import-strip__hint",
+      text: ".xlsx · .xls · text PDF — image-only tabs or pages are skipped.",
     }),
-    h("div", { class: "btn-row" }, [importFile]),
   ]);
 
   const shareBtn = h("button", {
@@ -438,12 +440,16 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
 
   // ---- Saved sheets ---------------------------------------------------------
   const savedHost = h("div", { class: "saved-list saved-sheets" });
+  // Oxblood count stamp on the Library tab; kept in sync by renderSaved().
+  const libraryBadge = h("span", { class: "ledger-tab__badge", aria: { hidden: "true" } });
 
   function renderSaved(): void {
     clear(savedHost);
     const sheets = loadSheets().sort(
       (a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""),
     );
+    libraryBadge.textContent = String(sheets.length);
+    libraryBadge.hidden = sheets.length === 0;
     if (sheets.length === 0) {
       savedHost.appendChild(
         h("p", { class: "empty", text: "No saved sheets yet. Press Save to keep this one." }),
@@ -538,44 +544,103 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
     savedHost,
   ]);
 
+  // ---- Sub-nav: ledger index tabs -------------------------------------------
+  // The Routines view does four distinct jobs — editing the working sheet,
+  // importing one, browsing the saved library, and setting global branding.
+  // Splitting them behind tabs keeps the core editing surface clean (it's the
+  // default) and stops Import/Brand from crowding every visit on mobile. The
+  // working copy lives in `sheet`, so switching tabs just toggles visibility —
+  // no remount, no lost edits.
+  const addRoutineRow = h("div", { class: "btn-row" }, [
+    h("button", {
+      class: "btn btn-small",
+      type: "button",
+      text: "+ Add routine",
+      on: {
+        click: () => {
+          sheet.routines.push(blankRoutine());
+          renderRoutines();
+        },
+      },
+    }),
+    ...(SHOW_SHEET_ACTIONS
+      ? [
+          h("button", {
+            class: "btn btn-small btn-accent",
+            type: "button",
+            text: "Run ▸",
+            on: { click: () => nav.runSheet(cloneSheet(sheet)) },
+          }),
+        ]
+      : []),
+  ]);
+
+  const panelEdit = h("div", { class: "ledger-panel", role: "tabpanel" }, [
+    head,
+    importStrip,
+    addRoutineRow,
+    routinesHost,
+  ]);
+  const panelLibrary = h("div", { class: "ledger-panel", role: "tabpanel" }, [
+    dataSection,
+    ...(SHOW_SHEET_ACTIONS ? [exportSection] : []),
+  ]);
+  const panelBrand = h("div", { class: "ledger-panel", role: "tabpanel" }, [logoSection]);
+
+  type TabId = "edit" | "library" | "brand";
+  const tabs: ReadonlyArray<{ id: TabId; no: string; label: string; panel: HTMLElement; badge?: HTMLElement }> = [
+    { id: "edit", no: "01", label: "Edit", panel: panelEdit },
+    { id: "library", no: "02", label: "Library", panel: panelLibrary, badge: libraryBadge },
+    { id: "brand", no: "03", label: "Brand", panel: panelBrand },
+  ];
+
+  const tabButtons = new Map<TabId, HTMLButtonElement>();
+  const setTab = (id: TabId): void => {
+    for (const t of tabs) {
+      const on = t.id === id;
+      t.panel.hidden = !on;
+      const btn = tabButtons.get(t.id);
+      if (btn) {
+        btn.classList.toggle("active", on);
+        btn.setAttribute("aria-selected", on ? "true" : "false");
+      }
+    }
+  };
+
+  const tabsBar = h(
+    "div",
+    { class: "ledger-tabs", role: "tablist", aria: { label: "Routines sections" } },
+    tabs.map((t) => {
+      const btn = h("button", {
+        class: "ledger-tab",
+        type: "button",
+        role: "tab",
+        aria: { label: t.label },
+        on: { click: () => setTab(t.id) },
+      }, [
+        h("span", { class: "ledger-tab__no", text: t.no }),
+        h("span", { class: "ledger-tab__label", text: t.label }),
+        ...(t.badge ? [t.badge] : []),
+      ]);
+      tabButtons.set(t.id, btn);
+      return btn;
+    }),
+  );
+
   // ---- Assemble -------------------------------------------------------------
   const container = h("div", { class: "view view-sheet" }, [
     h("h1", { class: "view-title", text: "Routines" }),
-    head,
-    importSection,
-    logoSection,
-    h("div", { class: "btn-row" }, [
-      h("button", {
-        class: "btn btn-small",
-        type: "button",
-        text: "+ Add routine",
-        on: {
-          click: () => {
-            sheet.routines.push(blankRoutine());
-            renderRoutines();
-          },
-        },
-      }),
-      ...(SHOW_SHEET_ACTIONS
-        ? [
-            h("button", {
-              class: "btn btn-small btn-accent",
-              type: "button",
-              text: "Run ▸",
-              on: { click: () => nav.runSheet(cloneSheet(sheet)) },
-            }),
-          ]
-        : []),
-    ]),
-    routinesHost,
+    tabsBar,
     statusEl,
-    ...(SHOW_SHEET_ACTIONS ? [exportSection] : []),
-    dataSection,
+    panelEdit,
+    panelLibrary,
+    panelBrand,
   ]);
 
   renderRoutines();
   renderLogo();
   renderSaved();
+  setTab("edit");
   // Surface any message queued by an action that remounted this view (e.g. import).
   const flash = takeSheetFlash();
   if (flash) setStatus(flash.msg, flash.kind);
