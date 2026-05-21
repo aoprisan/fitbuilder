@@ -1,12 +1,13 @@
 import { clear, h } from "../dom";
 import { canShareFiles, exportSheetPdf, exportSheetPng, shareSheet } from "../exporters";
+import { ImportError, importRoutineFile } from "../import";
 import { clearLogo, fileToLogoDataUrl, loadLogo, LogoError, saveLogo } from "../logo";
 import type { Cleanup, Nav } from "../router";
 import { blankRoutine, blankRoutineExercise, blankSheet, singleRoutineSheet } from "../sheet";
 import { deleteSheet, loadSheets, saveSheet } from "../sheetStorage";
-import { state } from "../state";
+import { setSheetFlash, state, takeSheetFlash } from "../state";
 import { loadTrainer, saveTrainer } from "../trainer";
-import type { Routine, RoutineExercise } from "../types";
+import type { Routine, RoutineExercise, RoutineSheet } from "../types";
 import { cloneSheet, sheetToJson, slug } from "../util";
 
 type StatusKind = "ok" | "err" | "info";
@@ -336,6 +337,62 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
     }
   }
 
+  // ---- Import ---------------------------------------------------------------
+  // Read an .xlsx/.xls or .pdf wall-chart into routine sheets, save them all to
+  // the library, and open the first for editing. The heavy parsers load on
+  // demand (see ../import), so they never weigh down the initial app load.
+  const importFile = h("input", {
+    class: "file-input",
+    type: "file",
+    accept: ".xlsx,.xls,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    aria: { label: "Import routines from a spreadsheet or PDF" },
+  });
+  importFile.addEventListener("change", async () => {
+    const file = importFile.files?.[0];
+    importFile.value = ""; // Allow re-selecting the same file later.
+    if (!file || busy) return;
+    busy = true;
+    setStatus(`Importing "${file.name}"…`, "info");
+    try {
+      const imported = await importRoutineFile(file);
+      let first: RoutineSheet | null = null;
+      for (const s of imported) {
+        const stored = saveSheet(s);
+        if (!first) first = stored;
+      }
+      renderSaved();
+      const routineCount = imported.reduce((n, s) => n + s.routines.length, 0);
+      const sheetWord = imported.length === 1 ? "sheet" : "sheets";
+      const routineWord = routineCount === 1 ? "routine" : "routines";
+      const summary = `Imported ${imported.length} ${sheetWord} · ${routineCount} ${routineWord}.`;
+      if (first) {
+        // Opening remounts this view, so hand the confirmation to the next mount.
+        setSheetFlash(`${summary} Opened "${first.name}".`, "ok");
+        nav.editSheet(cloneSheet(first));
+      } else {
+        setStatus(summary, "ok");
+      }
+    } catch (err) {
+      setStatus(
+        err instanceof ImportError
+          ? err.message
+          : "Couldn't read that file. Make sure it's a valid .xlsx, .xls, or .pdf.",
+        "err",
+      );
+    } finally {
+      busy = false;
+    }
+  });
+
+  const importSection = h("section", { class: "card data" }, [
+    h("h2", { class: "section-title", text: "Import" }),
+    h("p", {
+      class: "export-hint",
+      text: "Bring in a routine chart from an Excel file (.xlsx/.xls) or a text PDF. Each is read into routine cards you can edit, run, and share. Tabs or pages that are just images can't be read.",
+    }),
+    h("div", { class: "btn-row" }, [importFile]),
+  ]);
+
   const shareBtn = h("button", {
     class: "btn btn-primary",
     type: "button",
@@ -485,6 +542,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
   const container = h("div", { class: "view view-sheet" }, [
     h("h1", { class: "view-title", text: "Routines" }),
     head,
+    importSection,
     logoSection,
     h("div", { class: "btn-row" }, [
       h("button", {
@@ -518,6 +576,9 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
   renderRoutines();
   renderLogo();
   renderSaved();
+  // Surface any message queued by an action that remounted this view (e.g. import).
+  const flash = takeSheetFlash();
+  if (flash) setStatus(flash.msg, flash.kind);
   root.appendChild(container);
   return () => {};
 }

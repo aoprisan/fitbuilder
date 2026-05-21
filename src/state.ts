@@ -71,3 +71,23 @@ export function setEditingSheet(sheet: RoutineSheet): void {
 export function setExecuting(sheet: RoutineSheet | null): void {
   state.executing = sheet;
 }
+
+/** A one-shot status message for the Routine Sheet view to show on its next mount. */
+export interface SheetFlash {
+  msg: string;
+  kind: "ok" | "err" | "info";
+}
+
+let pendingSheetFlash: SheetFlash | null = null;
+
+/** Queue a status message to display the next time the sheet view mounts. */
+export function setSheetFlash(msg: string, kind: SheetFlash["kind"]): void {
+  pendingSheetFlash = { msg, kind };
+}
+
+/** Read and clear the queued sheet-view status message, if any. */
+export function takeSheetFlash(): SheetFlash | null {
+  const flash = pendingSheetFlash;
+  pendingSheetFlash = null;
+  return flash;
+}
