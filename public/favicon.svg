@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Gym Log">
+  <rect width="512" height="512" rx="112" fill="#0b0c0e"/>
+  <g fill="none" stroke="#c9f53a" stroke-width="34" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="176" y1="256" x2="336" y2="256"/>
+    <rect x="96" y="200" width="48" height="112" rx="18" fill="#c9f53a" stroke="none"/>
+    <rect x="368" y="200" width="48" height="112" rx="18" fill="#c9f53a" stroke="none"/>
+    <rect x="146" y="216" width="34" height="80" rx="14" fill="#c9f53a" stroke="none"/>
+    <rect x="332" y="216" width="34" height="80" rx="14" fill="#c9f53a" stroke="none"/>
+  </g>
+</svg>

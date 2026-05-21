@@ -1,0 +1,31 @@
+{
+  "name": "Gym Log — Performance Console",
+  "short_name": "Gym Log",
+  "description": "Build workout plans, export them as JSON, and run a live training session.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b0c0e",
+  "theme_color": "#0b0c0e",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icons/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-maskable.png",
+      "type": "image/png",
+      "sizes": "432x432",
+      "purpose": "maskable"
+    }
+  ]
+}
