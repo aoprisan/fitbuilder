@@ -1527,6 +1527,232 @@ textarea:focus {
   color: var(--ink-faint);
 }
 
+/* ---- Execute: per-row rep progress -------------------------------------- */
+.exec-mini {
+  display: block;
+  height: 5px;
+  margin-top: 7px;
+  background: var(--bg-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.exec-mini-fill {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--lime-deep), var(--lime));
+  border-radius: 999px;
+  transition: width 160ms ease;
+}
+
+.exec-count {
+  flex: 0 0 auto;
+  align-self: center;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--lime);
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+}
+
+.exec-item.done .exec-count {
+  color: var(--ink-faint);
+}
+
+/* ---- Execute: focused rep logger ---------------------------------------- */
+.now-tally {
+  position: relative;
+  font-family: var(--display);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.tally-done {
+  font-size: clamp(40px, 12vw, 64px);
+  line-height: 0.9;
+  color: var(--lime);
+}
+
+.tally-sep {
+  font-size: clamp(28px, 8vw, 40px);
+  color: var(--ink-faint);
+}
+
+.tally-target {
+  font-size: clamp(28px, 8vw, 40px);
+  color: var(--ink-soft);
+}
+
+.tally-unit {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--ink-faint);
+  align-self: flex-end;
+  padding-bottom: 6px;
+}
+
+.now-progress {
+  position: relative;
+  width: 100%;
+  align-self: stretch;
+}
+
+.now-sets {
+  position: relative;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.rep-logger {
+  position: relative;
+  width: 100%;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 4px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.rep-logger-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-weight: 600;
+  color: var(--ink-faint);
+}
+
+.rep-stepper {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.step-btn {
+  flex: 0 0 auto;
+  width: 56px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+  color: var(--ink);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, transform 90ms ease;
+}
+
+.step-btn:hover {
+  border-color: var(--ink-soft);
+  background: var(--panel-3);
+}
+
+.step-btn:active {
+  transform: translateY(1px);
+}
+
+.rep-input {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: 34px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  padding: 8px 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rep-input:focus {
+  outline: none;
+  border-color: rgba(201, 245, 58, 0.5);
+  box-shadow: var(--glow-lime);
+}
+
+/* Hide the native number spinners — the ± buttons replace them. */
+.rep-input::-webkit-outer-spin-button,
+.rep-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.rep-input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.rep-actions {
+  flex-wrap: nowrap;
+}
+
+.rep-log {
+  flex: 1 1 0;
+}
+
+.rep-undo {
+  flex: 0 0 auto;
+}
+
+.rep-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rep-chip {
+  flex: 1 1 0;
+  min-width: 60px;
+  border: 1px solid rgba(201, 245, 58, 0.4);
+  border-radius: 999px;
+  background: rgba(201, 245, 58, 0.06);
+  color: var(--lime);
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, transform 90ms ease;
+}
+
+.rep-chip:hover {
+  background: rgba(201, 245, 58, 0.12);
+  border-color: var(--lime);
+}
+
+.rep-chip:active {
+  transform: translateY(1px);
+}
+
+.rep-manual {
+  position: relative;
+  width: 100%;
+  align-self: stretch;
+}
+
+.exec-meta {
+  flex-wrap: wrap;
+}
+
 /* ---- Mobile: bottom control deck + thumb ergonomics --------------------- */
 @media (max-width: 599px) {
   /* iOS Safari background-attachment:fixed repaints badly while scrolling. */
