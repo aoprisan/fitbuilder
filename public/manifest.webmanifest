@@ -1,12 +1,12 @@
 {
-  "name": "Gym Log — Performance Console",
+  "name": "Gym Log · Training Ledger",
   "short_name": "Gym Log",
-  "description": "Build workout plans, export them as JSON, and run a live training session.",
+  "description": "Draft workout programs, print shareable routine sheets, and run live training sessions — a vintage athletic training ledger.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#0b0c0e",
-  "theme_color": "#0b0c0e",
+  "background_color": "#efe7d4",
+  "theme_color": "#efe7d4",
   "orientation": "portrait",
   "icons": [
     {

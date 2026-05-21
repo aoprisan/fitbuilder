@@ -5,24 +5,27 @@ import type { Routine, RoutineSheet } from "./types";
 /* Renders a routine sheet onto a <canvas> using the Canvas 2D API directly —
    no DOM rasterization library, so the output is deterministic and dependency
    free. The same canvas backs both the PNG and the (JPEG-in-)PDF export.
-   Colors and fonts mirror the "Performance Console" theme in styles.css. */
+   Colors and fonts mirror the "Training Ledger" theme in styles.css — a
+   letterpress workout sheet printed on cream stock. */
 
 const C = {
-  bg: "#0b0c0e",
-  panel: "#15181d",
-  rowAlt: "rgba(255,255,255,0.028)",
-  ink: "#f3f2ea",
-  inkSoft: "rgba(243,242,234,0.6)",
-  inkFaint: "rgba(243,242,234,0.34)",
-  line: "rgba(243,242,234,0.12)",
-  lineStrong: "rgba(243,242,234,0.22)",
-  lime: "#c9f53a",
-  limeInk: "#11140a",
-  limeChipBg: "rgba(201,245,58,0.07)",
+  bg: "#efe7d4",
+  panel: "#e7dcc0",
+  rowAlt: "rgba(27,22,16,0.045)",
+  ink: "#1b1610",
+  inkSoft: "rgba(27,22,16,0.64)",
+  inkFaint: "rgba(27,22,16,0.42)",
+  line: "rgba(27,22,16,0.18)",
+  lineStrong: "rgba(27,22,16,0.36)",
+  signal: "#d6422b",
+  brick: "#6e1f1a",
+  mustard: "#c9962a",
+  onInk: "#efe7d4",
+  chipBg: "rgba(201,150,42,0.12)",
 } as const;
 
-const DISPLAY = "'Anton', system-ui, sans-serif";
-const MONO = "'Martian Mono', ui-monospace, Menlo, monospace";
+const DISPLAY = "'Alfa Slab One', Rockwell, Georgia, serif";
+const MONO = "'IBM Plex Mono', ui-monospace, Menlo, monospace";
 
 // Logical layout units (multiplied by SCALE for the actual bitmap).
 const W = 760;
@@ -162,13 +165,13 @@ function drawTags(ctx: Ctx, tags: string[], top: number, paint: boolean): number
       y += chipH + chipGap;
     }
     if (paint) {
-      roundRect(ctx, x, y, w, chipH, chipH / 2);
-      ctx.fillStyle = C.limeChipBg;
+      roundRect(ctx, x, y, w, chipH, 3);
+      ctx.fillStyle = C.chipBg;
       ctx.fill();
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = C.lineStrong;
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = C.mustard;
       ctx.stroke();
-      ctx.fillStyle = C.lime;
+      ctx.fillStyle = C.brick;
       ctx.textBaseline = "middle";
       ctx.fillText(label, x + padX, y + chipH / 2 + 0.5);
     }
@@ -186,7 +189,7 @@ function drawRoutine(ctx: Ctx, routine: Routine, top: number, paint: boolean): n
   const titleLines = wrap(ctx, routine.title.trim() || "Untitled routine", CW);
   for (const ln of titleLines) {
     if (paint) {
-      ctx.fillStyle = C.lime;
+      ctx.fillStyle = C.brick;
       ctx.fillText(ln.toUpperCase(), PAD, y);
     }
     y += 30;
@@ -228,10 +231,10 @@ function drawRoutine(ctx: Ctx, routine: Routine, top: number, paint: boolean): n
       }
 
       // Index badge.
-      roundRect(ctx, PAD, y + ROW_PAD_V, BADGE, BADGE, 6);
-      ctx.fillStyle = C.lime;
+      roundRect(ctx, PAD, y + ROW_PAD_V, BADGE, BADGE, 3);
+      ctx.fillStyle = C.ink;
       ctx.fill();
-      ctx.fillStyle = C.limeInk;
+      ctx.fillStyle = C.onInk;
       ctx.font = `700 12px ${MONO}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -245,7 +248,7 @@ function drawRoutine(ctx: Ctx, routine: Routine, top: number, paint: boolean): n
       nameLines.forEach((ln, li) => ctx.fillText(ln, contentX, y + ROW_PAD_V + li * NAME_LH));
 
       // Prescription.
-      ctx.fillStyle = C.lime;
+      ctx.fillStyle = C.brick;
       ctx.font = `400 ${PRES_SIZE}px ${MONO}`;
       presLines.forEach((ln, li) => ctx.fillText(ln, presX, y + ROW_PAD_V + li * PRES_LH));
     }
@@ -276,8 +279,8 @@ function drawSheet(
     // Eyebrow.
     ctx.font = `700 12px ${MONO}`;
     if (paint) {
-      ctx.fillStyle = C.lime;
-      ctx.fillText("GYM LOG", PAD, y);
+      ctx.fillStyle = C.brick;
+      ctx.fillText("GYM LOG · TRAINING LEDGER", PAD, y);
     }
     y += 22;
   }
@@ -294,10 +297,10 @@ function drawSheet(
   }
   y += 4;
 
-  // Lime baseline rule.
+  // Signal-red baseline rule.
   if (paint) {
-    ctx.fillStyle = C.lime;
-    ctx.fillRect(PAD, y, 120, 5);
+    ctx.fillStyle = C.signal;
+    ctx.fillRect(PAD, y, 120, 6);
   }
   y += 16;
 
@@ -305,7 +308,7 @@ function drawSheet(
   if (trainer) {
     ctx.font = `700 12px ${MONO}`;
     if (paint) {
-      ctx.fillStyle = C.lime;
+      ctx.fillStyle = C.brick;
       ctx.fillText(`TRAINER · ${trainer.toUpperCase()}`, PAD, y);
     }
     y += 20;
