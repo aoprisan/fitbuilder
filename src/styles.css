@@ -150,13 +150,21 @@ textarea {
 
 .brand::after {
   content: "TRAINING LEDGER · Nº 01";
-  display: block;
+  display: inline-block;
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 10px;
-  letter-spacing: 0.34em;
+  font-size: 9.5px;
+  letter-spacing: 0.2em;
   color: var(--brick);
-  margin-top: 8px;
+  margin-top: 11px;
+  padding: 5px 8px 3px;
+  border: 2px solid var(--brick);
+  transform: rotate(-1.6deg);
+  transition: transform 160ms var(--ease);
+}
+
+.brand:hover::after {
+  transform: rotate(1.4deg) scale(1.02);
 }
 
 .brand:hover {
@@ -288,6 +296,17 @@ textarea {
   width: 84px;
   height: 6px;
   background: var(--signal);
+  transform-origin: left center;
+  animation: ruleIn 560ms var(--ease) both;
+}
+
+@keyframes ruleIn {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
 }
 
 .eyebrow {
@@ -367,13 +386,29 @@ textarea {
 }
 
 .empty {
+  position: relative;
   font-family: var(--font-mono);
   font-size: 12.5px;
   letter-spacing: 0.04em;
   color: var(--ink-soft);
   text-align: center;
-  padding: 22px 16px;
+  padding: 24px 16px;
   border: 2px dashed var(--ink-faint);
+}
+
+/* Stamped registration marks above the message — "nothing on file". */
+.empty::before {
+  content: "✶  ✶  ✶";
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  color: var(--brick);
+  opacity: 0.7;
+  margin-bottom: 9px;
+}
+
+.logo-preview .empty::before {
+  display: none;
 }
 
 /* ─────────────────────────── BUTTONS ─────────────────────────── */
@@ -400,8 +435,12 @@ textarea {
     color 150ms ease;
 }
 
+/* Stamp mechanics: lift off the page on hover (deeper block shadow), then
+   slam flat on press — like inking and pressing a rubber stamp. */
 .btn:hover {
   background: var(--paper-ash);
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 0 var(--ink);
 }
 
 .btn:active {
@@ -415,8 +454,10 @@ textarea {
   box-shadow: 2px 2px 0 0 var(--ink);
 }
 
+.btn:disabled:hover,
 .btn:disabled:active {
   transform: none;
+  box-shadow: 2px 2px 0 0 var(--ink);
 }
 
 .btn-primary {
@@ -455,6 +496,11 @@ textarea {
   width: 100%;
 }
 
+.btn-jumbo:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 10px 10px 0 0 var(--ink);
+}
+
 .btn-jumbo:active {
   box-shadow: 3px 3px 0 0 var(--ink);
   transform: translate(4px, 4px);
@@ -489,6 +535,11 @@ textarea {
     color 140ms ease;
 }
 
+.icon-btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 0 var(--ink);
+}
+
 .icon-btn:active {
   transform: translate(2px, 2px);
   box-shadow: 0 0 0 0 var(--ink);
@@ -497,6 +548,11 @@ textarea {
 .icon-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+}
+
+.icon-btn:disabled:hover {
+  transform: none;
+  box-shadow: 2px 2px 0 0 var(--ink);
 }
 
 /* Steppers (+ / −) flanking number inputs. */
@@ -919,6 +975,22 @@ textarea {
   aspect-ratio: 1;
 }
 
+/* Pressure-gauge tick ring just outside the dial track. */
+.dial-wrap::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: repeating-conic-gradient(
+    from -90deg,
+    var(--ink-faint) 0 0.7deg,
+    transparent 0.7deg 6deg
+  );
+  -webkit-mask: radial-gradient(closest-side, transparent 0 93%, #000 93% 99%, transparent 99%);
+  mask: radial-gradient(closest-side, transparent 0 93%, #000 93% 99%, transparent 99%);
+  pointer-events: none;
+}
+
 .dial {
   width: 100%;
   height: 100%;
@@ -1104,6 +1176,19 @@ textarea {
   font-size: clamp(48px, 15vw, 72px);
   line-height: 0.8;
   color: var(--signal);
+  display: inline-block;
+  transform-origin: left bottom;
+}
+
+/* One-shot ink-stamp thump when a set is logged. */
+.tally-done.stamp {
+  animation: stampPulse 380ms var(--ease);
+}
+
+@keyframes stampPulse {
+  0% { transform: scale(1) rotate(0deg); }
+  28% { transform: scale(1.16) rotate(-2.5deg); }
+  100% { transform: scale(1) rotate(0deg); }
 }
 
 .tally-sep {
@@ -1184,6 +1269,8 @@ textarea {
 .step-btn:hover {
   background: var(--ink);
   color: var(--paper);
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0 0 var(--ink);
 }
 
 .step-btn:active {

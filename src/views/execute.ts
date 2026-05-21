@@ -184,10 +184,19 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
     });
   }
 
+  // Replay a one-shot CSS animation by clearing the class, forcing a reflow,
+  // then re-adding it — so logging set after set re-thumps the tally.
+  function pulseStamp(el: HTMLElement): void {
+    el.classList.remove("stamp");
+    void el.offsetWidth;
+    el.classList.add("stamp");
+  }
+
   // ---- Logger actions -------------------------------------------------------
   function logReps(n: number): void {
     ctl.logSet(ctl.selectedIndex(), n);
     update();
+    pulseStamp(tallyDone);
   }
 
   minusBtn.addEventListener("click", () => {

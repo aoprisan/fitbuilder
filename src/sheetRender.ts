@@ -137,6 +137,26 @@ function wrap(ctx: Ctx, text: string, maxW: number): string[] {
   return lines.length ? lines : [""];
 }
 
+/** Printer's crop/registration marks at the four trim corners of the sheet. */
+function drawCropMarks(ctx: Ctx, w: number, h: number): void {
+  const m = 15;
+  const len = 13;
+  ctx.strokeStyle = C.inkFaint;
+  ctx.lineWidth = 1;
+  const corner = (cx: number, cy: number, sx: number, sy: number): void => {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + sx * len, cy);
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx, cy + sy * len);
+    ctx.stroke();
+  };
+  corner(m, m, 1, 1);
+  corner(w - m, m, -1, 1);
+  corner(m, h - m, 1, -1);
+  corner(w - m, h - m, -1, -1);
+}
+
 function roundRect(ctx: Ctx, x: number, y: number, w: number, h: number, r: number): void {
   const rr = Math.min(r, h / 2, w / 2);
   ctx.beginPath();
@@ -251,6 +271,14 @@ function drawRoutine(ctx: Ctx, routine: Routine, top: number, paint: boolean): n
       ctx.fillStyle = C.brick;
       ctx.font = `400 ${PRES_SIZE}px ${MONO}`;
       presLines.forEach((ln, li) => ctx.fillText(ln, presX, y + ROW_PAD_V + li * PRES_LH));
+
+      // Ledger baseline beneath each row.
+      ctx.strokeStyle = C.line;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(PAD, y + rowH - 0.5);
+      ctx.lineTo(PAD + CW, y + rowH - 0.5);
+      ctx.stroke();
     }
 
     y += rowH;
@@ -385,6 +413,7 @@ export async function renderSheetToCanvas(sheet: RoutineSheet): Promise<HTMLCanv
   ctx.fillRect(0, 0, W, totalH);
   ctx.textAlign = "left";
   drawSheet(ctx, sheet, true, logo, trainer);
+  drawCropMarks(ctx, W, totalH);
 
   return canvas;
 }
