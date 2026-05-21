@@ -1,5 +1,6 @@
 import "./styles.css";
 import { clear, h } from "./dom";
+import { registerServiceWorker } from "./pwa";
 import type { Cleanup, Nav, ViewName } from "./router";
 import { setEditing, setEditingSheet, setExecuting, setSession, state } from "./state";
 import { clonePlan, cloneSheet } from "./util";
@@ -143,4 +144,5 @@ function boot(): void {
   navigate("home");
 }
 
+registerServiceWorker();
 boot();
