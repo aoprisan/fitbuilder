@@ -1,5 +1,5 @@
 import { clear, h } from "../dom";
-import { blankExercise } from "../plan";
+import { blankExercise, blankPlan } from "../plan";
 import type { Nav } from "../router";
 import { state } from "../state";
 import { savePlan } from "../storage";
@@ -371,6 +371,12 @@ export function mountBuilder(root: HTMLElement, nav: Nav): void {
         type: "button",
         text: "Start session ▸",
         on: { click: () => nav.start(clonePlan(plan)) },
+      }),
+      h("button", {
+        class: "btn",
+        type: "button",
+        text: "+ New plan",
+        on: { click: () => nav.edit(blankPlan()) },
       }),
       h("button", {
         class: "btn",

@@ -1,7 +1,7 @@
-import { defaultPlan } from "./plan";
+import { defaultBicepsPlan, defaultPlan } from "./plan";
 import { defaultPullSheet, defaultSheet } from "./sheet";
 import { loadSheets, saveSheet, seedSheetOnce } from "./sheetStorage";
-import { loadPlans, savePlan } from "./storage";
+import { loadPlans, savePlan, seedPlanOnce } from "./storage";
 import type { ExercisePlan, RoutineSheet } from "./types";
 import { clonePlan, cloneSheet } from "./util";
 
@@ -17,18 +17,17 @@ interface AppState {
 }
 
 function initialEditing(): ExercisePlan {
-  const plans = loadPlans();
-  if (plans.length === 0) {
+  if (loadPlans().length === 0) {
     // First run: seed and persist the default plan.
-    const seeded = defaultPlan();
-    savePlan(seeded);
-    return seeded;
+    savePlan(defaultPlan());
   }
+  // Ensure the bundled "Biceps" plan is present as the second plan (added once).
+  seedPlanOnce(defaultBicepsPlan());
   // Open the most recently updated plan as a fresh working copy.
-  const sorted = [...plans].sort(
+  const sorted = [...loadPlans()].sort(
     (a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""),
   );
-  return clonePlan(sorted[0]!);
+  return clonePlan(sorted[0] ?? defaultPlan());
 }
 
 function initialEditingSheet(): RoutineSheet {

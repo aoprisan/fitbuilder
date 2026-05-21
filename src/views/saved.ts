@@ -1,4 +1,5 @@
 import { clear, h } from "../dom";
+import { blankPlan } from "../plan";
 import type { Nav } from "../router";
 import { deletePlan, loadPlans } from "../storage";
 import { clonePlan, totalSets } from "../util";
@@ -61,6 +62,14 @@ export function mountSaved(root: HTMLElement, nav: Nav): void {
 
   const container = h("div", { class: "view view-saved" }, [
     h("h1", { class: "view-title", text: "Saved Plans" }),
+    h("div", { class: "btn-row" }, [
+      h("button", {
+        class: "btn btn-primary",
+        type: "button",
+        text: "+ New plan",
+        on: { click: () => nav.edit(blankPlan()) },
+      }),
+    ]),
     listHost,
   ]);
 
