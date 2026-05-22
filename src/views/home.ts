@@ -16,6 +16,11 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
     h("div", { class: "btn-row" }, [
       h("button", {
         class: "btn btn-primary",
+        text: "Start Live Session",
+        on: { click: () => nav.go("live") },
+      }),
+      h("button", {
+        class: "btn",
         text: "Open Builder",
         on: { click: () => nav.go("builder") },
       }),

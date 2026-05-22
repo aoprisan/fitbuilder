@@ -1205,15 +1205,18 @@ textarea {
 
 /* ─────────────────────── DIAL INPUT (log reps / weight) ─────────────────── */
 
+.dial-field {
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+}
+
 .set-row-dial {
   align-items: flex-start;
 }
 
 .set-row-dial .field.dial-field {
   flex: 1 1 132px;
-  align-items: center;
-  text-align: center;
-  gap: 8px;
 }
 
 .set-row-dial .icon-btn {
@@ -1332,6 +1335,101 @@ textarea {
 .dial-input-foot .stepper {
   width: 52px;
   padding: 6px 0;
+}
+
+/* ─────────────────────────── LIVE SESSION FLOW ─────────────────────────── */
+
+.live-select .field + .field {
+  margin-top: 14px;
+}
+
+.live-select .btn-row {
+  margin-top: 16px;
+}
+
+.live-actions {
+  margin-top: 6px;
+  justify-content: center;
+}
+
+.live-actions .btn-jumbo {
+  flex: 1 1 100%;
+}
+
+.live-done-list {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 2px dashed var(--ink-faint);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.live-done-row {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.live-ex-head {
+  text-align: center;
+}
+
+.live-ex-head .now-name {
+  margin: 8px 0 2px;
+}
+
+.live-set-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.live-set {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  border-left: 6px solid var(--ink);
+}
+
+.live-set .set-no {
+  flex: 0 0 auto;
+}
+
+.live-set-meta {
+  font-family: var(--font-display);
+  font-size: 15px;
+  color: var(--ink);
+  text-align: right;
+}
+
+.live-dials {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.live-dials .dial-field {
+  flex: 0 1 150px;
+}
+
+.set-time {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--brick);
+  margin: 0 0 4px;
 }
 
 /* Completion banner */

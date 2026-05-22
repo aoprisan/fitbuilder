@@ -10,6 +10,8 @@ export interface WorkSet {
   reps: number;
   /** External load in kg. For bodyweight equipment this is *added* weight (0 = bodyweight only). */
   weightKg: number;
+  /** Seconds the set took, recorded by the live stopwatch. Absent for planned sets. */
+  durationSec?: number;
 }
 
 export interface Exercise {
