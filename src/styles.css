@@ -1272,13 +1272,13 @@ textarea {
 .input-dial-track {
   fill: none;
   stroke: var(--ink-ghost);
-  stroke-width: 7;
+  stroke-width: 12;
 }
 
 .input-dial-fill {
   fill: none;
   stroke: var(--signal);
-  stroke-width: 9;
+  stroke-width: 14;
   stroke-linecap: butt;
   transform: rotate(-90deg);
   transform-origin: center;
@@ -1389,8 +1389,7 @@ textarea {
 
 .live-set {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  align-items: center;
   gap: 12px;
   padding: 10px 12px;
   background: var(--paper);
@@ -1403,10 +1402,16 @@ textarea {
 }
 
 .live-set-meta {
+  flex: 1 1 auto;
   font-family: var(--font-display);
   font-size: 15px;
   color: var(--ink);
   text-align: right;
+}
+
+.live-set-del {
+  flex: 0 0 auto;
+  align-self: center;
 }
 
 .live-dials {
