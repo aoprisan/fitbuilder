@@ -1,4 +1,5 @@
 import { clear, h } from "../dom";
+import { lifetimeEffort, type LifetimeEffort } from "../effort";
 import { loadSessions } from "../logStorage";
 import type { Cleanup, Nav } from "../router";
 import {
@@ -7,7 +8,8 @@ import {
   presentExerciseKeys,
   type ProgressFilter,
 } from "../stats";
-import { round2 } from "../util";
+import { MUSCLE_LABELS } from "../types";
+import { formatClock, round2 } from "../util";
 import { lineChart } from "./chart";
 
 export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
@@ -31,6 +33,9 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
         text: "How your live sessions trend over time — reps, weight, their combined volume, plus strength and hypertrophy progress. Filter to one exercise to track progressive overload.",
       }),
     );
+
+    const lifetime = lifetimeEffort(sessions);
+    if (lifetime.sessions > 0) container.append(renderLifetime(lifetime));
 
     if (keys.length > 0) container.append(renderFilter(keys));
 
@@ -113,6 +118,61 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
         format: kg,
       }),
     );
+  }
+
+  /**
+   * The live-session summary stats (effort, per-muscle work, hydration, protein)
+   * pooled across every logged session — the all-time counterpart to the gauge
+   * shown during a workout. Per-muscle rows are ranked by effort so the biggest
+   * contributors lead, each with a bar showing its share of the busiest muscle.
+   */
+  function renderLifetime(lifetime: LifetimeEffort): HTMLElement {
+    const byEffort = [...lifetime.muscles].sort((a, b) => b.effort - a.effort);
+    const topEffort = byEffort[0]?.effort ?? 0;
+    const liters = Math.round(lifetime.hydrationMl / 100) / 10;
+    const glassCount = Math.round(lifetime.hydrationMl / 250);
+    const glasses = `${glassCount} ${glassCount === 1 ? "glass" : "glasses"}`;
+
+    const muscleRows = byEffort.map((m) => {
+      const fill = h("div", { class: "muscle-bar-fill" });
+      fill.style.width = `${topEffort > 0 ? (m.effort / topEffort) * 100 : 0}%`;
+      const detail = `${m.volume > 0 ? `${m.volume} kg` : "Bodyweight"} · ${formatClock(m.timeSec)} · ${m.sets} ${m.sets === 1 ? "set" : "sets"}`;
+      return h("div", { class: "muscle-effort" }, [
+        h("div", { class: "muscle-row" }, [
+          h("span", { class: "muscle-name", text: MUSCLE_LABELS[m.muscle] }),
+          h("span", { class: "muscle-stat", text: `${m.effort} pts` }),
+        ]),
+        h("div", { class: "muscle-bar" }, [fill]),
+        h("span", { class: "muscle-detail", text: detail }),
+      ]);
+    });
+
+    return h("section", { class: "card live-effort lifetime-effort" }, [
+      h("div", { class: "effort-head" }, [
+        h("span", { class: "effort-eyebrow", text: "Lifetime effort" }),
+        h("span", { class: "effort-tier", text: `${lifetime.points} pts` }),
+      ]),
+      h("p", {
+        class: "effort-meta",
+        text: `Across ${lifetime.sessions} ${lifetime.sessions === 1 ? "session" : "sessions"} · ${lifetime.muscles.length} ${lifetime.muscles.length === 1 ? "muscle group" : "muscle groups"}`,
+      }),
+      h("div", { class: "summary-muscles" }, [
+        h("span", { class: "summary-label", text: "Effort per muscle" }),
+        ...muscleRows,
+      ]),
+      h("div", { class: "hydration-row" }, [
+        h("span", { class: "hydration-label", text: "Hydration" }),
+        h("span", { class: "hydration-figure", text: `≈ ${liters.toFixed(1)} L · ${glasses}` }),
+      ]),
+      h("p", {
+        class: "hydration-note",
+        text: "Total fluid to match every session's effort.",
+      }),
+      h("div", { class: "protein-row" }, [
+        h("span", { class: "protein-label", text: "Protein to recover" }),
+        h("span", { class: "protein-figure", text: `≈ ${lifetime.proteinG} g` }),
+      ]),
+    ]);
   }
 
   function renderFilter(keys: string[]): HTMLElement {

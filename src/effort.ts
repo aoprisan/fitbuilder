@@ -130,24 +130,35 @@ export interface MuscleWork {
   /** Σ set duration, seconds. */
   timeSec: number;
   sets: number;
+  /** Σ effort points contributed by this muscle's sets. */
+  effort: number;
+}
+
+/** Per-muscle work across the given sessions, busiest first (by volume, then time). */
+function accumulateMuscleWork(sessions: Iterable<TrainingSession>): MuscleWork[] {
+  const byMuscle = new Map<MuscleGroup, MuscleWork>();
+  for (const session of sessions) {
+    for (const ex of session.exercises) {
+      for (const s of ex.sets) {
+        const entry =
+          byMuscle.get(ex.muscle) ??
+          { muscle: ex.muscle, volume: 0, timeSec: 0, sets: 0, effort: 0 };
+        entry.volume += s.reps * Math.max(0, s.weightKg);
+        entry.timeSec += s.durationSec ?? 0;
+        entry.sets += 1;
+        entry.effort += setEffort(s);
+        byMuscle.set(ex.muscle, entry);
+      }
+    }
+  }
+  return [...byMuscle.values()]
+    .map((m) => ({ ...m, volume: Math.round(m.volume), effort: Math.round(m.effort * 10) / 10 }))
+    .sort((a, b) => b.volume - a.volume || b.timeSec - a.timeSec);
 }
 
 /** Per-muscle-group work in a session, busiest first (by volume, then time). */
 export function muscleBreakdown(session: TrainingSession): MuscleWork[] {
-  const byMuscle = new Map<MuscleGroup, MuscleWork>();
-  for (const ex of session.exercises) {
-    for (const s of ex.sets) {
-      const entry =
-        byMuscle.get(ex.muscle) ?? { muscle: ex.muscle, volume: 0, timeSec: 0, sets: 0 };
-      entry.volume += s.reps * Math.max(0, s.weightKg);
-      entry.timeSec += s.durationSec ?? 0;
-      entry.sets += 1;
-      byMuscle.set(ex.muscle, entry);
-    }
-  }
-  return [...byMuscle.values()]
-    .map((m) => ({ ...m, volume: Math.round(m.volume) }))
-    .sort((a, b) => b.volume - a.volume || b.timeSec - a.timeSec);
+  return accumulateMuscleWork([session]);
 }
 
 // Recovery-protein estimate: a minimum effective dose for muscle protein
@@ -181,5 +192,43 @@ export function readHydration(effort: EffortReading): HydrationReading {
     liters: Math.round(ml / 100) / 10,
     glasses: Math.round(ml / ML_PER_GLASS),
     note: HYDRATION_NOTES[effort.tier],
+  };
+}
+
+export interface LifetimeEffort {
+  /** Sessions that have at least one logged set. */
+  sessions: number;
+  /** Effort points pooled across every session. */
+  points: number;
+  /** Per-muscle work pooled across every session, busiest first. */
+  muscles: MuscleWork[];
+  /** Total recommended fluid across every session, ml. */
+  hydrationMl: number;
+  /** Total recovery protein across every session, g. */
+  proteinG: number;
+}
+
+/**
+ * The session-summary stats (effort, per-muscle work, hydration, protein) rolled
+ * up over every logged session. Hydration and protein are summed per session so
+ * the totals reflect what each individual session called for, then pooled.
+ */
+export function lifetimeEffort(sessions: TrainingSession[]): LifetimeEffort {
+  const logged = sessions.filter((s) => s.exercises.some((ex) => ex.sets.length > 0));
+  let points = 0;
+  let hydrationMl = 0;
+  let proteinG = 0;
+  for (const session of logged) {
+    const effort = readEffort(session, sessions);
+    points += effort.points;
+    hydrationMl += readHydration(effort).ml;
+    proteinG += estimateProteinG(effort, muscleBreakdown(session).length);
+  }
+  return {
+    sessions: logged.length,
+    points: Math.round(points * 10) / 10,
+    muscles: accumulateMuscleWork(logged),
+    hydrationMl,
+    proteinG,
   };
 }
