@@ -1,4 +1,4 @@
-import type { TrainingSession, WorkSet } from "./types";
+import type { MuscleGroup, TrainingSession, WorkSet } from "./types";
 
 /**
  * Live-session effort and hydration heuristics.
@@ -121,6 +121,47 @@ export interface HydrationReading {
   glasses: number;
   /** Short, effort-aware cue. */
   note: string;
+}
+
+export interface MuscleWork {
+  muscle: MuscleGroup;
+  /** Σ reps × load, kg (0 for purely bodyweight work). */
+  volume: number;
+  /** Σ set duration, seconds. */
+  timeSec: number;
+  sets: number;
+}
+
+/** Per-muscle-group work in a session, busiest first (by volume, then time). */
+export function muscleBreakdown(session: TrainingSession): MuscleWork[] {
+  const byMuscle = new Map<MuscleGroup, MuscleWork>();
+  for (const ex of session.exercises) {
+    for (const s of ex.sets) {
+      const entry =
+        byMuscle.get(ex.muscle) ?? { muscle: ex.muscle, volume: 0, timeSec: 0, sets: 0 };
+      entry.volume += s.reps * Math.max(0, s.weightKg);
+      entry.timeSec += s.durationSec ?? 0;
+      entry.sets += 1;
+      byMuscle.set(ex.muscle, entry);
+    }
+  }
+  return [...byMuscle.values()]
+    .map((m) => ({ ...m, volume: Math.round(m.volume) }))
+    .sort((a, b) => b.volume - a.volume || b.timeSec - a.timeSec);
+}
+
+// Recovery-protein estimate: a minimum effective dose for muscle protein
+// synthesis, scaled up by how hard the session was and how many muscle groups
+// it taxed. Bodyweight-only sessions still register via their effort points.
+const PROTEIN_BASE_G = 15;
+const PROTEIN_PER_EFFORT = 0.4;
+const PROTEIN_PER_MUSCLE = 2;
+
+/** Estimated protein (g) to support recovery from this session, rounded to 5 g. */
+export function estimateProteinG(effort: EffortReading, muscleCount: number): number {
+  const raw =
+    PROTEIN_BASE_G + effort.points * PROTEIN_PER_EFFORT + muscleCount * PROTEIN_PER_MUSCLE;
+  return Math.round(raw / 5) * 5;
 }
 
 const HYDRATION_NOTES: Record<EffortTier, string> = {

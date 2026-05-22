@@ -1,5 +1,5 @@
 import { clear, h } from "../dom";
-import { readEffort, readHydration } from "../effort";
+import { estimateProteinG, muscleBreakdown, readEffort, readHydration } from "../effort";
 import { newLoggedExercise, newTrainingSession } from "../log";
 import { clearProgress, loadProgress, saveProgress } from "../liveProgress";
 import { deleteSession, getSession, loadSessions, saveSession } from "../logStorage";
@@ -241,19 +241,24 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
     render();
   }
 
-  // ──────────────────────── Effort / hydration panel ──────────────────────────
+  // ──────────────────────── Session summary panel ─────────────────────────────
 
   /**
-   * Effort gauge + hydration cue for the active session. The gauge fills as
-   * sets accumulate (calibrated against the user's past sessions) and the
-   * hydration target climbs with it. Hidden until the first set is logged.
+   * Effort gauge, hydration cue, per-muscle work (volume + time) and a recovery
+   * protein estimate for a session — running or completed. The effort gauge is
+   * calibrated against the user's other sessions in `allSessions`. Returns null
+   * until the session has at least one logged set.
    */
-  function renderEffortPanel(): HTMLElement | null {
-    const s = state.activeLog;
-    if (!s || sessionSetCount(s) === 0) return null;
+  function renderSessionSummary(
+    session: TrainingSession,
+    allSessions: TrainingSession[],
+  ): HTMLElement | null {
+    if (sessionSetCount(session) === 0) return null;
 
-    const effort = readEffort(s, loadSessions());
+    const effort = readEffort(session, allSessions);
     const hydration = readHydration(effort);
+    const muscles = muscleBreakdown(session);
+    const protein = estimateProteinG(effort, muscles.length);
     const pct = Math.round(Math.min(1, effort.ratio) * 100);
 
     const fill = h("div", { class: "effort-bar-fill" });
@@ -265,6 +270,16 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
         : "Building your baseline — fills toward a full session";
 
     const glasses = `${hydration.glasses} ${hydration.glasses === 1 ? "glass" : "glasses"}`;
+
+    const muscleRows = muscles.map((m) =>
+      h("div", { class: "muscle-row" }, [
+        h("span", { class: "muscle-name", text: MUSCLE_LABELS[m.muscle] }),
+        h("span", {
+          class: "muscle-stat",
+          text: `${m.volume > 0 ? `${m.volume} kg` : "Bodyweight"} · ${formatClock(m.timeSec)}`,
+        }),
+      ]),
+    );
 
     return h("section", { class: "card live-effort", dataset: { tier: effort.tier } }, [
       h("div", { class: "effort-head" }, [
@@ -281,11 +296,22 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
         [fill],
       ),
       h("p", { class: "effort-meta", text: meta }),
+      h("div", { class: "summary-muscles" }, [
+        h("span", { class: "summary-label", text: "Muscles worked" }),
+        ...muscleRows,
+      ]),
       h("div", { class: "hydration-row" }, [
         h("span", { class: "hydration-label", text: "Hydration" }),
-        h("span", { class: "hydration-figure", text: `≈ ${hydration.liters.toFixed(1)} L · ${glasses}` }),
+        h("span", {
+          class: "hydration-figure",
+          text: `≈ ${hydration.liters.toFixed(1)} L · ${glasses}`,
+        }),
       ]),
       h("p", { class: "hydration-note", text: hydration.note }),
+      h("div", { class: "protein-row" }, [
+        h("span", { class: "protein-label", text: "Protein to recover" }),
+        h("span", { class: "protein-figure", text: `≈ ${protein} g` }),
+      ]),
     ]);
   }
 
@@ -303,7 +329,7 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
         }),
       );
     } else {
-      sessions.forEach((s) => listHost.appendChild(renderSessionCard(s)));
+      sessions.forEach((s) => listHost.appendChild(renderSessionCard(s, sessions)));
     }
 
     container.append(
@@ -324,17 +350,26 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
     );
   }
 
-  function renderSessionCard(s: TrainingSession): HTMLElement {
+  function renderSessionCard(s: TrainingSession, allSessions: TrainingSession[]): HTMLElement {
     const sets = sessionSetCount(s);
     const vol = sessionVolume(s);
     const meta =
       `${s.exercises.length} exercises · ${sets} sets` + (vol > 0 ? ` · ${vol} kg lifted` : "");
+    const summary = renderSessionSummary(s, allSessions);
     return h("section", { class: "card saved-item" }, [
       h("div", { class: "saved-info" }, [
         h("p", { class: "plan-name", text: s.name || "Untitled session" }),
         h("p", { class: "plan-meta", text: formatSessionDate(s.startedAt) }),
         h("p", { class: "plan-meta", text: meta }),
       ]),
+      ...(summary
+        ? [
+            h("details", { class: "session-summary-toggle" }, [
+              h("summary", { class: "session-summary-label", text: "Effort & recovery" }),
+              summary,
+            ]),
+          ]
+        : []),
       h("div", { class: "btn-row saved-actions" }, [
         h("button", {
           class: "btn btn-accent btn-small",
@@ -390,7 +425,7 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
       );
     }
 
-    const effortPanel = renderEffortPanel();
+    const summary = renderSessionSummary(session, loadSessions());
 
     container.append(
       h("h1", { class: "view-title", text: "Live Session" }),
@@ -402,7 +437,7 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
         h("p", { class: "session-date", text: formatSessionDate(session.startedAt) }),
       ]),
     );
-    if (effortPanel) container.append(effortPanel);
+    if (summary) container.append(summary);
     container.append(
       h("section", { class: "card live-select" }, [
         h("h2", { class: "section-title", text: "Next exercise" }),
@@ -571,13 +606,15 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
         h("div", { class: "dial-center" }, [num, h("span", { class: "dial-label", text: "REST" })]),
       ]);
 
-      const effortPanel = renderEffortPanel();
+      const summary = state.activeLog
+        ? renderSessionSummary(state.activeLog, loadSessions())
+        : null;
 
       container.append(
         h("p", { class: "set-time", text: "Resting — recover, then start your next set" }),
         dialWrap,
       );
-      if (effortPanel) container.append(effortPanel);
+      if (summary) container.append(summary);
       container.append(
         h("div", { class: "btn-row live-actions" }, [
           h("button", {
