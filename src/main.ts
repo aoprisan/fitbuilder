@@ -7,7 +7,7 @@ import { clonePlan, cloneSheet } from "./util";
 import { mountBuilder } from "./views/builder";
 import { mountExecute } from "./views/execute";
 import { mountHome } from "./views/home";
-import { mountLog } from "./views/log";
+import { mountLive } from "./views/live";
 import { mountSaved } from "./views/saved";
 import { mountSession } from "./views/session";
 import { mountSheet } from "./views/sheet";
@@ -35,17 +35,16 @@ function navIcon(...paths: string[]): SVGElement {
 
 const NAV_ITEMS: ReadonlyArray<{ name: ViewName; label: string; icon: () => SVGElement }> = [
   { name: "home", label: "Home", icon: () => navIcon("M3 10.5 12 3l9 7.5M5.5 9.5V20h13V9.5M9.5 20v-6h5v6") },
+  {
+    name: "live",
+    label: "Live",
+    icon: () => navIcon("M3 12h3.5l2.5-7 4 14 2.5-7H21"),
+  },
   { name: "builder", label: "Builder", icon: () => navIcon("M4 20h4L18.5 9.5a2 2 0 0 0-3-3L5 17v3zM13.5 6.5l3 3") },
   { name: "sheet", label: "Routines", icon: () => navIcon("M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01") },
   { name: "saved", label: "Saved", icon: () => navIcon("M6 3h12v18l-6-4.5L6 21z") },
   { name: "session", label: "Session", icon: () => navIcon("M12 22a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM12 14V9.5M9.5 2h5M19 6l1.6-1.6") },
   { name: "execute", label: "Execute", icon: () => navIcon("M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0zM8.5 12l2.5 2.5 5-5") },
-  {
-    name: "log",
-    label: "Log",
-    icon: () =>
-      navIcon("M9.5 4h5v3h-5z", "M7 5.5H5.5v15h13v-15H17", "M9 12h6", "M9 16h4"),
-  },
 ];
 
 function boot(): void {
@@ -112,8 +111,8 @@ function boot(): void {
       case "execute":
         result = mountExecute(viewHost, nav);
         break;
-      case "log":
-        result = mountLog(viewHost, nav);
+      case "live":
+        result = mountLive(viewHost, nav);
         break;
     }
     cleanup = typeof result === "function" ? result : null;

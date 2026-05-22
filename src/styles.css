@@ -1203,6 +1203,235 @@ textarea {
   margin-top: 4px;
 }
 
+/* ─────────────────────── DIAL INPUT (log reps / weight) ─────────────────── */
+
+.dial-field {
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+}
+
+.set-row-dial {
+  align-items: flex-start;
+}
+
+.set-row-dial .field.dial-field {
+  flex: 1 1 132px;
+}
+
+.set-row-dial .icon-btn {
+  flex: 1 1 100%;
+  align-self: auto;
+}
+
+.dial-knob {
+  position: relative;
+  width: clamp(116px, 40vw, 148px);
+  aspect-ratio: 1;
+  touch-action: none;
+  cursor: grab;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.dial-knob.is-dragging {
+  cursor: grabbing;
+}
+
+.dial-knob:focus-visible {
+  outline: none;
+}
+
+.dial-knob:focus-visible .input-dial-track {
+  stroke: var(--ink-faint);
+}
+
+/* Pressure-gauge tick ring just outside the dial track. */
+.dial-knob::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: repeating-conic-gradient(
+    from -90deg,
+    var(--ink-faint) 0 0.7deg,
+    transparent 0.7deg 9deg
+  );
+  -webkit-mask: radial-gradient(closest-side, transparent 0 92%, #000 92% 99%, transparent 99%);
+  mask: radial-gradient(closest-side, transparent 0 92%, #000 92% 99%, transparent 99%);
+  pointer-events: none;
+}
+
+.input-dial {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.input-dial-track {
+  fill: none;
+  stroke: var(--ink-ghost);
+  stroke-width: 7;
+}
+
+.input-dial-fill {
+  fill: none;
+  stroke: var(--signal);
+  stroke-width: 9;
+  stroke-linecap: butt;
+  transform: rotate(-90deg);
+  transform-origin: center;
+  transition: stroke-dashoffset 120ms linear;
+}
+
+.input-dial-fill.tone-navy {
+  stroke: var(--navy);
+}
+
+.dial-input-center {
+  position: absolute;
+  inset: 22%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.dial-input-num {
+  width: 100%;
+  text-align: center;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-family: var(--font-display);
+  font-size: clamp(26px, 9vw, 34px);
+  line-height: 0.9;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.dial-input-num:focus {
+  outline: none;
+  box-shadow: inset 0 -3px 0 0 var(--signal);
+}
+
+.dial-input-unit {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--brick);
+}
+
+.dial-input-foot {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.dial-input-foot .stepper {
+  width: 52px;
+  padding: 6px 0;
+}
+
+/* ─────────────────────────── LIVE SESSION FLOW ─────────────────────────── */
+
+.live-select .field + .field {
+  margin-top: 14px;
+}
+
+.live-select .btn-row {
+  margin-top: 16px;
+}
+
+.live-actions {
+  margin-top: 6px;
+  justify-content: center;
+}
+
+.live-actions .btn-jumbo {
+  flex: 1 1 100%;
+}
+
+.live-done-list {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 2px dashed var(--ink-faint);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.live-done-row {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.live-ex-head {
+  text-align: center;
+}
+
+.live-ex-head .now-name {
+  margin: 8px 0 2px;
+}
+
+.live-set-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.live-set {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  border-left: 6px solid var(--ink);
+}
+
+.live-set .set-no {
+  flex: 0 0 auto;
+}
+
+.live-set-meta {
+  font-family: var(--font-display);
+  font-size: 15px;
+  color: var(--ink);
+  text-align: right;
+}
+
+.live-dials {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.live-dials .dial-field {
+  flex: 0 1 150px;
+}
+
+.set-time {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--brick);
+  margin: 0 0 4px;
+}
+
 /* Completion banner */
 .session-done {
   text-align: center;

@@ -1,7 +1,11 @@
 import {
+  EQUIPMENT_LABELS,
   LOG_SCHEMA_ID,
   LOG_SCHEMA_VERSION,
+  MUSCLE_LABELS,
+  type Equipment,
   type LoggedExercise,
+  type MuscleGroup,
   type TrainingSession,
 } from "./types";
 import { formatSessionDate, uuid } from "./util";
@@ -21,7 +25,12 @@ export function newTrainingSession(): TrainingSession {
   };
 }
 
-/** A blank exercise for the log's "add exercise" action. */
-export function blankLogExercise(): LoggedExercise {
-  return { name: "", muscle: "chest", equipment: "dumbbell", sets: [{ reps: 10, weightKg: 10 }] };
+/** A new logged exercise, labelled from its muscle group and equipment. */
+export function newLoggedExercise(muscle: MuscleGroup, equipment: Equipment): LoggedExercise {
+  return {
+    name: `${MUSCLE_LABELS[muscle]} · ${EQUIPMENT_LABELS[equipment]}`,
+    muscle,
+    equipment,
+    sets: [],
+  };
 }

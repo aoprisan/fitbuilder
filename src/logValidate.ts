@@ -33,7 +33,12 @@ function coerceNonNegative(value: unknown): number {
 
 function coerceSet(value: unknown): WorkSet {
   if (!isRecord(value)) return { reps: 0, weightKg: 0 };
-  return { reps: coerceNonNegative(value["reps"]), weightKg: coerceNonNegative(value["weightKg"]) };
+  const reps = coerceNonNegative(value["reps"]);
+  const weightKg = coerceNonNegative(value["weightKg"]);
+  const dur = value["durationSec"];
+  return typeof dur === "number" && Number.isFinite(dur) && dur >= 0
+    ? { reps, weightKg, durationSec: dur }
+    : { reps, weightKg };
 }
 
 function coerceExercise(value: unknown): LoggedExercise {
