@@ -4,3 +4,6 @@ declare module "*?url" {
   const src: string;
   export default src;
 }
+
+// ISO timestamp injected by Vite's `define` at build/dev-server start.
+declare const __BUILD_TIME__: string;
