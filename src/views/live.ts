@@ -1,4 +1,5 @@
 import { clear, h } from "../dom";
+import { readEffort, readHydration } from "../effort";
 import { newLoggedExercise, newTrainingSession } from "../log";
 import { clearProgress, loadProgress, saveProgress } from "../liveProgress";
 import { deleteSession, getSession, loadSessions, saveSession } from "../logStorage";
@@ -240,6 +241,54 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
     render();
   }
 
+  // ──────────────────────── Effort / hydration panel ──────────────────────────
+
+  /**
+   * Effort gauge + hydration cue for the active session. The gauge fills as
+   * sets accumulate (calibrated against the user's past sessions) and the
+   * hydration target climbs with it. Hidden until the first set is logged.
+   */
+  function renderEffortPanel(): HTMLElement | null {
+    const s = state.activeLog;
+    if (!s || sessionSetCount(s) === 0) return null;
+
+    const effort = readEffort(s, loadSessions());
+    const hydration = readHydration(effort);
+    const pct = Math.round(Math.min(1, effort.ratio) * 100);
+
+    const fill = h("div", { class: "effort-bar-fill" });
+    fill.style.width = `${Math.min(1, effort.ratio) * 100}%`;
+
+    const meta =
+      effort.vsTypicalPct !== null
+        ? `${effort.vsTypicalPct}% of your usual session`
+        : "Building your baseline — fills toward a full session";
+
+    const glasses = `${hydration.glasses} ${hydration.glasses === 1 ? "glass" : "glasses"}`;
+
+    return h("section", { class: "card live-effort", dataset: { tier: effort.tier } }, [
+      h("div", { class: "effort-head" }, [
+        h("span", { class: "effort-eyebrow", text: "Session effort" }),
+        h("span", { class: "effort-tier", text: effort.label }),
+      ]),
+      h(
+        "div",
+        {
+          class: "effort-bar",
+          role: "progressbar",
+          aria: { valuemin: "0", valuemax: "100", valuenow: String(pct), label: "Session effort" },
+        },
+        [fill],
+      ),
+      h("p", { class: "effort-meta", text: meta }),
+      h("div", { class: "hydration-row" }, [
+        h("span", { class: "hydration-label", text: "Hydration" }),
+        h("span", { class: "hydration-figure", text: `≈ ${hydration.liters.toFixed(1)} L · ${glasses}` }),
+      ]),
+      h("p", { class: "hydration-note", text: hydration.note }),
+    ]);
+  }
+
   // ───────────────────────────── List screen ──────────────────────────────────
 
   function renderList(): void {
@@ -341,6 +390,8 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
       );
     }
 
+    const effortPanel = renderEffortPanel();
+
     container.append(
       h("h1", { class: "view-title", text: "Live Session" }),
       h("section", { class: "card" }, [
@@ -350,6 +401,9 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
         ]),
         h("p", { class: "session-date", text: formatSessionDate(session.startedAt) }),
       ]),
+    );
+    if (effortPanel) container.append(effortPanel);
+    container.append(
       h("section", { class: "card live-select" }, [
         h("h2", { class: "section-title", text: "Next exercise" }),
         renderToggle(
@@ -517,9 +571,14 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
         h("div", { class: "dial-center" }, [num, h("span", { class: "dial-label", text: "REST" })]),
       ]);
 
+      const effortPanel = renderEffortPanel();
+
       container.append(
         h("p", { class: "set-time", text: "Resting — recover, then start your next set" }),
         dialWrap,
+      );
+      if (effortPanel) container.append(effortPanel);
+      container.append(
         h("div", { class: "btn-row live-actions" }, [
           h("button", {
             class: "btn btn-primary btn-jumbo",
