@@ -1600,6 +1600,40 @@ textarea {
   text-align: right;
 }
 
+/* All-time effort roll-up in the Stats view: per-muscle effort with a share bar. */
+.muscle-effort {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.muscle-effort + .muscle-effort {
+  margin-top: 8px;
+}
+
+.muscle-bar {
+  height: 8px;
+  background: var(--paper-deep);
+  border: 2px solid var(--ink);
+  overflow: hidden;
+}
+
+.muscle-bar-fill {
+  height: 100%;
+  width: 0;
+  background: var(--effort);
+  transition: width 0.4s var(--ease);
+}
+
+.muscle-detail {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
 .protein-row {
   display: flex;
   align-items: baseline;
