@@ -1461,6 +1461,208 @@ textarea {
   margin: 0 0 4px;
 }
 
+/* ─────────────────────── EFFORT GAUGE + HYDRATION ─────────────────────── */
+
+.live-effort {
+  /* Tier colour, overridden per data-tier below. */
+  --effort: var(--pine);
+  border-left: 8px solid var(--effort);
+}
+
+.live-effort[data-tier="moderate"] { --effort: var(--mustard); }
+.live-effort[data-tier="solid"] { --effort: var(--rust); }
+.live-effort[data-tier="hard"] { --effort: var(--signal); }
+.live-effort[data-tier="brutal"] { --effort: var(--brick); }
+
+.effort-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.effort-eyebrow {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.effort-tier {
+  font-family: var(--font-display);
+  font-size: clamp(20px, 6vw, 28px);
+  line-height: 0.9;
+  text-transform: uppercase;
+  color: var(--effort);
+}
+
+.effort-bar {
+  margin-top: 10px;
+  height: 16px;
+  background: var(--paper-deep);
+  border: 2.5px solid var(--ink);
+  overflow: hidden;
+}
+
+.effort-bar-fill {
+  height: 100%;
+  width: 0;
+  background: var(--effort);
+  transition: width 0.4s var(--ease);
+}
+
+.effort-meta {
+  margin: 8px 0 0;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+
+.hydration-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 2px dashed var(--ink-faint);
+}
+
+.hydration-label {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--navy);
+}
+
+.hydration-figure {
+  font-family: var(--font-display);
+  font-size: clamp(16px, 4.5vw, 20px);
+  line-height: 1;
+  color: var(--navy);
+}
+
+.hydration-note {
+  margin: 6px 0 0;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+
+.summary-muscles {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 2px dashed var(--ink-faint);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.summary-label {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.muscle-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.muscle-name {
+  font-family: var(--font-stamp);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.muscle-stat {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.protein-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 2px dashed var(--ink-faint);
+}
+
+.protein-label {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--pine);
+}
+
+.protein-figure {
+  font-family: var(--font-display);
+  font-size: clamp(16px, 4.5vw, 20px);
+  line-height: 1;
+  color: var(--pine);
+}
+
+/* Collapsible session summary inside a saved-session card. */
+.session-summary-toggle > summary {
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--brick);
+  padding: 6px 0;
+  border-top: 2px dashed var(--ink-faint);
+}
+
+.session-summary-toggle > summary::-webkit-details-marker {
+  display: none;
+}
+
+.session-summary-toggle > summary::before {
+  content: "▸ ";
+}
+
+.session-summary-toggle[open] > summary::before {
+  content: "▾ ";
+}
+
+/* Drop the heavy card chrome so the nested summary doesn't double up. */
+.session-summary-toggle .live-effort {
+  margin-top: 12px;
+  box-shadow: none;
+  border-width: 2px;
+}
+
+.session-summary-toggle .live-effort::before {
+  display: none;
+}
+
 /* Completion banner */
 .session-done {
   text-align: center;
