@@ -22,6 +22,11 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
       }),
       h("button", {
         class: "btn",
+        text: "Progress Stats",
+        on: { click: () => nav.go("stats") },
+      }),
+      h("button", {
+        class: "btn",
         text: "Open Builder",
         on: { click: () => nav.go("builder") },
       }),

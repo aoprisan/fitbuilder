@@ -1568,6 +1568,164 @@ textarea {
   flex: 1 1 0;
 }
 
+/* ─────────────────────────── STATS ─────────────────────────── */
+
+.stat-filter .stat-filter-select {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 11px 12px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 2.5px solid var(--ink);
+  box-shadow: 4px 4px 0 0 var(--ink);
+  cursor: pointer;
+  width: 100%;
+}
+
+.stat-range {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--brick);
+  margin: 0;
+}
+
+.stat-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.stat-chart-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stat-chart-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.stat-chart-title {
+  font-family: var(--font-stamp);
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.stat-chart-hint {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+
+.stat-chart-readout {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.stat-chart-now {
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.stat-chart-delta {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.stat-chart-delta.up {
+  color: var(--pine);
+}
+
+.stat-chart-delta.down {
+  color: var(--signal);
+}
+
+.stat-chart-delta.flat {
+  color: var(--ink-faint);
+}
+
+.stat-chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+}
+
+.stat-chart-axis {
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+
+.stat-chart-guide {
+  stroke: var(--ink-ghost);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.stat-chart-peak {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 9px;
+  fill: var(--ink-faint);
+}
+
+.stat-chart-area {
+  fill-opacity: 0.12;
+  stroke: none;
+}
+
+.stat-chart-line {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.stat-chart-dot {
+  stroke: var(--paper);
+  stroke-width: 1.5;
+}
+
+.stat-chart-dot-now {
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.stat-chart-foot {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
 /* ─────────────────────────── EXECUTE ─────────────────────────── */
 
 .screen-logo {

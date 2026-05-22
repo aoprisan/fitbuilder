@@ -11,6 +11,7 @@ import { mountLive } from "./views/live";
 import { mountSaved } from "./views/saved";
 import { mountSession } from "./views/session";
 import { mountSheet } from "./views/sheet";
+import { mountStats } from "./views/stats";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -113,6 +114,9 @@ function boot(): void {
         break;
       case "live":
         result = mountLive(viewHost, nav);
+        break;
+      case "stats":
+        result = mountStats(viewHost, nav);
         break;
     }
     cleanup = typeof result === "function" ? result : null;
