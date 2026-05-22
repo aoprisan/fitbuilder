@@ -1,5 +1,6 @@
 import { clear, h } from "../dom";
 import { estimateProteinG, muscleBreakdown, readEffort, readHydration } from "../effort";
+import { exportSessionsJson, exportSessionsXml } from "../exporters";
 import { newLoggedExercise, newTrainingSession } from "../log";
 import { clearProgress, loadProgress, saveProgress } from "../liveProgress";
 import { deleteSession, getSession, loadSessions, saveSession } from "../logStorage";
@@ -348,6 +349,38 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
       ]),
       listHost,
     );
+
+    if (sessions.length > 0) container.append(renderExportPanel(sessions));
+  }
+
+  /**
+   * "Export all" panel — downloads every logged session as one JSON or XML
+   * archive for import into other tools. Sessions are ordered oldest-first so
+   * the export reads chronologically.
+   */
+  function renderExportPanel(sessions: TrainingSession[]): HTMLElement {
+    const chronological = [...sessions].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+    return h("section", { class: "card live-export" }, [
+      h("h2", { class: "section-title", text: "Export sessions" }),
+      h("p", {
+        class: "plan-meta",
+        text: `Download all ${sessions.length} logged ${sessions.length === 1 ? "session" : "sessions"} to import into other tools and analyse elsewhere.`,
+      }),
+      h("div", { class: "btn-row" }, [
+        h("button", {
+          class: "btn btn-small",
+          type: "button",
+          text: "Download JSON",
+          on: { click: () => exportSessionsJson(chronological) },
+        }),
+        h("button", {
+          class: "btn btn-small",
+          type: "button",
+          text: "Download XML",
+          on: { click: () => exportSessionsXml(chronological) },
+        }),
+      ]),
+    ]);
   }
 
   function renderSessionCard(s: TrainingSession, allSessions: TrainingSession[]): HTMLElement {

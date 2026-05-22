@@ -1,8 +1,11 @@
 import {
   isBodyweight,
+  SESSION_ARCHIVE_SCHEMA_ID,
+  SESSION_ARCHIVE_SCHEMA_VERSION,
   type Equipment,
   type ExercisePlan,
   type RoutineSheet,
+  type SessionArchive,
   type TrainingSession,
 } from "./types";
 
@@ -116,6 +119,63 @@ export function sessionVolume(session: TrainingSession): number {
     for (const s of ex.sets) total += s.reps * s.weightKg;
   }
   return Math.round(total);
+}
+
+/** Bundle every logged session into a self-describing interop archive. */
+export function sessionsArchive(sessions: TrainingSession[]): SessionArchive {
+  return {
+    schema: SESSION_ARCHIVE_SCHEMA_ID,
+    version: SESSION_ARCHIVE_SCHEMA_VERSION,
+    exportedAt: new Date().toISOString(),
+    count: sessions.length,
+    sessions,
+  };
+}
+
+/** Pretty-print every logged session as an interop JSON archive. */
+export function sessionsToJson(sessions: TrainingSession[]): string {
+  return JSON.stringify(sessionsArchive(sessions), null, 2);
+}
+
+/** Escape a value for safe inclusion in XML text or a double-quoted attribute. */
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+/** Serialise every logged session as a well-formed XML archive. */
+export function sessionsToXml(sessions: TrainingSession[]): string {
+  const attr = (name: string, value: string | number | undefined): string =>
+    value === undefined ? "" : ` ${name}="${escapeXml(String(value))}"`;
+
+  const lines: string[] = ['<?xml version="1.0" encoding="UTF-8"?>'];
+  lines.push(
+    `<sessions schema="${SESSION_ARCHIVE_SCHEMA_ID}" version="${SESSION_ARCHIVE_SCHEMA_VERSION}"` +
+      `${attr("exportedAt", new Date().toISOString())} count="${sessions.length}">`,
+  );
+  for (const s of sessions) {
+    lines.push(
+      `  <session${attr("id", s.id)}${attr("name", s.name)}${attr("startedAt", s.startedAt)}${attr("updatedAt", s.updatedAt)}>`,
+    );
+    for (const ex of s.exercises) {
+      lines.push(
+        `    <exercise${attr("name", ex.name)}${attr("muscle", ex.muscle)}${attr("equipment", ex.equipment)}>`,
+      );
+      for (const set of ex.sets) {
+        lines.push(
+          `      <set${attr("reps", set.reps)}${attr("weightKg", set.weightKg)}${attr("durationSec", set.durationSec)} />`,
+        );
+      }
+      lines.push("    </exercise>");
+    }
+    lines.push("  </session>");
+  }
+  lines.push("</sessions>");
+  return lines.join("\n") + "\n";
 }
 
 /** Format an ISO timestamp as a short, human date like "Thu 22 May · 14:30". */

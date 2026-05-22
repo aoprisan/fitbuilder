@@ -1,7 +1,7 @@
 import { dataUrlToBytes, jpegToPdf } from "./pdf";
 import { renderSheetToCanvas } from "./sheetRender";
-import type { RoutineSheet } from "./types";
-import { slug } from "./util";
+import type { RoutineSheet, TrainingSession } from "./types";
+import { sessionsToJson, sessionsToXml, slug } from "./util";
 
 // Web Share API (Level 2, with files) isn't in every lib.dom version; describe
 // just what we use so the code type-checks and degrades gracefully.
@@ -46,6 +46,23 @@ function pdfBlobFromCanvas(canvas: HTMLCanvasElement): Blob {
   const bytes = jpegToPdf(jpeg, canvas.width, canvas.height);
   // Copy into a fresh ArrayBuffer so the Blob part is a plain ArrayBuffer.
   return new Blob([bytes.slice()], { type: "application/pdf" });
+}
+
+/** Date-stamped filename for a session archive, e.g. "gym-log-sessions-2026-05-22.json". */
+function sessionsFilename(ext: string): string {
+  return `gym-log-sessions-${new Date().toISOString().slice(0, 10)}.${ext}`;
+}
+
+/** Download every logged session as a single JSON archive. */
+export function exportSessionsJson(sessions: TrainingSession[]): void {
+  const blob = new Blob([sessionsToJson(sessions)], { type: "application/json" });
+  downloadBlob(blob, sessionsFilename("json"));
+}
+
+/** Download every logged session as a single XML archive. */
+export function exportSessionsXml(sessions: TrainingSession[]): void {
+  const blob = new Blob([sessionsToXml(sessions)], { type: "application/xml" });
+  downloadBlob(blob, sessionsFilename("xml"));
 }
 
 /** Render the sheet and download it as a PNG. */

@@ -181,3 +181,21 @@ export interface TrainingSession {
 
 export const LOG_SCHEMA_ID = "gymlog.training-session" as const;
 export const LOG_SCHEMA_VERSION = 1 as const;
+
+/* =============================================================================
+   Session archive — a self-describing bundle of every logged session, built
+   for export so the data can be imported into other tools and analysed there.
+   ========================================================================== */
+
+export interface SessionArchive {
+  schema: "gymlog.session-archive";
+  version: 1;
+  /** ISO timestamp of when the archive was exported. */
+  exportedAt: string;
+  /** Number of sessions in the archive. */
+  count: number;
+  sessions: TrainingSession[];
+}
+
+export const SESSION_ARCHIVE_SCHEMA_ID = "gymlog.session-archive" as const;
+export const SESSION_ARCHIVE_SCHEMA_VERSION = 1 as const;
