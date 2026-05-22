@@ -35,3 +35,27 @@ export function registerServiceWorker(): void {
     });
   });
 }
+
+/* Force the installed PWA to pick up the latest deployed version. The service
+   worker serves cached assets first, so an installed copy can sit on a stale
+   build indefinitely; this pulls a fresh worker, activates it, drops the
+   caches so the app shell is refetched, then reloads from the network. */
+export async function forceAppUpdate(): Promise<void> {
+  try {
+    if ("serviceWorker" in navigator) {
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (registration) {
+        await registration.update();
+        registration.waiting?.postMessage({ type: "SKIP_WAITING" });
+      }
+    }
+    if ("caches" in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((key) => caches.delete(key)));
+    }
+  } catch (err) {
+    console.warn("[gymlog] forced update failed", err);
+  } finally {
+    window.location.reload();
+  }
+}

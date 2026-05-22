@@ -1,4 +1,5 @@
 import { h } from "../dom";
+import { forceAppUpdate } from "../pwa";
 import type { Nav } from "../router";
 import { state } from "../state";
 import { totalSets } from "../util";
@@ -56,5 +57,25 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
     ]),
   ]);
 
-  root.appendChild(h("div", { class: "view view-home" }, [hero, card, steps]));
+  const updateBtn = h("button", {
+    class: "btn btn-small",
+    text: "Update app",
+    aria: { label: "Update app to the latest version" },
+  });
+  updateBtn.addEventListener("click", () => {
+    updateBtn.disabled = true;
+    updateBtn.textContent = "Updating…";
+    void forceAppUpdate();
+  });
+
+  const updateCard = h("section", { class: "card" }, [
+    h("h2", { class: "section-title", text: "Updates" }),
+    h("p", {
+      class: "plan-meta",
+      text: "Pull the latest version and refresh this installed copy.",
+    }),
+    h("div", { class: "btn-row" }, [updateBtn]),
+  ]);
+
+  root.appendChild(h("div", { class: "view view-home" }, [hero, card, steps, updateCard]));
 }
