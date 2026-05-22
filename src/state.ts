@@ -2,7 +2,7 @@ import { defaultBicepsPlan, defaultPlan } from "./plan";
 import { defaultPullSheet, defaultSheet } from "./sheet";
 import { loadSheets, saveSheet, seedSheetOnce } from "./sheetStorage";
 import { loadPlans, savePlan, seedPlanOnce } from "./storage";
-import type { ExercisePlan, RoutineSheet } from "./types";
+import type { ExercisePlan, RoutineSheet, TrainingSession } from "./types";
 import { clonePlan, cloneSheet } from "./util";
 
 interface AppState {
@@ -14,6 +14,8 @@ interface AppState {
   editingSheet: RoutineSheet;
   /** The sheet selected to run in the Execute view, if any. */
   executing: RoutineSheet | null;
+  /** The training session currently open in the Log view, if any. */
+  activeLog: TrainingSession | null;
 }
 
 function initialEditing(): ExercisePlan {
@@ -49,6 +51,7 @@ export const state: AppState = {
   session: null,
   editingSheet: initialEditingSheet(),
   executing: null,
+  activeLog: null,
 };
 
 /** Replace the Builder working copy (e.g. after import or "Edit"). */
@@ -69,6 +72,11 @@ export function setEditingSheet(sheet: RoutineSheet): void {
 /** Choose the sheet that the Execute view will run. */
 export function setExecuting(sheet: RoutineSheet | null): void {
   state.executing = sheet;
+}
+
+/** Open (or clear) the training session shown in the Log view. */
+export function setActiveLog(session: TrainingSession | null): void {
+  state.activeLog = session;
 }
 
 /** A one-shot status message for the Routine Sheet view to show on its next mount. */
