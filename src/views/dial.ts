@@ -2,7 +2,9 @@ import { h } from "../dom";
 import { round2 } from "../util";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
-const DIAL_R = 48;
+// Tucked in to make room for the chunkier ring stroke without colliding with
+// the gauge tick marks just outside it.
+const DIAL_R = 45;
 const DIAL_C = 2 * Math.PI * DIAL_R;
 /** Steps applied per full revolution while dragging the knob. */
 const STEPS_PER_TURN = 24;

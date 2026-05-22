@@ -19,7 +19,8 @@ import { formatClock, formatLoad, formatSessionDate, sessionSetCount, sessionVol
 import { dialField } from "./dial";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
-const DIAL_R = 52;
+// Pulled in from the rim so the thicker ring stroke clears the gauge ticks.
+const DIAL_R = 49;
 const DIAL_C = 2 * Math.PI * DIAL_R;
 
 function svgEl(tag: string, attrs: Record<string, string>): SVGElement {
@@ -31,7 +32,7 @@ function svgEl(tag: string, attrs: Record<string, string>): SVGElement {
 /** Top-level place in the live flow. */
 type Stage = "list" | "select" | "exercise";
 /** Where we are within a single exercise. */
-type SetSub = "idle" | "running" | "logging";
+type SetSub = "idle" | "running" | "logging" | "resting";
 
 export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
   const container = h("div", { class: "view view-live" });
@@ -53,6 +54,9 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
   let setStartMs = 0;
   let setElapsedMs = 0;
   let rafId = 0;
+
+  // Rest clock — starts the moment a set is committed, runs until the next set.
+  let restStartMs = 0;
 
   function stopRaf(): void {
     if (rafId) {
@@ -166,7 +170,8 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
     }
     currentEx.sets.push(set);
     persist();
-    sub = "idle";
+    restStartMs = performance.now();
+    sub = "resting";
     render();
   }
 
@@ -435,6 +440,56 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
       const frame = (): void => {
         setElapsedMs = performance.now() - setStartMs;
         const secs = setElapsedMs / 1000;
+        num.textContent = formatClock(secs);
+        fill.setAttribute("stroke-dashoffset", String(DIAL_C * (1 - ((secs % 60) / 60))));
+        rafId = requestAnimationFrame(frame);
+      };
+      rafId = requestAnimationFrame(frame);
+      return;
+    }
+
+    if (sub === "resting") {
+      const fill = svgEl("circle", {
+        class: "dial-fill dial-fill-rest",
+        cx: "60",
+        cy: "60",
+        r: String(DIAL_R),
+        "stroke-dasharray": String(DIAL_C),
+        "stroke-dashoffset": "0",
+      });
+      const svg = svgEl("svg", { class: "dial", viewBox: "0 0 120 120", "aria-hidden": "true" });
+      svg.appendChild(svgEl("circle", { class: "dial-track", cx: "60", cy: "60", r: String(DIAL_R) }));
+      svg.appendChild(fill);
+
+      const num = h("span", { class: "dial-num", text: "0:00" });
+      const dialWrap = h("div", { class: "dial-wrap" }, [
+        svg,
+        h("div", { class: "dial-center" }, [num, h("span", { class: "dial-label", text: "REST" })]),
+      ]);
+
+      container.append(
+        h("p", { class: "set-time", text: "Resting — recover, then start your next set" }),
+        dialWrap,
+        h("div", { class: "btn-row live-actions" }, [
+          h("button", {
+            class: "btn btn-primary btn-jumbo",
+            type: "button",
+            text: "▶ Start set",
+            on: { click: startSet },
+          }),
+        ]),
+        h("div", { class: "btn-row" }, [
+          h("button", {
+            class: "btn",
+            type: "button",
+            text: "✓ Done — finish exercise",
+            on: { click: finishExercise },
+          }),
+        ]),
+      );
+
+      const frame = (): void => {
+        const secs = (performance.now() - restStartMs) / 1000;
         num.textContent = formatClock(secs);
         fill.setAttribute("stroke-dashoffset", String(DIAL_C * (1 - ((secs % 60) / 60))));
         rafId = requestAnimationFrame(frame);

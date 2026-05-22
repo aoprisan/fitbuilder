@@ -2,7 +2,7 @@ import { h } from "../dom";
 import { forceAppUpdate } from "../pwa";
 import type { Nav } from "../router";
 import { state } from "../state";
-import { totalSets } from "../util";
+import { formatSessionDate, totalSets } from "../util";
 
 export function mountHome(root: HTMLElement, nav: Nav): void {
   const plan = state.editing;
@@ -75,6 +75,7 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
       text: "Pull the latest version and refresh this installed copy.",
     }),
     h("div", { class: "btn-row" }, [updateBtn]),
+    h("p", { class: "build-stamp", text: `Build ${formatSessionDate(__BUILD_TIME__)}` }),
   ]);
 
   root.appendChild(h("div", { class: "view view-home" }, [hero, card, steps, updateCard]));
