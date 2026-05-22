@@ -1,14 +1,6 @@
-import type { ExercisePlan, RoutineSheet } from "./types";
+import type { RoutineSheet } from "./types";
 
-export type ViewName =
-  | "home"
-  | "builder"
-  | "saved"
-  | "session"
-  | "sheet"
-  | "execute"
-  | "live"
-  | "stats";
+export type ViewName = "home" | "sheet" | "execute" | "live" | "stats";
 
 export type Cleanup = () => void;
 
@@ -16,12 +8,10 @@ export type Cleanup = () => void;
 export interface Nav {
   /** Switch to a top-level view. */
   go(view: ViewName): void;
-  /** Open the Builder on the given plan (a working copy). */
-  edit(plan: ExercisePlan): void;
-  /** Open the Session runner on the given plan. */
-  start(plan: ExercisePlan): void;
   /** Open the Routine Sheet builder on the given sheet (a working copy). */
   editSheet(sheet: RoutineSheet): void;
   /** Open the Execute runner on the given sheet (a working copy / snapshot). */
   runSheet(sheet: RoutineSheet): void;
+  /** Start a Live session pre-loaded from a routine sheet (additive to Execute). */
+  startLive(sheet: RoutineSheet): void;
 }

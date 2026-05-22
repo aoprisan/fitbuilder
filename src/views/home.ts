@@ -1,64 +1,59 @@
 import { h } from "../dom";
+import { loadSessions } from "../logStorage";
 import { forceAppUpdate } from "../pwa";
 import type { Nav } from "../router";
-import { state } from "../state";
-import { formatSessionDate, totalSets } from "../util";
+import { formatSessionDate, sessionSetCount } from "../util";
 
 export function mountHome(root: HTMLElement, nav: Nav): void {
-  const plan = state.editing;
+  const sessions = loadSessions().sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  const last = sessions[0];
 
   const hero = h("section", { class: "hero" }, [
     h("p", { class: "eyebrow", text: "GYM LOG" }),
-    h("h1", { class: "display", text: "Exercise Builder" }),
+    h("h1", { class: "display" }, ["Train · Log", h("br"), "Share"]),
     h("p", {
       class: "lede",
-      text: "Build a workout plan, save or export it as JSON for other tools, then run a live, beeping training session straight from it.",
+      text: "Two tools in one ledger — a live training log for your own workouts, and shareable routines for coaching. Use either; they hand off when you want.",
     }),
+  ]);
+
+  // ── Lane 1: the athlete — log your own training, watch it add up ──────────
+  const lastSets = last ? sessionSetCount(last) : 0;
+  const lastLine = last
+    ? h("p", {
+        class: "plan-meta",
+        text: `Last: ${last.name || "session"} · ${last.exercises.length} ex · ${lastSets} ${lastSets === 1 ? "set" : "sets"}`,
+      })
+    : h("p", { class: "plan-meta", text: "No sessions yet — start one when you reach the gym." });
+
+  const trainingLane = h("section", { class: "card" }, [
+    h("p", { class: "eyebrow", text: "For your training" }),
+    h("h2", { class: "section-title", text: "Train & track" }),
+    h("p", {
+      class: "plan-meta",
+      text: "Log a workout live, set by set, with rest timers — effort, hydration and progress add up in Stats.",
+    }),
+    lastLine,
     h("div", { class: "btn-row" }, [
       h("button", {
         class: "btn btn-primary",
         text: "Start Live Session",
         on: { click: () => nav.go("live") },
       }),
-      h("button", {
-        class: "btn",
-        text: "Progress Stats",
-        on: { click: () => nav.go("stats") },
-      }),
-      h("button", {
-        class: "btn",
-        text: "Open Builder",
-        on: { click: () => nav.go("builder") },
-      }),
-      h("button", {
-        class: "btn",
-        text: "Routine Sheets",
-        on: { click: () => nav.go("sheet") },
-      }),
-      h("button", {
-        class: "btn btn-accent",
-        text: "Run Current Plan",
-        on: { click: () => nav.start(plan) },
-      }),
+      h("button", { class: "btn", text: "Progress Stats", on: { click: () => nav.go("stats") } }),
     ]),
   ]);
 
-  const card = h("section", { class: "card current-plan" }, [
-    h("h2", { class: "section-title", text: "Current plan" }),
-    h("p", { class: "plan-name", text: plan.name }),
+  // ── Lane 2: the coach — author routines, share them, run them ─────────────
+  const routinesLane = h("section", { class: "card" }, [
+    h("p", { class: "eyebrow", text: "For routines & coaching" }),
+    h("h2", { class: "section-title", text: "Routines" }),
     h("p", {
       class: "plan-meta",
-      text: `${plan.exercises.length} exercises · ${totalSets(plan)} sets · ${plan.restSec}s rest`,
+      text: "Build or import training routines and share them as PNG/PDF on WhatsApp — for a coach handing plans to students. Run one live to log it, or as a checklist.",
     }),
-  ]);
-
-  const steps = h("section", { class: "card" }, [
-    h("h2", { class: "section-title", text: "How it works" }),
-    h("ol", { class: "steps" }, [
-      h("li", { text: "Build & tweak your plan in the Builder." }),
-      h("li", { text: "Save it, download the JSON, or copy it for another tool." }),
-      h("li", { text: "Start a session and train set-by-set with rest countdowns." }),
-      h("li", { text: "Or build a Routine Sheet and share it as a PNG/PDF on WhatsApp." }),
+    h("div", { class: "btn-row" }, [
+      h("button", { class: "btn btn-accent", text: "Routine Sheets", on: { click: () => nav.go("sheet") } }),
     ]),
   ]);
 
@@ -83,5 +78,7 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
     h("p", { class: "build-stamp", text: `Build ${formatSessionDate(__BUILD_TIME__)}` }),
   ]);
 
-  root.appendChild(h("div", { class: "view view-home" }, [hero, card, steps, updateCard]));
+  root.appendChild(
+    h("div", { class: "view view-home" }, [hero, trainingLane, routinesLane, updateCard]),
+  );
 }

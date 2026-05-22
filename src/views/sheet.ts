@@ -157,6 +157,13 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
           on: { click: () => nav.runSheet(singleRoutineSheet(sheet, routine, rIndex)) },
         }),
         h("button", {
+          class: "btn btn-small btn-accent",
+          type: "button",
+          text: "Start live ▸",
+          aria: { label: `start a live session from routine ${rIndex + 1}` },
+          on: { click: () => nav.startLive(singleRoutineSheet(sheet, routine, rIndex)) },
+        }),
+        h("button", {
           class: "btn btn-small",
           type: "button",
           text: "Share ▸",

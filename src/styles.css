@@ -29,6 +29,12 @@
   --plum: #5b3552;      /* muted plum — machine stamp */
   --olive: #5f6322;     /* olive — machine stamp */
 
+  /* ── Stable on-fill tokens (deliberately do NOT flip in dark mode) ──────
+     In light mode each equals its pre-theme value, so light is unchanged. */
+  --on-press: #efe7d4;  /* light text on a saturated press fill */
+  --on-light: #1b1610;  /* dark text on a light fill (e.g. the mustard chip) */
+  --brick-fill: #6e1f1a;/* oxblood used as a chip background (stays dark for legible cream text) */
+
   /* ── Type ────────────────────────────────────────────────────────────── */
   --font-display: "Alfa Slab One", Rockwell, Georgia, serif;
   --font-stamp: "Bungee", ui-sans-serif, system-ui, sans-serif;
@@ -39,6 +45,39 @@
   --ease: cubic-bezier(0.16, 0.84, 0.36, 1);
 
   color-scheme: light;
+}
+
+/* ── Night press — "field manual after dark" ───────────────────────────────
+   Remaps only the stock & ink ramps and the on-stock oxblood. Saturated press
+   inks (signal, mustard, pine, navy…) and the stable on-fill tokens are left
+   untouched so chips stay legible. Applies on system dark mode unless a theme
+   is pinned via [data-theme]; force either mode with data-theme="dark|light". */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #14110b;
+    --paper-deep: #1d1810;
+    --paper-ash: #282117;
+    --paper-edge: #332b1d;
+    --ink: #ece3cd;
+    --ink-soft: rgba(236, 227, 205, 0.66);
+    --ink-faint: rgba(236, 227, 205, 0.4);
+    --ink-ghost: rgba(236, 227, 205, 0.17);
+    --brick: #d3705f; /* oxblood lifts to terracotta so it reads on night stock */
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #14110b;
+  --paper-deep: #1d1810;
+  --paper-ash: #282117;
+  --paper-edge: #332b1d;
+  --ink: #ece3cd;
+  --ink-soft: rgba(236, 227, 205, 0.66);
+  --ink-faint: rgba(236, 227, 205, 0.4);
+  --ink-ghost: rgba(236, 227, 205, 0.17);
+  --brick: #d3705f;
 }
 
 * {
@@ -96,7 +135,7 @@ textarea {
 
 ::selection {
   background: var(--signal);
-  color: var(--paper);
+  color: var(--on-press);
 }
 
 .grain {
@@ -193,7 +232,10 @@ textarea {
 
 .nav {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  /* Sizes to however many tabs exist (was a fixed 7-col grid that left dead
+     space after the Builder/Saved/Session tabs were removed). */
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   border: var(--rule);
   background: var(--paper-deep);
   box-shadow: 4px 4px 0 0 var(--ink);
@@ -319,8 +361,8 @@ textarea {
   font-weight: 700;
   line-height: 1.35;
   padding: 0 4px;
-  background: var(--brick);
-  color: var(--paper);
+  background: var(--brick-fill);
+  color: var(--on-press);
   border: 1.5px solid var(--ink);
   box-shadow: 1.5px 1.5px 0 0 var(--ink);
   transform: rotate(3deg);
@@ -616,7 +658,7 @@ textarea {
 
 .btn-accent {
   background: var(--signal);
-  color: var(--paper);
+  color: var(--on-press);
 }
 
 .btn-accent:hover {
@@ -660,8 +702,8 @@ textarea {
 
 .btn.danger:hover,
 .icon-btn.danger:hover {
-  background: var(--brick);
-  color: var(--paper);
+  background: var(--brick-fill);
+  color: var(--on-press);
 }
 
 .icon-btn {
@@ -869,15 +911,15 @@ textarea {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   padding: 5px 9px 3px;
-  color: var(--paper);
+  color: var(--on-press);
   background: var(--ink);
   align-self: flex-start;
   transform: rotate(-1.5deg);
 }
 
-.badge-cable { background: var(--mustard); color: var(--ink); }
-.badge-dumbbell { background: var(--brick); }
-.badge-barbell { background: var(--ink); }
+.badge-cable { background: var(--mustard); color: var(--on-light); }
+.badge-dumbbell { background: var(--brick-fill); }
+.badge-barbell { background: var(--ink); color: var(--paper); }
 .badge-kettlebell { background: var(--signal); }
 .badge-trx { background: var(--pine); }
 .badge-calisthenics { background: var(--navy); }
@@ -928,8 +970,8 @@ textarea {
   place-items: center;
   font-family: var(--font-display);
   font-size: 13px;
-  color: var(--paper);
-  background: var(--brick);
+  color: var(--on-press);
+  background: var(--brick-fill);
   transform: rotate(-3deg);
 }
 
@@ -2167,6 +2209,7 @@ textarea {
 .exec-routine-head .routine-no {
   transform: none;
   background: var(--signal);
+  color: var(--on-press);
 }
 
 .exec-routine-title {
@@ -2362,7 +2405,8 @@ textarea {
   font-size: 12px;
   min-width: 26px;
   height: 26px;
-  background: var(--brick);
+  background: var(--brick-fill);
+  color: var(--on-press);
 }
 
 .rex-name {

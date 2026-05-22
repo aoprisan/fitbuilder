@@ -1,35 +1,15 @@
-import { defaultBicepsPlan, defaultPlan } from "./plan";
 import { defaultPullSheet, defaultSheet } from "./sheet";
 import { loadSheets, saveSheet, seedSheetOnce } from "./sheetStorage";
-import { loadPlans, savePlan, seedPlanOnce } from "./storage";
-import type { ExercisePlan, RoutineSheet, TrainingSession } from "./types";
-import { clonePlan, cloneSheet } from "./util";
+import type { RoutineSheet, TrainingSession } from "./types";
+import { cloneSheet } from "./util";
 
 interface AppState {
-  /** The working copy currently open in the Builder. */
-  editing: ExercisePlan;
-  /** The plan selected to run in the Session view, if any. */
-  session: ExercisePlan | null;
   /** The working copy currently open in the Routine Sheet builder. */
   editingSheet: RoutineSheet;
   /** The sheet selected to run in the Execute view, if any. */
   executing: RoutineSheet | null;
-  /** The training session currently open in the Log view, if any. */
+  /** The training session currently open in the Live view, if any. */
   activeLog: TrainingSession | null;
-}
-
-function initialEditing(): ExercisePlan {
-  if (loadPlans().length === 0) {
-    // First run: seed and persist the default plan.
-    savePlan(defaultPlan());
-  }
-  // Ensure the bundled "Biceps" plan is present as the second plan (added once).
-  seedPlanOnce(defaultBicepsPlan());
-  // Open the most recently updated plan as a fresh working copy.
-  const sorted = [...loadPlans()].sort(
-    (a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""),
-  );
-  return clonePlan(sorted[0] ?? defaultPlan());
 }
 
 function initialEditingSheet(): RoutineSheet {
@@ -47,22 +27,10 @@ function initialEditingSheet(): RoutineSheet {
 }
 
 export const state: AppState = {
-  editing: initialEditing(),
-  session: null,
   editingSheet: initialEditingSheet(),
   executing: null,
   activeLog: null,
 };
-
-/** Replace the Builder working copy (e.g. after import or "Edit"). */
-export function setEditing(plan: ExercisePlan): void {
-  state.editing = plan;
-}
-
-/** Choose the plan that the Session view will run. */
-export function setSession(plan: ExercisePlan | null): void {
-  state.session = plan;
-}
 
 /** Replace the Routine Sheet builder working copy. */
 export function setEditingSheet(sheet: RoutineSheet): void {
@@ -74,7 +42,7 @@ export function setExecuting(sheet: RoutineSheet | null): void {
   state.executing = sheet;
 }
 
-/** Open (or clear) the training session shown in the Log view. */
+/** Open (or clear) the training session shown in the Live view. */
 export function setActiveLog(session: TrainingSession | null): void {
   state.activeLog = session;
 }

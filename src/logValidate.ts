@@ -45,10 +45,12 @@ function coerceExercise(value: unknown): LoggedExercise {
   const rec = isRecord(value) ? value : {};
   const rawSets = rec["sets"];
   const sets = Array.isArray(rawSets) ? rawSets.map(coerceSet) : [];
+  const pres = rec["prescription"];
   return {
     name: typeof rec["name"] === "string" ? rec["name"] : "",
     muscle: coerceMuscle(rec["muscle"]),
     equipment: coerceEquipment(rec["equipment"]),
+    ...(typeof pres === "string" && pres !== "" ? { prescription: pres } : {}),
     sets,
   };
 }

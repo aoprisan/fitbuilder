@@ -1,15 +1,15 @@
 import "./styles.css";
 import { clear, h } from "./dom";
 import { registerServiceWorker } from "./pwa";
+import { sheetToSession } from "./log";
+import { clearProgress } from "./liveProgress";
+import { saveSession } from "./logStorage";
 import type { Cleanup, Nav, ViewName } from "./router";
-import { setEditing, setEditingSheet, setExecuting, setSession, state } from "./state";
-import { clonePlan, cloneSheet } from "./util";
-import { mountBuilder } from "./views/builder";
+import { setActiveLog, setEditingSheet, setExecuting, state } from "./state";
+import { cloneSheet } from "./util";
 import { mountExecute } from "./views/execute";
 import { mountHome } from "./views/home";
 import { mountLive } from "./views/live";
-import { mountSaved } from "./views/saved";
-import { mountSession } from "./views/session";
 import { mountSheet } from "./views/sheet";
 import { mountStats } from "./views/stats";
 
@@ -41,10 +41,7 @@ const NAV_ITEMS: ReadonlyArray<{ name: ViewName; label: string; icon: () => SVGE
     label: "Live",
     icon: () => navIcon("M3 12h3.5l2.5-7 4 14 2.5-7H21"),
   },
-  { name: "builder", label: "Builder", icon: () => navIcon("M4 20h4L18.5 9.5a2 2 0 0 0-3-3L5 17v3zM13.5 6.5l3 3") },
   { name: "sheet", label: "Routines", icon: () => navIcon("M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01") },
-  { name: "saved", label: "Saved", icon: () => navIcon("M6 3h12v18l-6-4.5L6 21z") },
-  { name: "session", label: "Session", icon: () => navIcon("M12 22a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM12 14V9.5M9.5 2h5M19 6l1.6-1.6") },
   { name: "execute", label: "Execute", icon: () => navIcon("M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0zM8.5 12l2.5 2.5 5-5") },
 ];
 
@@ -61,14 +58,6 @@ function boot(): void {
 
   const nav: Nav = {
     go: (view) => navigate(view),
-    edit: (plan) => {
-      setEditing(plan);
-      navigate("builder");
-    },
-    start: (plan) => {
-      setSession(plan);
-      navigate("session");
-    },
     editSheet: (sheet) => {
       setEditingSheet(sheet);
       navigate("sheet");
@@ -76,6 +65,19 @@ function boot(): void {
     runSheet: (sheet) => {
       setExecuting(sheet);
       navigate("execute");
+    },
+    startLive: (sheet) => {
+      // If a session with logged work is open, confirm before swapping. The
+      // prior session is already persisted, so this only changes activeLog.
+      if (state.activeLog && state.activeLog.exercises.some((ex) => ex.sets.length > 0)) {
+        const ok = confirm(
+          "A live session is in progress. Start a new one from this routine? Your current session is kept in the Live list.",
+        );
+        if (!ok) return;
+      }
+      setActiveLog(saveSession(sheetToSession(sheet)));
+      clearProgress(); // so mountLive's restore() won't overwrite the new session
+      navigate("live");
     },
   };
 
@@ -96,15 +98,6 @@ function boot(): void {
     switch (view) {
       case "home":
         result = mountHome(viewHost, nav);
-        break;
-      case "builder":
-        result = mountBuilder(viewHost, nav);
-        break;
-      case "saved":
-        result = mountSaved(viewHost, nav);
-        break;
-      case "session":
-        result = mountSession(viewHost, nav);
         break;
       case "sheet":
         result = mountSheet(viewHost, nav);
@@ -132,9 +125,8 @@ function boot(): void {
         h("span", { class: "nav-label", text: item.label }),
       ]);
       btn.addEventListener("click", () => {
-        // Session/Execute tabs run the current working plan/sheet as a snapshot.
-        if (item.name === "session") nav.start(clonePlan(state.editing));
-        else if (item.name === "execute") nav.runSheet(cloneSheet(state.editingSheet));
+        // The Execute tab runs the current working sheet as a snapshot.
+        if (item.name === "execute") nav.runSheet(cloneSheet(state.editingSheet));
         else nav.go(item.name);
       });
       navButtons.set(item.name, btn);

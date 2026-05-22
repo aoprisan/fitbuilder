@@ -1,11 +1,13 @@
 import { clear, h } from "../dom";
 import { estimateProteinG, muscleBreakdown, readEffort, readHydration } from "../effort";
+import { parseTargetReps } from "../execute";
 import { exportSessionsJson, exportSessionsXml } from "../exporters";
-import { newLoggedExercise, newTrainingSession } from "../log";
+import { newLoggedExercise, newTrainingSession, repeatSession } from "../log";
 import { clearProgress, loadProgress, saveProgress } from "../liveProgress";
 import { deleteSession, getSession, loadSessions, saveSession } from "../logStorage";
 import type { Cleanup, Nav } from "../router";
-import { setActiveLog, state } from "../state";
+import { saveSheet } from "../sheetStorage";
+import { setActiveLog, setEditingSheet, setSheetFlash, state } from "../state";
 import {
   EQUIPMENT,
   EQUIPMENT_LABELS,
@@ -18,7 +20,15 @@ import {
   type TrainingSession,
   type WorkSet,
 } from "../types";
-import { formatClock, formatLoad, formatSessionDate, sessionSetCount, sessionVolume } from "../util";
+import {
+  cloneSheet,
+  formatClock,
+  formatLoad,
+  formatSessionDate,
+  sessionSetCount,
+  sessionToSheet,
+  sessionVolume,
+} from "../util";
 import { dialField } from "./dial";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -32,12 +42,17 @@ function svgEl(tag: string, attrs: Record<string, string>): SVGElement {
   return el;
 }
 
+/** Total reps logged across an exercise's sets — used for the routine target tally. */
+function sumReps(sets: readonly WorkSet[]): number {
+  return sets.reduce((a, s) => a + s.reps, 0);
+}
+
 /** Top-level place in the live flow. */
 type Stage = "list" | "select" | "exercise";
 /** Where we are within a single exercise. */
 type SetSub = "idle" | "running" | "logging" | "resting";
 
-export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
+export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   const container = h("div", { class: "view view-live" });
   root.appendChild(container);
 
@@ -48,6 +63,16 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
   let muscle: MuscleGroup = "chest";
   let equipment: Equipment = "dumbbell";
   let currentEx: LoggedExercise | null = null;
+
+  /**
+   * The next planned-but-not-started exercise in a routine-loaded session: the
+   * first with a carried prescription and no sets yet. Drives the select screen.
+   */
+  function nextPlanned(): LoggedExercise | undefined {
+    return state.activeLog?.exercises.find(
+      (ex) => ex.sets.length === 0 && ex.prescription !== undefined,
+    );
+  }
 
   // In-flight set values.
   let setReps = 10;
@@ -168,6 +193,24 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
     render();
   }
 
+  /** Start a new session pre-loaded with a past session's exercises (no sets yet). */
+  function repeatPastSession(src: TrainingSession): void {
+    setActiveLog(saveSession(repeatSession(src)));
+    currentEx = null;
+    sub = "idle";
+    stage = "select";
+    render();
+  }
+
+  /** Save a logged session as a shareable routine, then open it in the Routines view. */
+  function saveAsRoutine(s: TrainingSession): void {
+    if (sessionSetCount(s) === 0) return;
+    const sheet = saveSheet(sessionToSheet(s));
+    setEditingSheet(cloneSheet(sheet));
+    setSheetFlash(`Saved “${sheet.name}” as a routine — share it from here.`, "ok");
+    nav.go("sheet");
+  }
+
   function endSession(): void {
     stopRaf();
     const s = state.activeLog;
@@ -185,6 +228,16 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
 
   function startExercise(): void {
     currentEx = null;
+    sub = "idle";
+    stage = "exercise";
+    render();
+  }
+
+  /** Re-open an exercise already in the session to add more sets (or review them). */
+  function resumeExercise(ex: LoggedExercise): void {
+    currentEx = ex;
+    muscle = ex.muscle;
+    equipment = ex.equipment;
     sub = "idle";
     stage = "exercise";
     render();
@@ -411,6 +464,13 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
           on: { click: () => openSession(s.id) },
         }),
         h("button", {
+          class: "btn btn-small",
+          type: "button",
+          text: "Repeat",
+          aria: { label: `repeat ${s.name || "this session"} as a new session` },
+          on: { click: () => repeatPastSession(s) },
+        }),
+        h("button", {
           class: "btn btn-small danger",
           type: "button",
           text: "Delete",
@@ -423,6 +483,26 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
           },
         }),
       ]),
+      ...(sets > 0
+        ? [
+            h("div", { class: "btn-row saved-actions" }, [
+              h("button", {
+                class: "btn btn-small",
+                type: "button",
+                text: "Save as routine",
+                aria: { label: `save ${s.name || "this session"} as a shareable routine` },
+                on: { click: () => saveAsRoutine(s) },
+              }),
+              h("button", {
+                class: "btn btn-small",
+                type: "button",
+                text: "Export JSON",
+                aria: { label: `export ${s.name || "this session"} as JSON` },
+                on: { click: () => exportSessionsJson([s]) },
+              }),
+            ]),
+          ]
+        : []),
     ]);
   }
 
@@ -434,6 +514,14 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
       stage = "list";
       renderList();
       return;
+    }
+
+    // In a routine-loaded session, the next planned exercise drives this screen;
+    // sync the toggles to its current (default) gear so the user can confirm it.
+    const planned = nextPlanned();
+    if (planned) {
+      muscle = planned.muscle;
+      equipment = planned.equipment;
     }
 
     const nameInput = h("input", {
@@ -448,12 +536,21 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
       persist();
     });
 
+    // Only exercises with logged sets — planned-but-untouched rows live in the
+    // "next exercise" card instead, so they aren't duplicated here.
     const doneHost = h("div", { class: "live-done-list" });
-    if (session.exercises.length > 0) {
+    const logged = session.exercises.filter((ex) => ex.sets.length > 0);
+    if (logged.length > 0) {
       doneHost.append(
-        h("p", { class: "field-label", text: "Logged so far" }),
-        ...session.exercises.map((ex) =>
-          h("p", { class: "live-done-row", text: `${ex.name} — ${ex.sets.length} sets` }),
+        h("p", { class: "field-label", text: "Logged so far — tap to add sets" }),
+        ...logged.map((ex) =>
+          h("button", {
+            class: "btn btn-small live-done-row",
+            type: "button",
+            text: `${ex.name} — ${ex.sets.length} ${ex.sets.length === 1 ? "set" : "sets"}`,
+            aria: { label: `log sets for ${ex.name}` },
+            on: { click: () => resumeExercise(ex) },
+          }),
         ),
       );
     }
@@ -471,36 +568,52 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
       ]),
     );
     if (summary) container.append(summary);
+
+    // Toggle picks update the view-level gear, and — when confirming a planned
+    // routine exercise — write straight onto it so the choice sticks.
+    const pickMuscle = (m: string): void => {
+      muscle = m as MuscleGroup;
+      if (planned) {
+        planned.muscle = muscle;
+        persist();
+      }
+      render();
+    };
+    const pickEquipment = (eq: string): void => {
+      equipment = eq as Equipment;
+      if (planned) {
+        planned.equipment = equipment;
+        persist();
+      }
+      render();
+    };
+
     container.append(
       h("section", { class: "card live-select" }, [
-        h("h2", { class: "section-title", text: "Next exercise" }),
-        renderToggle(
-          "Muscle group",
-          MUSCLE_GROUPS,
-          (m) => MUSCLE_LABELS[m as MuscleGroup],
-          muscle,
-          (m) => {
-            muscle = m as MuscleGroup;
-            render();
-          },
-        ),
-        renderToggle(
-          "Equipment",
-          EQUIPMENT,
-          (eq) => EQUIPMENT_LABELS[eq as Equipment],
-          equipment,
-          (eq) => {
-            equipment = eq as Equipment;
-            render();
-          },
-        ),
+        h("h2", { class: "section-title", text: planned ? planned.name || "Next exercise" : "Next exercise" }),
+        ...(planned && planned.prescription
+          ? [h("p", { class: "now-target", text: planned.prescription })]
+          : []),
+        renderToggle("Muscle group", MUSCLE_GROUPS, (m) => MUSCLE_LABELS[m as MuscleGroup], muscle, pickMuscle),
+        renderToggle("Equipment", EQUIPMENT, (eq) => EQUIPMENT_LABELS[eq as Equipment], equipment, pickEquipment),
         h("div", { class: "btn-row" }, [
           h("button", {
             class: "btn btn-primary",
             type: "button",
-            text: "Next →",
-            on: { click: startExercise },
+            text: planned ? "Start →" : "Next →",
+            on: { click: planned ? () => resumeExercise(planned) : startExercise },
           }),
+          ...(planned
+            ? [
+                h("button", {
+                  class: "btn",
+                  type: "button",
+                  text: "+ Add off-plan",
+                  aria: { label: "add an exercise that isn't in the routine" },
+                  on: { click: startExercise },
+                }),
+              ]
+            : []),
         ]),
         doneHost,
       ]),
@@ -555,6 +668,35 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
     ]);
 
     container.append(h("h1", { class: "view-title", text: "Live Session" }), head, renderSetList());
+
+    // Routine target: when this exercise carries a prescription that parses to a
+    // rep count, show how far the logged reps have filled it (reuses Execute's UI).
+    const pres = currentEx?.prescription;
+    const target = pres !== undefined ? parseTargetReps(pres) : null;
+    if (currentEx && pres !== undefined && target !== null && target > 0) {
+      const logged = sumReps(currentEx.sets);
+      const pct = Math.round(Math.min(1, logged / target) * 100);
+      const fill = h("div", { class: "progress-fill" });
+      fill.style.width = `${pct}%`;
+      container.append(
+        h("p", { class: "now-target", text: pres }),
+        h("p", { class: "now-tally" }, [
+          h("span", { class: "tally-done", text: String(logged) }),
+          h("span", { class: "tally-sep", text: "/" }),
+          h("span", { class: "tally-target", text: String(target) }),
+          h("span", { class: "tally-unit", text: "reps" }),
+        ]),
+        h(
+          "div",
+          {
+            class: "progress now-progress",
+            role: "progressbar",
+            aria: { valuemin: "0", valuemax: "100", valuenow: String(pct), label: "Target progress" },
+          },
+          [fill],
+        ),
+      );
+    }
 
     if (sub === "idle") {
       container.append(

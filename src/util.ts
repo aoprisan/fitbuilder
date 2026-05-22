@@ -2,8 +2,10 @@ import {
   isBodyweight,
   SESSION_ARCHIVE_SCHEMA_ID,
   SESSION_ARCHIVE_SCHEMA_VERSION,
+  SHEET_SCHEMA_ID,
+  SHEET_SCHEMA_VERSION,
   type Equipment,
-  type ExercisePlan,
+  type LoggedExercise,
   type RoutineSheet,
   type SessionArchive,
   type TrainingSession,
@@ -29,23 +31,6 @@ export function uuid(): string {
   return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex
     .slice(6, 8)
     .join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10, 16).join("")}`;
-}
-
-/** Deep clone a plan so editing never mutates stored data. */
-export function clonePlan(plan: ExercisePlan): ExercisePlan {
-  return {
-    schema: plan.schema,
-    version: plan.version,
-    id: plan.id,
-    name: plan.name,
-    restSec: plan.restSec,
-    exercises: plan.exercises.map((ex) => ({
-      name: ex.name,
-      equipment: ex.equipment,
-      sets: ex.sets.map((s) => ({ reps: s.reps, weightKg: s.weightKg })),
-    })),
-    ...(plan.updatedAt !== undefined ? { updatedAt: plan.updatedAt } : {}),
-  };
 }
 
 /** Deep clone a routine sheet so editing never mutates stored data. */
@@ -74,11 +59,6 @@ export function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
-/** Total number of sets across all exercises in a plan. */
-export function totalSets(plan: ExercisePlan): number {
-  return plan.exercises.reduce((sum, ex) => sum + ex.sets.length, 0);
-}
-
 /** Format seconds as M:SS. */
 export function formatClock(totalSeconds: number): string {
   const s = Math.max(0, Math.floor(totalSeconds));
@@ -87,9 +67,46 @@ export function formatClock(totalSeconds: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
-/** Pretty-print a plan as interop JSON. */
-export function planToJson(plan: ExercisePlan): string {
-  return JSON.stringify(plan, null, 2);
+/**
+ * Summarise an exercise's logged sets as a free-text prescription, e.g.
+ * "3 × 10 @ 20 kg", "12, 10, 8 reps @ 20 kg", or "4 × 12" for bodyweight.
+ */
+function summarizeSets(ex: LoggedExercise): string {
+  const sets = ex.sets;
+  if (sets.length === 0) return "—";
+  const reps = sets.map((s) => s.reps);
+  const weights = sets.map((s) => s.weightKg);
+  const sameReps = reps.every((r) => r === reps[0]);
+  const sameWeight = weights.every((w) => w === weights[0]);
+  const bw = isBodyweight(ex.equipment);
+  const load = (w: number): string => (bw ? (w > 0 ? ` + ${round2(w)} kg` : "") : w > 0 ? ` @ ${round2(w)} kg` : "");
+  if (sameReps && sameWeight) return `${sets.length} × ${reps[0]}${load(weights[0]!)}`;
+  const repsStr = reps.join(", ");
+  return sameWeight ? `${repsStr} reps${load(weights[0]!)}` : `${repsStr} reps`;
+}
+
+/**
+ * Turn a logged training session into a one-routine sheet so it can be reused
+ * and shared through the routine export/share pipeline (PNG/PDF/WhatsApp/JSON).
+ */
+export function sessionToSheet(session: TrainingSession): RoutineSheet {
+  return {
+    schema: SHEET_SCHEMA_ID,
+    version: SHEET_SCHEMA_VERSION,
+    id: uuid(),
+    name: session.name || "Session",
+    routines: [
+      {
+        title: session.name || "Session",
+        tags: [formatSessionDate(session.startedAt)],
+        exercises: session.exercises.map((ex) => ({
+          name: ex.name,
+          prescription: summarizeSets(ex),
+        })),
+      },
+    ],
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 /** Filesystem-friendly slug derived from a plan name. */
@@ -163,7 +180,7 @@ export function sessionsToXml(sessions: TrainingSession[]): string {
     );
     for (const ex of s.exercises) {
       lines.push(
-        `    <exercise${attr("name", ex.name)}${attr("muscle", ex.muscle)}${attr("equipment", ex.equipment)}>`,
+        `    <exercise${attr("name", ex.name)}${attr("muscle", ex.muscle)}${attr("equipment", ex.equipment)}${attr("prescription", ex.prescription)}>`,
       );
       for (const set of ex.sets) {
         lines.push(

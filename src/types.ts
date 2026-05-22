@@ -14,32 +14,9 @@ export interface WorkSet {
   reps: number;
   /** External load in kg. For bodyweight equipment this is *added* weight (0 = bodyweight only). */
   weightKg: number;
-  /** Seconds the set took, recorded by the live stopwatch. Absent for planned sets. */
+  /** Seconds the set took, recorded by the live stopwatch. */
   durationSec?: number;
 }
-
-export interface Exercise {
-  name: string;
-  equipment: Equipment;
-  sets: WorkSet[];
-}
-
-export interface ExercisePlan {
-  schema: "gymlog.exercise-plan";
-  version: 1;
-  /** uuid; regenerated on import if missing or blank. */
-  id: string;
-  /** e.g. "Shoulders" */
-  name: string;
-  /** configurable rest between sets, in seconds. */
-  restSec: number;
-  exercises: Exercise[];
-  /** ISO timestamp of last save. */
-  updatedAt?: string;
-}
-
-export const SCHEMA_ID = "gymlog.exercise-plan" as const;
-export const SCHEMA_VERSION = 1 as const;
 
 export const EQUIPMENT: readonly Equipment[] = [
   "cable",
@@ -162,6 +139,8 @@ export interface LoggedExercise {
   name: string;
   muscle: MuscleGroup;
   equipment: Equipment;
+  /** Free-text target carried from a routine (e.g. "30-50 repetari"); absent for ad-hoc exercises. */
+  prescription?: string;
   sets: WorkSet[];
 }
 
