@@ -177,6 +177,14 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
     render();
   }
 
+  function deleteSet(i: number): void {
+    if (!currentEx) return;
+    if (!confirm(`Delete set ${i + 1}? This cannot be undone.`)) return;
+    currentEx.sets.splice(i, 1);
+    persist();
+    render();
+  }
+
   // ───────────────────────────── List screen ──────────────────────────────────
 
   function renderList(): void {
@@ -346,6 +354,13 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
         h("div", { class: "live-set" }, [
           h("span", { class: "set-no", text: `Set ${i + 1}` }),
           h("span", { class: "live-set-meta", text: bits.join(" · ") }),
+          h("button", {
+            class: "icon-btn danger live-set-del",
+            type: "button",
+            text: "✕",
+            aria: { label: `delete set ${i + 1}` },
+            on: { click: () => deleteSet(i) },
+          }),
         ]),
       );
     });
