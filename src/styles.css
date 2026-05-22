@@ -24,6 +24,10 @@
   --mustard: #c9962a;   /* ochre — caution / accent */
   --pine: #3a5a40;      /* field green — done / go */
   --navy: #2c3e57;      /* slate blue — cool stamp */
+  --rust: #9c4a22;      /* burnt orange — machine stamp */
+  --teal: #2f6b66;      /* deep teal — machine stamp */
+  --plum: #5b3552;      /* muted plum — machine stamp */
+  --olive: #5f6322;     /* olive — machine stamp */
 
   /* ── Type ────────────────────────────────────────────────────────────── */
   --font-display: "Alfa Slab One", Rockwell, Georgia, serif;
@@ -877,6 +881,10 @@ textarea {
 .badge-kettlebell { background: var(--signal); }
 .badge-trx { background: var(--pine); }
 .badge-calisthenics { background: var(--navy); }
+.badge-triceps-press { background: var(--rust); }
+.badge-bench-press { background: var(--teal); }
+.badge-lat-pulldown { background: var(--plum); }
+.badge-rear-delt-fly { background: var(--olive); }
 
 /* ─────────────────────────── HOME ─────────────────────────── */
 
