@@ -13,7 +13,7 @@ import {
   type TrainingSession,
 } from "../types";
 import { formatSessionDate, sessionSetCount, sessionVolume } from "../util";
-import { numberField } from "./fields";
+import { dialField } from "./dial";
 
 export function mountLog(root: HTMLElement, _nav: Nav): void {
   const container = h("div", { class: "view view-log" });
@@ -151,26 +151,30 @@ export function mountLog(root: HTMLElement, _nav: Nav): void {
 
     const renderSet = (ex: LoggedExercise, setIndex: number): HTMLElement => {
       const ws = ex.sets[setIndex]!;
-      return h("div", { class: "set-row" }, [
+      return h("div", { class: "set-row set-row-dial" }, [
         h("span", { class: "set-no", text: `Set ${setIndex + 1}` }),
-        numberField({
+        dialField({
           label: "Reps",
           value: ws.reps,
           step: 1,
           min: 0,
           integer: true,
+          unit: "reps",
+          tone: "signal",
           onCommit: (n) => {
             ws.reps = n;
             persist();
             refreshMeta();
           },
         }),
-        numberField({
-          label: isBodyweight(ex.equipment) ? "Added weight (kg)" : "Weight (kg)",
+        dialField({
+          label: isBodyweight(ex.equipment) ? "Added (kg)" : "Weight (kg)",
           value: ws.weightKg,
           step: 2.5,
           min: 0,
           integer: false,
+          unit: "kg",
+          tone: "navy",
           onCommit: (n) => {
             ws.weightKg = n;
             persist();
