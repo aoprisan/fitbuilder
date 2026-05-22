@@ -1,6 +1,6 @@
 import type { ExercisePlan, RoutineSheet } from "./types";
 
-export type ViewName = "home" | "builder" | "saved" | "session" | "sheet" | "execute";
+export type ViewName = "home" | "builder" | "saved" | "session" | "sheet" | "execute" | "log";
 
 export type Cleanup = () => void;
 

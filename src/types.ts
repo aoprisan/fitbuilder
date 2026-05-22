@@ -97,3 +97,73 @@ export interface RoutineSheet {
 
 export const SHEET_SCHEMA_ID = "gymlog.routine-sheet" as const;
 export const SHEET_SCHEMA_VERSION = 1 as const;
+
+/* =============================================================================
+   Training sessions — live workout logs.
+   Unlike an ExercisePlan (a template designed ahead of time), a TrainingSession
+   is a journal of an actual workout: started at a moment in time and filled in
+   set-by-set at the gym. Each logged exercise tags the muscle group worked.
+   ========================================================================== */
+
+export type MuscleGroup =
+  | "chest"
+  | "back"
+  | "shoulders"
+  | "biceps"
+  | "triceps"
+  | "legs"
+  | "glutes"
+  | "core"
+  | "forearms"
+  | "calves";
+
+export const MUSCLE_GROUPS: readonly MuscleGroup[] = [
+  "chest",
+  "back",
+  "shoulders",
+  "biceps",
+  "triceps",
+  "legs",
+  "glutes",
+  "core",
+  "forearms",
+  "calves",
+] as const;
+
+/** Human-readable label for each muscle group. */
+export const MUSCLE_LABELS: Record<MuscleGroup, string> = {
+  chest: "Chest",
+  back: "Back",
+  shoulders: "Shoulders",
+  biceps: "Biceps",
+  triceps: "Triceps",
+  legs: "Legs",
+  glutes: "Glutes",
+  core: "Core",
+  forearms: "Forearms",
+  calves: "Calves",
+};
+
+export interface LoggedExercise {
+  name: string;
+  muscle: MuscleGroup;
+  equipment: Equipment;
+  sets: WorkSet[];
+}
+
+export interface TrainingSession {
+  schema: "gymlog.training-session";
+  version: 1;
+  /** uuid; regenerated on load if missing or blank. */
+  id: string;
+  /** Free-text label, e.g. "Push day". Defaults to the start date. */
+  name: string;
+  /** ISO timestamp of when the session was started. */
+  startedAt: string;
+  exercises: LoggedExercise[];
+  /** ISO timestamp of last save. */
+  updatedAt?: string;
+}
+
+export const LOG_SCHEMA_ID = "gymlog.training-session" as const;
+export const LOG_SCHEMA_VERSION = 1 as const;

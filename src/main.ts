@@ -7,6 +7,7 @@ import { clonePlan, cloneSheet } from "./util";
 import { mountBuilder } from "./views/builder";
 import { mountExecute } from "./views/execute";
 import { mountHome } from "./views/home";
+import { mountLog } from "./views/log";
 import { mountSaved } from "./views/saved";
 import { mountSession } from "./views/session";
 import { mountSheet } from "./views/sheet";
@@ -39,6 +40,12 @@ const NAV_ITEMS: ReadonlyArray<{ name: ViewName; label: string; icon: () => SVGE
   { name: "saved", label: "Saved", icon: () => navIcon("M6 3h12v18l-6-4.5L6 21z") },
   { name: "session", label: "Session", icon: () => navIcon("M12 22a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM12 14V9.5M9.5 2h5M19 6l1.6-1.6") },
   { name: "execute", label: "Execute", icon: () => navIcon("M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0zM8.5 12l2.5 2.5 5-5") },
+  {
+    name: "log",
+    label: "Log",
+    icon: () =>
+      navIcon("M9.5 4h5v3h-5z", "M7 5.5H5.5v15h13v-15H17", "M9 12h6", "M9 16h4"),
+  },
 ];
 
 function boot(): void {
@@ -104,6 +111,9 @@ function boot(): void {
         break;
       case "execute":
         result = mountExecute(viewHost, nav);
+        break;
+      case "log":
+        result = mountLog(viewHost, nav);
         break;
     }
     cleanup = typeof result === "function" ? result : null;

@@ -1,4 +1,10 @@
-import { isBodyweight, type Equipment, type ExercisePlan, type RoutineSheet } from "./types";
+import {
+  isBodyweight,
+  type Equipment,
+  type ExercisePlan,
+  type RoutineSheet,
+  type TrainingSession,
+} from "./types";
 
 /** Generate a RFC4122 v4 uuid, falling back when crypto.randomUUID is absent. */
 export function uuid(): string {
@@ -96,6 +102,33 @@ export function slug(name: string): string {
 /** Round to at most 2 decimals, avoiding float drift from repeated steps. */
 export function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+/** Total number of sets logged across all exercises in a session. */
+export function sessionSetCount(session: TrainingSession): number {
+  return session.exercises.reduce((sum, ex) => sum + ex.sets.length, 0);
+}
+
+/** Total volume (Σ reps × weight, in kg) logged across a session. */
+export function sessionVolume(session: TrainingSession): number {
+  let total = 0;
+  for (const ex of session.exercises) {
+    for (const s of ex.sets) total += s.reps * s.weightKg;
+  }
+  return Math.round(total);
+}
+
+/** Format an ISO timestamp as a short, human date like "Thu 22 May · 14:30". */
+export function formatSessionDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 /**
