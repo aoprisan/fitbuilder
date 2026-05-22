@@ -1,5 +1,6 @@
 import { clear, h } from "../dom";
 import { newLoggedExercise, newTrainingSession } from "../log";
+import { clearProgress, loadProgress, saveProgress } from "../liveProgress";
 import { deleteSession, getSession, loadSessions, saveSession } from "../logStorage";
 import type { Cleanup, Nav } from "../router";
 import { setActiveLog, state } from "../state";
@@ -50,13 +51,14 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
   let setReps = 10;
   let setWeight = 10;
 
-  // Stopwatch.
-  let setStartMs = 0;
+  // Stopwatch. Anchored to wall-clock time (epoch ms) so it keeps correct time
+  // across a reload or phone lock, not just within one page session.
+  let setStartEpoch = 0;
   let setElapsedMs = 0;
   let rafId = 0;
 
   // Rest clock — starts the moment a set is committed, runs until the next set.
-  let restStartMs = 0;
+  let restStartEpoch = 0;
 
   function stopRaf(): void {
     if (rafId) {
@@ -67,6 +69,53 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
 
   function persist(): void {
     if (state.activeLog) saveSession(state.activeLog);
+  }
+
+  /** Snapshot the in-flight flow so a reload can resume exactly here. */
+  function snapshot(): void {
+    const s = state.activeLog;
+    if (!s || stage === "list") {
+      clearProgress();
+      return;
+    }
+    saveProgress({
+      sessionId: s.id,
+      stage,
+      sub,
+      muscle,
+      equipment,
+      hasCurrentEx: currentEx !== null,
+      setReps,
+      setWeight,
+      setStartEpoch,
+      setElapsedMs,
+      restStartEpoch,
+    });
+  }
+
+  /** Re-open the session and flow position saved by a previous run, if any. */
+  function restore(): void {
+    const saved = loadProgress();
+    if (!saved) return;
+    const session = getSession(saved.sessionId);
+    if (!session) {
+      clearProgress();
+      return;
+    }
+    setActiveLog(session);
+    stage = saved.stage;
+    sub = saved.sub;
+    muscle = saved.muscle;
+    equipment = saved.equipment;
+    currentEx =
+      saved.hasCurrentEx && session.exercises.length > 0
+        ? session.exercises[session.exercises.length - 1]!
+        : null;
+    setReps = saved.setReps;
+    setWeight = saved.setWeight;
+    setStartEpoch = saved.setStartEpoch;
+    setElapsedMs = saved.setElapsedMs;
+    restStartEpoch = saved.restStartEpoch;
   }
 
   // ───────────────────────── Toggles (muscle / equipment) ─────────────────────
@@ -124,6 +173,7 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
       if (s.exercises.some((ex) => ex.sets.length > 0)) saveSession(s);
       else deleteSession(s.id); // discard a session with nothing logged
     }
+    clearProgress();
     setActiveLog(null);
     currentEx = null;
     sub = "idle";
@@ -139,7 +189,7 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
   }
 
   function startSet(): void {
-    setStartMs = performance.now();
+    setStartEpoch = Date.now();
     setElapsedMs = 0;
     sub = "running";
     render();
@@ -147,7 +197,7 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
 
   function stopSet(): void {
     stopRaf();
-    setElapsedMs = performance.now() - setStartMs;
+    setElapsedMs = Date.now() - setStartEpoch;
     const last =
       currentEx && currentEx.sets.length ? currentEx.sets[currentEx.sets.length - 1]! : null;
     setReps = last ? last.reps : 10;
@@ -170,7 +220,7 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
     }
     currentEx.sets.push(set);
     persist();
-    restStartMs = performance.now();
+    restStartEpoch = Date.now();
     sub = "resting";
     render();
   }
@@ -438,7 +488,7 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
       );
 
       const frame = (): void => {
-        setElapsedMs = performance.now() - setStartMs;
+        setElapsedMs = Date.now() - setStartEpoch;
         const secs = setElapsedMs / 1000;
         num.textContent = formatClock(secs);
         fill.setAttribute("stroke-dashoffset", String(DIAL_C * (1 - ((secs % 60) / 60))));
@@ -489,7 +539,7 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
       );
 
       const frame = (): void => {
-        const secs = (performance.now() - restStartMs) / 1000;
+        const secs = (Date.now() - restStartEpoch) / 1000;
         num.textContent = formatClock(secs);
         fill.setAttribute("stroke-dashoffset", String(DIAL_C * (1 - ((secs % 60) / 60))));
         rafId = requestAnimationFrame(frame);
@@ -512,6 +562,7 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
           tone: "signal",
           onCommit: (n) => {
             setReps = n;
+            snapshot();
           },
         }),
         dialField({
@@ -524,6 +575,7 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
           tone: "navy",
           onCommit: (n) => {
             setWeight = n;
+            snapshot();
           },
         }),
       ]),
@@ -544,12 +596,14 @@ export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
     stopRaf();
     clear(container);
     if (!state.activeLog) stage = "list";
+    snapshot();
     if (stage === "list") renderList();
     else if (stage === "select") renderSelect();
     else renderExercise();
     window.scrollTo(0, 0);
   }
 
+  restore();
   render();
   return () => stopRaf();
 }
