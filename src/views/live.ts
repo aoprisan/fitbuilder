@@ -819,9 +819,18 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       return;
     }
 
-    // sub === "logging"
+    // sub === "logging" — the ✓ Done button sits above the dials so you don't
+    // have to swipe down across the weight knob (which would rotate it) to reach it.
     container.append(
       h("p", { class: "set-time", text: `Set time ${formatClock(setElapsedMs / 1000)}` }),
+      h("div", { class: "btn-row live-actions" }, [
+        h("button", {
+          class: "btn btn-primary btn-jumbo",
+          type: "button",
+          text: "✓ Done",
+          on: { click: commitSet },
+        }),
+      ]),
       h("div", { class: "card live-dials" }, [
         dialField({
           label: "Reps",
@@ -848,14 +857,6 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
             setWeight = n;
             snapshot();
           },
-        }),
-      ]),
-      h("div", { class: "btn-row live-actions" }, [
-        h("button", {
-          class: "btn btn-primary btn-jumbo",
-          type: "button",
-          text: "✓ Done",
-          on: { click: commitSet },
         }),
       ]),
     );
