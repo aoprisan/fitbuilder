@@ -153,6 +153,8 @@ export interface LoggedExercise {
   secondaryMuscles?: readonly MuscleGroup[];
   /** Free-text target carried from a routine (e.g. "30-50 repetari"); absent for ad-hoc exercises. */
   prescription?: string;
+  /** User-logged one-rep max in kg; the calculated estimate is derived from the sets. */
+  oneRmKg?: number;
   sets: WorkSet[];
 }
 

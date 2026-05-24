@@ -1553,6 +1553,50 @@ textarea {
   margin: 0 0 4px;
 }
 
+/* ───────────────────────────── ONE-REP MAX ───────────────────────────── */
+
+.onerm-card {
+  border-left: 8px solid var(--brick);
+}
+
+.onerm-card .section-title {
+  margin-top: 0;
+}
+
+.onerm-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  align-items: end;
+  margin-top: 10px;
+}
+
+.onerm-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.onerm-calc {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 9vw, 40px);
+  line-height: 0.9;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.onerm-input {
+  font-variant-numeric: tabular-nums;
+}
+
+.onerm-note {
+  margin: 10px 0 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--ink-soft);
+}
+
 /* ─────────────────────── EFFORT GAUGE + HYDRATION ─────────────────────── */
 
 .live-effort {
