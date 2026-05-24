@@ -1818,6 +1818,77 @@ textarea {
   font-variant-numeric: tabular-nums;
 }
 
+/* Recovery view: a red→green readiness ring plus per-muscle recovery bars. The
+   ring reuses the rest-timer dial shell (.dial-wrap/.dial/.dial-track); the fill
+   stroke colour is set inline per recovery fraction. */
+.recovery-ring {
+  width: min(58vw, 200px);
+}
+
+.recovery-ring--sm {
+  width: 92px;
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.recovery-ring-fill {
+  fill: none;
+  stroke-width: 13;
+  stroke-linecap: butt;
+  transform: rotate(-90deg);
+  transform-origin: center;
+  transition: stroke-dashoffset 320ms var(--ease), stroke 320ms var(--ease);
+}
+
+.recovery-ring-pct {
+  font-family: var(--font-stamp);
+  font-weight: 800;
+  font-size: 34px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.recovery-ring--sm .recovery-ring-pct {
+  font-size: 22px;
+}
+
+.recovery-ring-status {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-top: 5px;
+}
+
+.recovery-ring--sm .recovery-ring-status {
+  font-size: 8px;
+  letter-spacing: 0.16em;
+  margin-top: 3px;
+}
+
+.recovery-total {
+  text-align: center;
+}
+
+.recovery-total-note {
+  margin-top: 10px;
+}
+
+.recovery-home-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 6px 0 14px;
+}
+
+.recovery-home-meta {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
 .protein-row {
   display: flex;
   align-items: baseline;
