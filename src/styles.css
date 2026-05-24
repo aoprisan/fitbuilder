@@ -901,6 +901,55 @@ textarea {
   color: var(--paper);
 }
 
+/* ──────────────────── COMPOUND-LIFT MUSCLE SPLIT ──────────────────── */
+/* Live select screen, compound mode: how a lift's work splits across muscles. */
+
+.muscle-shares {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.muscle-share {
+  display: grid;
+  grid-template-columns: 88px 1fr 42px;
+  align-items: center;
+  gap: 10px;
+}
+
+.muscle-share-name {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.muscle-share-bar {
+  height: 10px;
+  background: var(--paper-deep);
+  border: 2px solid var(--ink);
+  overflow: hidden;
+}
+
+.muscle-share-fill {
+  height: 100%;
+  width: 0;
+  background: var(--ink);
+  transition: width 0.4s var(--ease);
+}
+
+.muscle-share-pct {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  text-align: right;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ─────────────────────────── EQUIPMENT BADGES ─────────────────────────── */
 /* Each equipment type gets its own screenprint ink. */
 

@@ -7,8 +7,12 @@ export type ProgressStage = "select" | "exercise";
 /** Where we are within a single exercise. */
 export type ProgressSub = "idle" | "running" | "logging" | "resting";
 
+/** Which exercise-picker mode the select screen is showing. */
+export type SelectMode = "custom" | "compound";
+
 const STAGES: readonly ProgressStage[] = ["select", "exercise"];
 const SUBS: readonly ProgressSub[] = ["idle", "running", "logging", "resting"];
+const SELECT_MODES: readonly SelectMode[] = ["custom", "compound"];
 
 /**
  * A snapshot of an in-flight live session: which session is open, where the
@@ -24,6 +28,8 @@ export interface LiveProgress {
   equipment: Equipment;
   /** Selected catalog movement id; re-validated against the muscle's catalog on restore. */
   movementId: string;
+  /** Which exercise-picker mode the select screen is showing. */
+  selectMode: SelectMode;
   /** True when the session's last exercise is the one being worked (sets already logged for it). */
   hasCurrentEx: boolean;
   /** In-flight reps/weight while logging a set. */
@@ -98,6 +104,9 @@ export function loadProgress(): LiveProgress | null {
     ? (raw["equipment"] as Equipment)
     : "dumbbell";
   const movementId = typeof raw["movementId"] === "string" ? raw["movementId"] : "";
+  const selectMode = SELECT_MODES.includes(raw["selectMode"] as SelectMode)
+    ? (raw["selectMode"] as SelectMode)
+    : "custom";
 
   return {
     sessionId,
@@ -106,6 +115,7 @@ export function loadProgress(): LiveProgress | null {
     muscle,
     equipment,
     movementId,
+    selectMode,
     hasCurrentEx: raw["hasCurrentEx"] === true,
     setReps: num(raw["setReps"]),
     setWeight: num(raw["setWeight"]),

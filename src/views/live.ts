@@ -3,9 +3,15 @@ import { estimateProteinG, muscleBreakdown, readEffort, readHydration } from "..
 import { parseTargetReps } from "../execute";
 import { exportSessionsJson, exportSessionsXml } from "../exporters";
 import { newLoggedExercise, newTrainingSession, repeatSession } from "../log";
-import { clearProgress, loadProgress, saveProgress } from "../liveProgress";
+import { clearProgress, loadProgress, saveProgress, type SelectMode } from "../liveProgress";
 import { deleteSession, getSession, loadSessions, saveSession } from "../logStorage";
-import { findMovement, movementsForMuscle } from "../movements";
+import {
+  compoundMovements,
+  findMovement,
+  type Movement,
+  movementsForMuscle,
+  muscleShares,
+} from "../movements";
 import type { Cleanup, Nav } from "../router";
 import { saveSheet } from "../sheetStorage";
 import { setActiveLog, setEditingSheet, setSheetFlash, state } from "../state";
@@ -64,6 +70,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   let equipment: Equipment = "dumbbell";
   // Selected catalog movement; drives the exercise name, load type, and secondary muscles.
   let movementId = "";
+  // Which exercise picker the select screen shows: muscle+gear ("custom") or compound lifts.
+  let selectMode: SelectMode = "custom";
   let currentEx: LoggedExercise | null = null;
 
   /** Point the selection at a movement id, syncing the derived muscle + load type. */
@@ -87,6 +95,15 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     const movements = movementsForMuscle(muscle);
     if (!movements.some((mv) => mv.id === movementId)) {
       const first = movements[0];
+      if (first) selectMovement(first.id);
+    }
+  }
+
+  /** Ensure the selection points at a compound lift; default to the first one if not. */
+  function ensureCompound(): void {
+    const compounds = compoundMovements();
+    if (!compounds.some((mv) => mv.id === movementId)) {
+      const first = compounds[0];
       if (first) selectMovement(first.id);
     }
   }
@@ -139,6 +156,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       muscle,
       equipment,
       movementId,
+      selectMode,
       hasCurrentEx: currentEx !== null,
       setReps,
       setWeight,
@@ -163,6 +181,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     muscle = saved.muscle;
     equipment = saved.equipment;
     movementId = saved.movementId;
+    selectMode = saved.selectMode;
     currentEx =
       saved.hasCurrentEx && session.exercises.length > 0
         ? session.exercises[session.exercises.length - 1]!
@@ -563,7 +582,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         if (match) movementId = match.id;
       }
     }
-    ensureMovement();
+    if (selectMode === "compound") ensureCompound();
+    else ensureMovement();
 
     const nameInput = h("input", {
       class: "plan-name-input",
@@ -637,6 +657,66 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       }
       render();
     };
+    const pickMode = (m: string): void => {
+      selectMode = m as SelectMode;
+      if (selectMode === "compound") ensureCompound();
+      else ensureMovement();
+      if (planned) {
+        applyMovementToPlanned(planned);
+        persist();
+      }
+      render();
+    };
+
+    // The muscle split of the picked compound lift, as bars summing to 100%.
+    const renderMuscleShares = (mv: Movement): HTMLElement =>
+      h("div", { class: "field" }, [
+        h("span", { class: "field-label", text: "Muscles worked" }),
+        h(
+          "div",
+          { class: "muscle-shares" },
+          muscleShares(mv).map((s) => {
+            const fill = h("div", { class: "muscle-share-fill" });
+            fill.style.width = `${s.pct}%`;
+            return h("div", { class: "muscle-share" }, [
+              h("span", { class: "muscle-share-name", text: MUSCLE_LABELS[s.muscle] }),
+              h("div", { class: "muscle-share-bar" }, [fill]),
+              h("span", { class: "muscle-share-pct", text: `${s.pct}%` }),
+            ]);
+          }),
+        ),
+      ]);
+
+    // The exercise picker swaps shape by mode: muscle + gear, or compound lifts
+    // with their muscle split. The mode toggle sits above both.
+    const compounds = compoundMovements();
+    const selectedCompound = findMovement(movementId);
+    const picker =
+      selectMode === "compound"
+        ? compounds.length === 0
+          ? [h("p", { class: "empty", text: "No compound lifts in the catalog yet." })]
+          : [
+              renderToggle(
+                "Compound lift",
+                compounds.map((mv) => mv.id),
+                (id) => findMovement(id)?.name ?? id,
+                movementId,
+                pickMovement,
+              ),
+              ...(selectedCompound && selectedCompound.secondaryMuscles.length > 0
+                ? [renderMuscleShares(selectedCompound)]
+                : []),
+            ]
+        : [
+            renderToggle("Muscle group", MUSCLE_GROUPS, (m) => MUSCLE_LABELS[m as MuscleGroup], muscle, pickMuscle),
+            renderToggle(
+              "Exercise",
+              movementsForMuscle(muscle).map((mv) => mv.id),
+              (id) => findMovement(id)?.name ?? id,
+              movementId,
+              pickMovement,
+            ),
+          ];
 
     container.append(
       h("section", { class: "card live-select" }, [
@@ -644,14 +724,14 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         ...(planned && planned.prescription
           ? [h("p", { class: "now-target", text: planned.prescription })]
           : []),
-        renderToggle("Muscle group", MUSCLE_GROUPS, (m) => MUSCLE_LABELS[m as MuscleGroup], muscle, pickMuscle),
         renderToggle(
-          "Exercise",
-          movementsForMuscle(muscle).map((mv) => mv.id),
-          (id) => findMovement(id)?.name ?? id,
-          movementId,
-          pickMovement,
+          "Mode",
+          ["custom", "compound"],
+          (m) => (m === "compound" ? "Compound" : "Custom"),
+          selectMode,
+          pickMode,
         ),
+        ...picker,
         h("div", { class: "btn-row" }, [
           h("button", {
             class: "btn btn-primary",
