@@ -1,5 +1,6 @@
 import { h } from "../dom";
-import { loadSessions } from "../logStorage";
+import { loadProgress } from "../liveProgress";
+import { getSession, loadSessions } from "../logStorage";
 import { forceAppUpdate } from "../pwa";
 import type { Nav } from "../router";
 import { formatSessionDate, sessionSetCount } from "../util";
@@ -7,6 +8,11 @@ import { formatSessionDate, sessionSetCount } from "../util";
 export function mountHome(root: HTMLElement, nav: Nav): void {
   const sessions = loadSessions().sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   const last = sessions[0];
+
+  // A live session is in progress when there's a saved flow snapshot whose
+  // session still exists — the same condition Live's restore() resumes from.
+  const progress = loadProgress();
+  const liveRunning = progress !== null && getSession(progress.sessionId) !== undefined;
 
   const hero = h("section", { class: "hero" }, [
     h("p", { class: "eyebrow", text: "GYM LOG" }),
@@ -37,7 +43,7 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
     h("div", { class: "btn-row" }, [
       h("button", {
         class: "btn btn-primary",
-        text: "Start Live Session",
+        text: liveRunning ? "Resume Session" : "Start Live Session",
         on: { click: () => nav.go("live") },
       }),
       h("button", { class: "btn", text: "Progress Stats", on: { click: () => nav.go("stats") } }),
