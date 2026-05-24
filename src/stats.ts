@@ -90,6 +90,28 @@ export interface ProgressPoint {
   hypertrophy: number;
 }
 
+/** Best 1-rep max for a scope: the logged tested max alongside the Epley estimate. */
+export interface BestOneRm {
+  /** Heaviest logged tested max across matching exercises, kg; 0 when none. */
+  logged: number;
+  /** Heaviest estimated 1RM (Epley) across matching sets, kg; 0 when none. */
+  estimated: number;
+}
+
+/** Best logged and estimated 1-rep max across the given scope. */
+export function bestOneRm(sessions: TrainingSession[], filter: ProgressFilter): BestOneRm {
+  let logged = 0;
+  let estimated = 0;
+  for (const session of sessions) {
+    for (const ex of session.exercises) {
+      if (filter !== "all" && exerciseKey(ex) !== filter) continue;
+      if (ex.oneRmKg !== undefined) logged = Math.max(logged, ex.oneRmKg);
+      for (const s of ex.sets) estimated = Math.max(estimated, epley1RM(s));
+    }
+  }
+  return { logged: round2(logged), estimated: round2(estimated) };
+}
+
 function matchingSets(session: TrainingSession, filter: ProgressFilter): WorkSet[] {
   const out: WorkSet[] = [];
   for (const ex of session.exercises) {
