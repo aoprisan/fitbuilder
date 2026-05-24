@@ -1,9 +1,12 @@
-import { h } from "../dom";
+import { clear, h } from "../dom";
 import { loadProgress } from "../liveProgress";
 import { getSession, loadSessions } from "../logStorage";
+import { allMovements } from "../movements";
+import { clearOneRm, loadOneRmMaxes, setOneRm } from "../oneRmStore";
 import { forceAppUpdate } from "../pwa";
 import type { Nav } from "../router";
-import { formatSessionDate, sessionSetCount } from "../util";
+import { exerciseKeyLabel } from "../stats";
+import { formatSessionDate, round2, sessionSetCount } from "../util";
 
 export function mountHome(root: HTMLElement, nav: Nav): void {
   const sessions = loadSessions().sort((a, b) => b.startedAt.localeCompare(a.startedAt));
@@ -50,6 +53,109 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
     ]),
   ]);
 
+  // ── One-rep max — log a tested max from anywhere, not just mid-workout ─────
+  function renderOneRmCard(): HTMLElement {
+    const select = h(
+      "select",
+      { class: "onerm-log-select", aria: { label: "Lift to log a one-rep max for" } },
+      allMovements().map((mv) => h("option", { value: mv.id, text: exerciseKeyLabel(mv.id) })),
+    );
+    const kgInput = h("input", {
+      class: "onerm-log-input",
+      type: "number",
+      inputmode: "decimal",
+      min: "0",
+      step: "2.5",
+      placeholder: "—",
+      aria: { label: "Tested one-rep max in kg" },
+    });
+    const status = h("p", {
+      class: "onerm-note",
+      text: "Saved on this device per lift, and shown beside your Stats estimate.",
+    });
+    const listHost = h("div", { class: "saved-list onerm-log-list" });
+
+    // Mirror the stored max for the chosen lift into the input.
+    const syncInput = (): void => {
+      const current = loadOneRmMaxes()[select.value];
+      kgInput.value = current !== undefined ? String(current) : "";
+    };
+
+    const renderList = (): void => {
+      clear(listHost);
+      const entries = Object.entries(loadOneRmMaxes()).sort((a, b) =>
+        exerciseKeyLabel(a[0]).localeCompare(exerciseKeyLabel(b[0])),
+      );
+      if (entries.length === 0) {
+        listHost.appendChild(h("p", { class: "empty", text: "No maxes logged yet." }));
+        return;
+      }
+      for (const [key, kg] of entries) {
+        const label = exerciseKeyLabel(key);
+        listHost.appendChild(
+          h("div", { class: "onerm-log-row" }, [
+            h("span", { class: "onerm-log-name", text: label }),
+            h("span", { class: "onerm-log-kg", text: `${kg} kg` }),
+            h("button", {
+              class: "icon-btn danger",
+              type: "button",
+              text: "✕",
+              aria: { label: `remove logged max for ${label}` },
+              on: {
+                click: () => {
+                  clearOneRm(key);
+                  renderList();
+                  syncInput();
+                },
+              },
+            }),
+          ]),
+        );
+      }
+    };
+
+    select.addEventListener("change", syncInput);
+
+    const saveBtn = h("button", {
+      class: "btn btn-primary btn-small",
+      type: "button",
+      text: "Save max",
+    });
+    saveBtn.addEventListener("click", () => {
+      const n = parseFloat(kgInput.value);
+      const label = exerciseKeyLabel(select.value);
+      if (Number.isFinite(n) && n > 0) {
+        setOneRm(select.value, n);
+        status.textContent = `Saved ${label} — ${round2(n)} kg.`;
+      } else {
+        clearOneRm(select.value);
+        status.textContent = `Cleared ${label}.`;
+      }
+      renderList();
+      syncInput();
+    });
+
+    syncInput();
+    renderList();
+
+    return h("section", { class: "card onerm-log" }, [
+      h("p", { class: "eyebrow", text: "Personal records" }),
+      h("h2", { class: "section-title", text: "One-rep max" }),
+      h("p", {
+        class: "plan-meta",
+        text: "Log a max you tested — in or out of a workout. Pick the lift, enter the weight, and it shows up in Stats.",
+      }),
+      h("label", { class: "field" }, [h("span", { class: "field-label", text: "Lift" }), select]),
+      h("label", { class: "field" }, [
+        h("span", { class: "field-label", text: "Tested max (kg)" }),
+        kgInput,
+      ]),
+      h("div", { class: "btn-row" }, [saveBtn]),
+      status,
+      listHost,
+    ]);
+  }
+
   // ── Lane 2: the coach — author routines, share them, run them ─────────────
   const routinesLane = h("section", { class: "card" }, [
     h("p", { class: "eyebrow", text: "For routines & coaching" }),
@@ -85,6 +191,12 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
   ]);
 
   root.appendChild(
-    h("div", { class: "view view-home" }, [hero, trainingLane, routinesLane, updateCard]),
+    h("div", { class: "view view-home" }, [
+      hero,
+      trainingLane,
+      renderOneRmCard(),
+      routinesLane,
+      updateCard,
+    ]),
   );
 }

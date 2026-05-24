@@ -1,6 +1,7 @@
 import { clear, h } from "../dom";
 import { lifetimeEffort, type LifetimeEffort } from "../effort";
 import { loadSessions } from "../logStorage";
+import { loadOneRmMaxes } from "../oneRmStore";
 import type { Cleanup, Nav } from "../router";
 import {
   bestOneRm,
@@ -66,7 +67,7 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
 
     const labels = points.map((p) => p.label);
     const kg = (n: number): string => String(round2(n));
-    const best = bestOneRm(sessions, filter);
+    const best = bestOneRm(sessions, filter, loadOneRmMaxes());
 
     container.append(
       h("p", {

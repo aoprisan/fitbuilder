@@ -76,6 +76,11 @@ export function findMovement(id: string): Movement | undefined {
   return REGISTRY.get(id);
 }
 
+/** Every catalog movement, deduped by id, in muscle-group then catalog order. */
+export function allMovements(): readonly Movement[] {
+  return [...REGISTRY.values()];
+}
+
 /**
  * Every curated compound lift, in catalog order. A movement is "compound" when
  * it taxes secondary muscles; generic-gear movements have none, so this yields
