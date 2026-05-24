@@ -172,6 +172,11 @@ export function copySessionPrompt(session: TrainingSession): Promise<CopyResult>
   return copyForAnalysis(sessionsToMarkdown([session]), `${sessionSlug(session)}.md`);
 }
 
+/** Copy the plan-building prompt to the clipboard so it can be pasted into any AI; download as a backstop. */
+export function copyPlanPrompt(prompt: string): Promise<CopyResult> {
+  return copyForAnalysis(prompt, "fitbuilder-plan.md");
+}
+
 /** Download a rendered canvas as a PNG. */
 async function downloadCanvasPng(canvas: HTMLCanvasElement, filename: string): Promise<void> {
   const blob = await canvasToBlob(canvas, "image/png");

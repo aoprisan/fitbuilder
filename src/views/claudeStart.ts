@@ -1,6 +1,6 @@
 import { buildPlanPrompt, parsePlanFromText, type Goal, type Level, type PlanInputs } from "../claudePlan";
 import { h } from "../dom";
-import { startPlanInClaude } from "../exporters";
+import { copyPlanPrompt, startPlanInClaude } from "../exporters";
 import type { Cleanup, Nav } from "../router";
 import { saveSheet } from "../sheetStorage";
 import { setSheetFlash } from "../state";
@@ -74,6 +74,27 @@ export function mountClaudeStart(root: HTMLElement, nav: Nav): Cleanup {
     }
   });
 
+  // Plain copy for use with any other AI agent — no Claude handoff.
+  const copyBtn = h("button", { class: "btn", type: "button", text: "Copy prompt" });
+  copyBtn.addEventListener("click", async () => {
+    if (busy) return;
+    busy = true;
+    setStatus("Copying the prompt…", "info");
+    try {
+      const result = await copyPlanPrompt(buildPlanPrompt(inputs));
+      setStatus(
+        result === "copied"
+          ? "Copied the prompt — paste it into any AI chat."
+          : "Downloaded the prompt — open it and paste the text into any AI.",
+        "ok",
+      );
+    } catch {
+      setStatus("Couldn't copy the prompt. Try again.", "err");
+    } finally {
+      busy = false;
+    }
+  });
+
   // ---- Step 3: paste the plan back ------------------------------------------
   const pasteArea = h("textarea", {
     class: "claude-paste",
@@ -134,9 +155,9 @@ export function mountClaudeStart(root: HTMLElement, nav: Nav): Cleanup {
         h("h2", { class: "section-title", text: "Ask Claude" }),
         h("p", {
           class: "plan-meta",
-          text: "Opens Claude with a ready-made prompt. On a phone, pick Claude from the share sheet; on desktop the prompt is copied and Claude opens in a new tab.",
+          text: "Opens Claude with a ready-made prompt. On a phone, pick Claude from the share sheet; on desktop the prompt is copied and Claude opens in a new tab. Or just copy the prompt to use with any other AI.",
         }),
-        h("div", { class: "btn-row" }, [openBtn]),
+        h("div", { class: "btn-row" }, [openBtn, copyBtn]),
       ]),
       h("section", { class: "card" }, [
         h("p", { class: "eyebrow", text: "Step 3" }),
