@@ -159,12 +159,18 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     statusEl.textContent = msg;
     statusEl.className = `status status-${kind}`;
   };
-  const analyzeMsg = (result: AnalyzeResult): string =>
-    result === "copied-opened"
-      ? "Copied your log — paste it into the new Claude chat."
-      : result === "copied"
-        ? "Copied to clipboard — open Claude and paste."
-        : "Clipboard unavailable — saved a Markdown file instead.";
+  const analyzeMsg = (result: AnalyzeResult): string => {
+    switch (result) {
+      case "shared":
+        return "Opened the share sheet — pick Claude to analyse your log.";
+      case "copied-opened":
+        return "Copied your log — paste it into the new Claude chat.";
+      case "copied":
+        return "Copied to clipboard — open Claude and paste.";
+      case "downloaded":
+        return "Clipboard unavailable — saved a Markdown file instead.";
+    }
+  };
 
   // Guard against double-taps while an (async) render/encode runs.
   let busy = false;

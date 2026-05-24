@@ -71,7 +71,7 @@ export function exportSessionsXml(sessions: TrainingSession[]): void {
 /** A fresh Claude chat. Opens the Claude app via universal links if installed, else the browser. */
 const CLAUDE_NEW_CHAT_URL = "https://claude.ai/new";
 
-export type AnalyzeResult = "copied-opened" | "copied" | "downloaded";
+export type AnalyzeResult = "shared" | "copied-opened" | "copied" | "downloaded";
 
 /** Copy text to the clipboard, falling back to a hidden textarea for older webviews. */
 async function copyText(text: string): Promise<boolean> {
@@ -100,28 +100,52 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 /**
- * Copy a Markdown report to the clipboard and open a fresh Claude chat to paste
- * into. If the clipboard is unavailable, download the report as a .md file so the
- * data isn't lost. A blocked popup still counts as a successful copy.
+ * Hand a Markdown report to an agent for analysis. On phones the OS share sheet
+ * is the primary path (it owns the tap's user gesture, and picking Claude opens
+ * a new chat pre-filled with the log). On desktop, where text sharing usually
+ * isn't available, fall back to copying the report and opening a fresh Claude
+ * chat. A dismissed share counts as done; a blocked popup still counts as a copy;
+ * and if nothing else works the report is downloaded so the data isn't lost.
  */
-async function copyForAnalysis(markdown: string, filename: string): Promise<AnalyzeResult> {
-  const copied = await copyText(markdown);
-  if (!copied) {
-    downloadBlob(new Blob([markdown], { type: "text/markdown" }), filename);
-    return "downloaded";
+async function shareForAnalysis(
+  markdown: string,
+  filename: string,
+  title: string,
+): Promise<AnalyzeResult> {
+  const nav = shareNav();
+  if (typeof nav.share === "function") {
+    try {
+      await nav.share({ title, text: markdown });
+      void copyText(markdown); // best-effort backstop; ignore if the gesture is spent
+      return "shared";
+    } catch (err) {
+      // A dismissed share sheet is a completed interaction, not a failure.
+      if (err instanceof DOMException && err.name === "AbortError") return "shared";
+      // Any other error: fall through to the clipboard path.
+    }
   }
-  const opened = window.open(CLAUDE_NEW_CHAT_URL, "_blank", "noopener");
-  return opened ? "copied-opened" : "copied";
+
+  const copied = await copyText(markdown);
+  if (copied) {
+    const opened = window.open(CLAUDE_NEW_CHAT_URL, "_blank", "noopener");
+    return opened ? "copied-opened" : "copied";
+  }
+  downloadBlob(new Blob([markdown], { type: "text/markdown" }), filename);
+  return "downloaded";
 }
 
-/** Copy every logged session as a Markdown report and open Claude to analyse it. */
+/** Share/copy every logged session as a Markdown report for agent analysis. */
 export function analyzeSessionsInClaude(sessions: TrainingSession[]): Promise<AnalyzeResult> {
-  return copyForAnalysis(sessionsToMarkdown(sessions), sessionsFilename("md"));
+  return shareForAnalysis(sessionsToMarkdown(sessions), sessionsFilename("md"), "Training log");
 }
 
-/** Copy one session as a Markdown report and open Claude to analyse it. */
+/** Share/copy one session as a Markdown report for agent analysis. */
 export function analyzeSessionInClaude(session: TrainingSession): Promise<AnalyzeResult> {
-  return copyForAnalysis(sessionsToMarkdown([session]), `${sessionSlug(session)}.md`);
+  return shareForAnalysis(
+    sessionsToMarkdown([session]),
+    `${sessionSlug(session)}.md`,
+    session.name || "Session recap",
+  );
 }
 
 /** Download a rendered canvas as a PNG. */
