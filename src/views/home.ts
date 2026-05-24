@@ -82,7 +82,7 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
           : `Most fatigued: ${MUSCLE_LABELS[top.muscle]} · ${Math.round(top.recovered * 100)}% (~${top.hoursRemaining}h to go).`;
       body.push(
         h("div", { class: "recovery-home-row" }, [
-          recoveryRing(overall, overallStatus(overall), { small: true }),
+          recoveryRing(overall, overallStatus(overall), { size: "sm" }),
           h("p", { class: "plan-meta recovery-home-meta", text: meta }),
         ]),
       );

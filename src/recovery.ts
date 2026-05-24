@@ -1,3 +1,4 @@
+import { setEffort } from "./effort";
 import type { MuscleGroup, TrainingSession } from "./types";
 import { MUSCLE_GROUPS } from "./types";
 import { clamp } from "./util";
@@ -81,4 +82,70 @@ export function overallRecovery(recoveries: readonly MuscleRecovery[]): number {
   if (recoveries.length === 0) return 1;
   const sum = recoveries.reduce((acc, r) => acc + r.recovered, 0);
   return sum / recoveries.length;
+}
+
+/* =============================================================================
+   Systemic / nervous-system fatigue — a whole-body load that lingers after hard
+   sessions, kept separate from per-muscle recovery. Unlike the time-only muscle
+   clock this is intensity-aware: recent session effort (weighted up for heavy,
+   low-rep work, which taxes the CNS most) accumulates and decays over a multi-day
+   window, so back-to-back hard days stack up and a brutal day costs more rest
+   than a light one.
+   ========================================================================== */
+
+// CNS load roughly halves every this-many hours; tuned longer than muscle windows.
+const CNS_HALF_LIFE_HOURS = 40;
+// Decayed load (in "typical sessions") at which systemic readiness bottoms out.
+const CNS_SATURATION = 2.5;
+// Reference session load when there's no history to calibrate against.
+const CNS_FALLBACK_LOAD = 45;
+
+/** CNS demand of a set relative to its effort: heavy/low-rep work taxes the most. */
+function repsIntensity(reps: number): number {
+  if (reps <= 5) return 1.6; // strength / heavy singles & triples
+  if (reps <= 12) return 1; // hypertrophy
+  return 0.6; // high-rep / endurance
+}
+
+/** Intensity-weighted CNS load of one session. */
+function sessionCnsLoad(session: TrainingSession): number {
+  let load = 0;
+  for (const ex of session.exercises) {
+    for (const s of ex.sets) load += setEffort(s) * repsIntensity(s.reps);
+  }
+  return load;
+}
+
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+}
+
+/**
+ * Whole-body systemic (nervous-system) readiness, 0..1: 0 = heavily fatigued
+ * (red), 1 = fully fresh (green). Pools recent sessions' intensity-weighted load
+ * with exponential time-decay and measures it against a typical session.
+ */
+export function systemicReadiness(
+  sessions: readonly TrainingSession[],
+  now: Date = new Date(),
+): number {
+  const nowMs = now.getTime();
+  const loads: number[] = [];
+  let decayed = 0;
+  for (const session of sessions) {
+    const at = new Date(session.startedAt).getTime();
+    if (Number.isNaN(at)) continue;
+    const load = sessionCnsLoad(session);
+    if (load <= 0) continue;
+    loads.push(load);
+    const hoursSince = (nowMs - at) / HOUR_MS;
+    if (hoursSince < 0) continue; // future-dated; counts toward reference, not load
+    decayed += load * Math.pow(0.5, hoursSince / CNS_HALF_LIFE_HOURS);
+  }
+  if (loads.length === 0) return 1;
+  const reference = median(loads) || CNS_FALLBACK_LOAD;
+  return clamp(1 - decayed / (reference * CNS_SATURATION), 0, 1);
 }
