@@ -2,6 +2,9 @@ import { clear, h } from "../dom";
 import { estimateProteinG, muscleBreakdown, readEffort, readHydration } from "../effort";
 import { parseTargetReps } from "../execute";
 import {
+  analyzeSessionInClaude,
+  analyzeSessionsInClaude,
+  type AnalyzeResult,
   exportSessionPdf,
   exportSessionPng,
   exportSessionsJson,
@@ -156,6 +159,13 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     statusEl.textContent = msg;
     statusEl.className = `status status-${kind}`;
   };
+  const analyzeMsg = (result: AnalyzeResult): string =>
+    result === "copied-opened"
+      ? "Copied your log — paste it into the new Claude chat."
+      : result === "copied"
+        ? "Copied to clipboard — open Claude and paste."
+        : "Clipboard unavailable — saved a Markdown file instead.";
+
   // Guard against double-taps while an (async) render/encode runs.
   let busy = false;
   async function runExport(label: string, fn: () => Promise<void>): Promise<void> {
@@ -541,6 +551,18 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       }),
       h("div", { class: "btn-row" }, [
         h("button", {
+          class: "btn btn-small btn-accent",
+          type: "button",
+          text: "Analyze in Claude ▸",
+          aria: { label: "analyse all logged sessions in Claude" },
+          on: {
+            click: () =>
+              runExport("Analyze in Claude", async () => {
+                setStatus(analyzeMsg(await analyzeSessionsInClaude(chronological)), "ok");
+              }),
+          },
+        }),
+        h("button", {
           class: "btn btn-small",
           type: "button",
           text: "Download JSON",
@@ -619,6 +641,18 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
                 text: "Export JSON",
                 aria: { label: `export ${s.name || "this session"} as JSON` },
                 on: { click: () => exportSessionsJson([s]) },
+              }),
+              h("button", {
+                class: "btn btn-small btn-accent",
+                type: "button",
+                text: "Analyze in Claude ▸",
+                aria: { label: `analyse ${s.name || "this session"} in Claude` },
+                on: {
+                  click: () =>
+                    runExport("Analyze in Claude", async () => {
+                      setStatus(analyzeMsg(await analyzeSessionInClaude(s)), "ok");
+                    }),
+                },
               }),
             ]),
             sessionExportRow(s),

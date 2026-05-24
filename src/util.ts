@@ -1,5 +1,7 @@
 import {
+  EQUIPMENT_LABELS,
   isBodyweight,
+  MUSCLE_LABELS,
   SESSION_ARCHIVE_SCHEMA_ID,
   SESSION_ARCHIVE_SCHEMA_VERSION,
   SHEET_SCHEMA_ID,
@@ -217,4 +219,57 @@ export function formatLoad(equipment: Equipment, weightKg: number): string {
     return weightKg > 0 ? `Bodyweight +${round2(weightKg)} kg` : "Bodyweight";
   }
   return `${round2(weightKg)} kg`;
+}
+
+/** Coaching instruction prepended to the Markdown log so an agent knows what to do with it. */
+export const SESSION_ANALYSIS_PROMPT =
+  "You are an expert strength & conditioning coach. Analyse my training log below " +
+  "and give me: progression trends per exercise, muscle-group balance, " +
+  "effort/recovery observations, and 2-3 concrete recommendations for my next " +
+  "sessions. The log follows.";
+
+/** Markdown block for one logged session (no analysis prompt). */
+function sessionToMarkdown(session: TrainingSession): string {
+  const lines: string[] = [];
+  lines.push(`## ${session.name || "Session"} — ${formatSessionDate(session.startedAt)}`);
+  const vol = sessionVolume(session);
+  const summary = `${session.exercises.length} exercises · ${sessionSetCount(session)} sets`;
+  lines.push(vol > 0 ? `${summary} · ${vol} kg total volume` : summary);
+
+  session.exercises.forEach((ex, i) => {
+    lines.push("");
+    lines.push(`### ${i + 1}. ${ex.name} — ${MUSCLE_LABELS[ex.muscle]} · ${EQUIPMENT_LABELS[ex.equipment]}`);
+    if (ex.prescription) lines.push(`Target: ${ex.prescription}`);
+    if (ex.oneRmKg !== undefined) lines.push(`Logged 1RM: ${round2(ex.oneRmKg)} kg`);
+    if (ex.sets.length === 0) {
+      lines.push("_No sets logged._");
+      return;
+    }
+    lines.push("");
+    lines.push("| Set | Reps | Load | Time |");
+    lines.push("|----:|-----:|------|-----:|");
+    ex.sets.forEach((set, j) => {
+      const time = set.durationSec !== undefined ? formatClock(set.durationSec) : "—";
+      lines.push(`| ${j + 1} | ${set.reps} | ${formatLoad(ex.equipment, set.weightKg)} | ${time} |`);
+    });
+  });
+  return lines.join("\n");
+}
+
+/**
+ * Render logged sessions as an analysis-ready Markdown report: a coaching prompt,
+ * an archive header, then one block per session. Used for both a single session
+ * (pass `[session]`) and the whole archive.
+ */
+export function sessionsToMarkdown(sessions: TrainingSession[]): string {
+  const header = `# Training log (${sessions.length} ${
+    sessions.length === 1 ? "session" : "sessions"
+  }, exported ${new Date().toISOString().slice(0, 10)})`;
+  return [
+    SESSION_ANALYSIS_PROMPT,
+    "",
+    header,
+    "",
+    sessions.map(sessionToMarkdown).join("\n\n---\n\n"),
+  ].join("\n");
 }

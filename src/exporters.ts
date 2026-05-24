@@ -4,7 +4,7 @@ import { renderSheetToCanvas } from "./sheetRender";
 import { renderStatsToCanvas } from "./statsRender";
 import type { ProgressFilter } from "./stats";
 import type { RoutineSheet, TrainingSession } from "./types";
-import { sessionsToJson, sessionsToXml, slug } from "./util";
+import { sessionsToJson, sessionsToMarkdown, sessionsToXml, slug } from "./util";
 
 // Web Share API (Level 2, with files) isn't in every lib.dom version; describe
 // just what we use so the code type-checks and degrades gracefully.
@@ -66,6 +66,62 @@ export function exportSessionsJson(sessions: TrainingSession[]): void {
 export function exportSessionsXml(sessions: TrainingSession[]): void {
   const blob = new Blob([sessionsToXml(sessions)], { type: "application/xml" });
   downloadBlob(blob, sessionsFilename("xml"));
+}
+
+/** A fresh Claude chat. Opens the Claude app via universal links if installed, else the browser. */
+const CLAUDE_NEW_CHAT_URL = "https://claude.ai/new";
+
+export type AnalyzeResult = "copied-opened" | "copied" | "downloaded";
+
+/** Copy text to the clipboard, falling back to a hidden textarea for older webviews. */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Fall through to the execCommand path below.
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Copy a Markdown report to the clipboard and open a fresh Claude chat to paste
+ * into. If the clipboard is unavailable, download the report as a .md file so the
+ * data isn't lost. A blocked popup still counts as a successful copy.
+ */
+async function copyForAnalysis(markdown: string, filename: string): Promise<AnalyzeResult> {
+  const copied = await copyText(markdown);
+  if (!copied) {
+    downloadBlob(new Blob([markdown], { type: "text/markdown" }), filename);
+    return "downloaded";
+  }
+  const opened = window.open(CLAUDE_NEW_CHAT_URL, "_blank", "noopener");
+  return opened ? "copied-opened" : "copied";
+}
+
+/** Copy every logged session as a Markdown report and open Claude to analyse it. */
+export function analyzeSessionsInClaude(sessions: TrainingSession[]): Promise<AnalyzeResult> {
+  return copyForAnalysis(sessionsToMarkdown(sessions), sessionsFilename("md"));
+}
+
+/** Copy one session as a Markdown report and open Claude to analyse it. */
+export function analyzeSessionInClaude(session: TrainingSession): Promise<AnalyzeResult> {
+  return copyForAnalysis(sessionsToMarkdown([session]), `${sessionSlug(session)}.md`);
 }
 
 /** Download a rendered canvas as a PNG. */
