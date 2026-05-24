@@ -1,6 +1,6 @@
 import type { RoutineSheet } from "./types";
 
-export type ViewName = "home" | "sheet" | "execute" | "live" | "stats" | "recovery";
+export type ViewName = "home" | "sheet" | "execute" | "live" | "stats" | "recovery" | "claudeStart";
 
 export type Cleanup = () => void;
 

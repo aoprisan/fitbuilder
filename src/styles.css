@@ -820,6 +820,22 @@ textarea {
   letter-spacing: 0.01em;
 }
 
+.field-select {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 15px;
+  padding: 11px 12px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 2.5px solid var(--ink);
+  box-shadow: 4px 4px 0 0 var(--ink);
+  cursor: pointer;
+  width: 100%;
+  border-radius: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 .stepper-row {
   display: flex;
   align-items: stretch;

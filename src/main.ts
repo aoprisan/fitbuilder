@@ -7,6 +7,7 @@ import { saveSession } from "./logStorage";
 import type { Cleanup, Nav, ViewName } from "./router";
 import { setActiveLog, setEditingSheet, setExecuting, state } from "./state";
 import { cloneSheet } from "./util";
+import { mountClaudeStart } from "./views/claudeStart";
 import { mountExecute } from "./views/execute";
 import { mountHome } from "./views/home";
 import { mountLive } from "./views/live";
@@ -114,6 +115,9 @@ function boot(): void {
         break;
       case "recovery":
         result = mountRecovery(viewHost, nav);
+        break;
+      case "claudeStart":
+        result = mountClaudeStart(viewHost, nav);
         break;
     }
     cleanup = typeof result === "function" ? result : null;

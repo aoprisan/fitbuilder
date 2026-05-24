@@ -148,6 +148,11 @@ export function analyzeSessionInClaude(session: TrainingSession): Promise<Analyz
   );
 }
 
+/** Hand a plan-building prompt to Claude (share sheet on phones, clipboard + new chat on desktop). */
+export function startPlanInClaude(prompt: string): Promise<AnalyzeResult> {
+  return shareForAnalysis(prompt, "fitbuilder-plan.md", "Build my training plan");
+}
+
 export type CopyResult = "copied" | "downloaded";
 
 /** Copy a Markdown report to the clipboard so it can be pasted into any AI; download as a backstop. */

@@ -29,6 +29,23 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
     }),
   ]);
 
+  // ── Getting started — let Claude draft a first routine ────────────────────
+  const claudeStartCard = h("section", { class: "card" }, [
+    h("p", { class: "eyebrow", text: "New here?" }),
+    h("h2", { class: "section-title", text: "Build a plan with Claude" }),
+    h("p", {
+      class: "plan-meta",
+      text: "Answer three quick questions and let Claude draft a starting routine you can edit, run, and share.",
+    }),
+    h("div", { class: "btn-row" }, [
+      h("button", {
+        class: "btn btn-primary",
+        text: "Build a plan with Claude",
+        on: { click: () => nav.go("claudeStart") },
+      }),
+    ]),
+  ]);
+
   // ── Lane 1: the athlete — log your own training, watch it add up ──────────
   const lastSets = last ? sessionSetCount(last) : 0;
   const lastLine = last
@@ -244,6 +261,7 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
   root.appendChild(
     h("div", { class: "view view-home" }, [
       hero,
+      claudeStartCard,
       trainingLane,
       renderRecoveryCard(),
       renderOneRmCard(),
