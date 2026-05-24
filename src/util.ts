@@ -180,7 +180,7 @@ export function sessionsToXml(sessions: TrainingSession[]): string {
     );
     for (const ex of s.exercises) {
       lines.push(
-        `    <exercise${attr("name", ex.name)}${attr("muscle", ex.muscle)}${attr("equipment", ex.equipment)}${attr("prescription", ex.prescription)}>`,
+        `    <exercise${attr("name", ex.name)}${attr("muscle", ex.muscle)}${attr("equipment", ex.equipment)}${attr("oneRmKg", ex.oneRmKg)}${attr("prescription", ex.prescription)}>`,
       );
       for (const set of ex.sets) {
         lines.push(

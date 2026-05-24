@@ -10,8 +10,25 @@ import {
   type MuscleGroup,
   type RoutineSheet,
   type TrainingSession,
+  type WorkSet,
 } from "./types";
 import { formatSessionDate, uuid } from "./util";
+
+/**
+ * Estimated one-rep max for a single set via the Epley formula
+ * (1RM ≈ w · (1 + reps/30); equals the load itself at one rep). Zero for a set
+ * with no external load, where the estimate is meaningless — bodyweight
+ * movements record only added weight.
+ */
+export function epleyOneRm(set: WorkSet): number {
+  if (set.weightKg <= 0 || set.reps <= 0) return 0;
+  return set.weightKg * (1 + set.reps / 30);
+}
+
+/** Best estimated one-rep max across an exercise's sets; 0 when none qualify. */
+export function estimatedOneRm(sets: readonly WorkSet[]): number {
+  return sets.reduce((best, s) => Math.max(best, epleyOneRm(s)), 0);
+}
 
 /** A fresh, empty session stamped with the current time. */
 export function newTrainingSession(): TrainingSession {

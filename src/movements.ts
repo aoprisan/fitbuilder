@@ -52,6 +52,7 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
     { id: "chest-press-machine", name: "Chest Press Machine", primaryMuscle: "chest", secondaryMuscles: ["triceps", "shoulders"], equipment: "machine" },
     { id: "incline-chest-press-machine", name: "Incline Chest Press Machine", primaryMuscle: "chest", secondaryMuscles: ["shoulders", "triceps"], equipment: "machine" },
     { id: "medium-incline-chest-press-machine", name: "Medium Incline Chest Press Machine", primaryMuscle: "chest", secondaryMuscles: ["shoulders", "triceps"], equipment: "machine" },
+    { id: "chest-fly-machine", name: "Chest Fly Machine", primaryMuscle: "chest", secondaryMuscles: [], equipment: "machine" },
     genericMovement("chest", "dumbbell"),
     genericMovement("chest", "barbell"),
     genericMovement("chest", "cable"),
