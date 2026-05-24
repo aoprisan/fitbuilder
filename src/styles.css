@@ -1917,6 +1917,7 @@ textarea {
 
 .recovery-home-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 16px;
   margin: 6px 0 14px;
