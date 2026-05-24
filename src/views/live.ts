@@ -5,6 +5,9 @@ import {
   analyzeSessionInClaude,
   analyzeSessionsInClaude,
   type AnalyzeResult,
+  copySessionPrompt,
+  copySessionsPrompt,
+  type CopyResult,
   exportSessionPdf,
   exportSessionPng,
   exportSessionsJson,
@@ -167,6 +170,14 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         return "Copied your log — paste it into the new Claude chat.";
       case "copied":
         return "Copied to clipboard — open Claude and paste.";
+      case "downloaded":
+        return "Clipboard unavailable — saved a Markdown file instead.";
+    }
+  };
+  const copyMsg = (result: CopyResult): string => {
+    switch (result) {
+      case "copied":
+        return "Copied the prompt — paste it into any AI (ChatGPT, Gemini, Claude…).";
       case "downloaded":
         return "Clipboard unavailable — saved a Markdown file instead.";
     }
@@ -571,6 +582,18 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         h("button", {
           class: "btn btn-small",
           type: "button",
+          text: "Copy prompt",
+          aria: { label: "copy all logged sessions as a prompt for any AI" },
+          on: {
+            click: () =>
+              runExport("Copy prompt", async () => {
+                setStatus(copyMsg(await copySessionsPrompt(chronological)), "ok");
+              }),
+          },
+        }),
+        h("button", {
+          class: "btn btn-small",
+          type: "button",
           text: "Download JSON",
           on: { click: () => exportSessionsJson(chronological) },
         }),
@@ -657,6 +680,18 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
                   click: () =>
                     runExport("Analyze in Claude", async () => {
                       setStatus(analyzeMsg(await analyzeSessionInClaude(s)), "ok");
+                    }),
+                },
+              }),
+              h("button", {
+                class: "btn btn-small",
+                type: "button",
+                text: "Copy prompt",
+                aria: { label: `copy ${s.name || "this session"} as a prompt for any AI` },
+                on: {
+                  click: () =>
+                    runExport("Copy prompt", async () => {
+                      setStatus(copyMsg(await copySessionPrompt(s)), "ok");
                     }),
                 },
               }),
