@@ -148,6 +148,25 @@ export function analyzeSessionInClaude(session: TrainingSession): Promise<Analyz
   );
 }
 
+export type CopyResult = "copied" | "downloaded";
+
+/** Copy a Markdown report to the clipboard so it can be pasted into any AI; download as a backstop. */
+async function copyForAnalysis(markdown: string, filename: string): Promise<CopyResult> {
+  if (await copyText(markdown)) return "copied";
+  downloadBlob(new Blob([markdown], { type: "text/markdown" }), filename);
+  return "downloaded";
+}
+
+/** Copy every logged session as a Markdown analysis prompt for any AI. */
+export function copySessionsPrompt(sessions: TrainingSession[]): Promise<CopyResult> {
+  return copyForAnalysis(sessionsToMarkdown(sessions), sessionsFilename("md"));
+}
+
+/** Copy one session as a Markdown analysis prompt for any AI. */
+export function copySessionPrompt(session: TrainingSession): Promise<CopyResult> {
+  return copyForAnalysis(sessionsToMarkdown([session]), `${sessionSlug(session)}.md`);
+}
+
 /** Download a rendered canvas as a PNG. */
 async function downloadCanvasPng(canvas: HTMLCanvasElement, filename: string): Promise<void> {
   const blob = await canvasToBlob(canvas, "image/png");
