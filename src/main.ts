@@ -10,6 +10,7 @@ import { cloneSheet } from "./util";
 import { mountExecute } from "./views/execute";
 import { mountHome } from "./views/home";
 import { mountLive } from "./views/live";
+import { mountRecovery } from "./views/recovery";
 import { mountSheet } from "./views/sheet";
 import { mountStats } from "./views/stats";
 
@@ -110,6 +111,9 @@ function boot(): void {
         break;
       case "stats":
         result = mountStats(viewHost, nav);
+        break;
+      case "recovery":
+        result = mountRecovery(viewHost, nav);
         break;
     }
     cleanup = typeof result === "function" ? result : null;

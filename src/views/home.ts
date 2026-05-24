@@ -4,9 +4,12 @@ import { getSession, loadSessions } from "../logStorage";
 import { allMovements } from "../movements";
 import { clearOneRm, loadOneRmMaxes, setOneRm } from "../oneRmStore";
 import { forceAppUpdate } from "../pwa";
+import { muscleRecovery, overallRecovery } from "../recovery";
 import type { Nav } from "../router";
 import { exerciseKeyLabel } from "../stats";
+import { MUSCLE_LABELS } from "../types";
 import { formatSessionDate, round2, sessionSetCount } from "../util";
+import { overallStatus, recoveryRing } from "./recovery";
 
 export function mountHome(root: HTMLElement, nav: Nav): void {
   const sessions = loadSessions().sort((a, b) => b.startedAt.localeCompare(a.startedAt));
@@ -52,6 +55,47 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
       h("button", { class: "btn", text: "Progress Stats", on: { click: () => nav.go("stats") } }),
     ]),
   ]);
+
+  // ── Recovery — how recovered each muscle is since it was last trained ──────
+  function renderRecoveryCard(): HTMLElement {
+    const recoveries = muscleRecovery(sessions);
+    const trained = recoveries.some((r) => r.lastTrainedAt !== null);
+
+    const body: HTMLElement[] = [
+      h("p", { class: "eyebrow", text: "Readiness" }),
+      h("h2", { class: "section-title", text: "Recovery" }),
+    ];
+
+    if (!trained) {
+      body.push(
+        h("p", {
+          class: "plan-meta",
+          text: "Log a session to start tracking how recovered each muscle is — red just-worked, green ready again.",
+        }),
+      );
+    } else {
+      const overall = overallRecovery(recoveries);
+      const top = recoveries[0]!; // least recovered
+      const meta =
+        top.recovered >= 1
+          ? "All muscle groups recovered — ready for a new session."
+          : `Most fatigued: ${MUSCLE_LABELS[top.muscle]} · ${Math.round(top.recovered * 100)}% (~${top.hoursRemaining}h to go).`;
+      body.push(
+        h("div", { class: "recovery-home-row" }, [
+          recoveryRing(overall, overallStatus(overall), { small: true }),
+          h("p", { class: "plan-meta recovery-home-meta", text: meta }),
+        ]),
+      );
+    }
+
+    body.push(
+      h("div", { class: "btn-row" }, [
+        h("button", { class: "btn", text: "Recovery", on: { click: () => nav.go("recovery") } }),
+      ]),
+    );
+
+    return h("section", { class: "card recovery-home" }, body);
+  }
 
   // ── One-rep max — log a tested max from anywhere, not just mid-workout ─────
   function renderOneRmCard(): HTMLElement {
@@ -194,6 +238,7 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
     h("div", { class: "view view-home" }, [
       hero,
       trainingLane,
+      renderRecoveryCard(),
       renderOneRmCard(),
       routinesLane,
       updateCard,
