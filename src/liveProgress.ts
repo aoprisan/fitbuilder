@@ -22,6 +22,8 @@ export interface LiveProgress {
   sub: ProgressSub;
   muscle: MuscleGroup;
   equipment: Equipment;
+  /** Selected catalog movement id; re-validated against the muscle's catalog on restore. */
+  movementId: string;
   /** True when the session's last exercise is the one being worked (sets already logged for it). */
   hasCurrentEx: boolean;
   /** In-flight reps/weight while logging a set. */
@@ -95,6 +97,7 @@ export function loadProgress(): LiveProgress | null {
   const equipment = (EQUIPMENT as readonly string[]).includes(raw["equipment"] as string)
     ? (raw["equipment"] as Equipment)
     : "dumbbell";
+  const movementId = typeof raw["movementId"] === "string" ? raw["movementId"] : "";
 
   return {
     sessionId,
@@ -102,6 +105,7 @@ export function loadProgress(): LiveProgress | null {
     sub,
     muscle,
     equipment,
+    movementId,
     hasCurrentEx: raw["hasCurrentEx"] === true,
     setReps: num(raw["setReps"]),
     setWeight: num(raw["setWeight"]),

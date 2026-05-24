@@ -1,3 +1,4 @@
+import { SECONDARY_MUSCLE_SHARE } from "./movements";
 import type { MuscleGroup, TrainingSession, WorkSet } from "./types";
 
 /**
@@ -137,22 +138,32 @@ export interface MuscleWork {
 /** Per-muscle work across the given sessions, busiest first (by volume, then time). */
 function accumulateMuscleWork(sessions: Iterable<TrainingSession>): MuscleWork[] {
   const byMuscle = new Map<MuscleGroup, MuscleWork>();
+  const credit = (muscle: MuscleGroup, set: WorkSet, share: number): void => {
+    const entry =
+      byMuscle.get(muscle) ?? { muscle, volume: 0, timeSec: 0, sets: 0, effort: 0 };
+    entry.volume += set.reps * Math.max(0, set.weightKg) * share;
+    entry.timeSec += (set.durationSec ?? 0) * share;
+    entry.sets += 1;
+    entry.effort += setEffort(set) * share;
+    byMuscle.set(muscle, entry);
+  };
   for (const session of sessions) {
     for (const ex of session.exercises) {
       for (const s of ex.sets) {
-        const entry =
-          byMuscle.get(ex.muscle) ??
-          { muscle: ex.muscle, volume: 0, timeSec: 0, sets: 0, effort: 0 };
-        entry.volume += s.reps * Math.max(0, s.weightKg);
-        entry.timeSec += s.durationSec ?? 0;
-        entry.sets += 1;
-        entry.effort += setEffort(s);
-        byMuscle.set(ex.muscle, entry);
+        // Primary muscle takes full credit; a compound lift's secondary muscles
+        // each take a fixed share so they register as worked in the breakdown.
+        credit(ex.muscle, s, 1);
+        for (const sec of ex.secondaryMuscles ?? []) credit(sec, s, SECONDARY_MUSCLE_SHARE);
       }
     }
   }
   return [...byMuscle.values()]
-    .map((m) => ({ ...m, volume: Math.round(m.volume), effort: Math.round(m.effort * 10) / 10 }))
+    .map((m) => ({
+      ...m,
+      volume: Math.round(m.volume),
+      timeSec: Math.round(m.timeSec),
+      effort: Math.round(m.effort * 10) / 10,
+    }))
     .sort((a, b) => b.volume - a.volume || b.timeSec - a.timeSec);
 }
 

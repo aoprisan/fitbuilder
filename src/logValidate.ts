@@ -27,6 +27,14 @@ function coerceMuscle(value: unknown): MuscleGroup {
     : "chest";
 }
 
+function coerceSecondaryMuscles(value: unknown): MuscleGroup[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (m): m is MuscleGroup =>
+      typeof m === "string" && (MUSCLE_GROUPS as readonly string[]).includes(m),
+  );
+}
+
 function coerceNonNegative(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
 }
@@ -46,10 +54,14 @@ function coerceExercise(value: unknown): LoggedExercise {
   const rawSets = rec["sets"];
   const sets = Array.isArray(rawSets) ? rawSets.map(coerceSet) : [];
   const pres = rec["prescription"];
+  const exerciseId = rec["exerciseId"];
+  const secondary = coerceSecondaryMuscles(rec["secondaryMuscles"]);
   return {
     name: typeof rec["name"] === "string" ? rec["name"] : "",
     muscle: coerceMuscle(rec["muscle"]),
     equipment: coerceEquipment(rec["equipment"]),
+    ...(typeof exerciseId === "string" && exerciseId !== "" ? { exerciseId } : {}),
+    ...(secondary.length > 0 ? { secondaryMuscles: secondary } : {}),
     ...(typeof pres === "string" && pres !== "" ? { prescription: pres } : {}),
     sets,
   };

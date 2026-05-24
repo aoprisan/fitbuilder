@@ -5,11 +5,11 @@ import { exportSessionsJson, exportSessionsXml } from "../exporters";
 import { newLoggedExercise, newTrainingSession, repeatSession } from "../log";
 import { clearProgress, loadProgress, saveProgress } from "../liveProgress";
 import { deleteSession, getSession, loadSessions, saveSession } from "../logStorage";
+import { findMovement, movementsForMuscle } from "../movements";
 import type { Cleanup, Nav } from "../router";
 import { saveSheet } from "../sheetStorage";
 import { setActiveLog, setEditingSheet, setSheetFlash, state } from "../state";
 import {
-  EQUIPMENT,
   EQUIPMENT_LABELS,
   isBodyweight,
   MUSCLE_GROUPS,
@@ -62,7 +62,34 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   // Pending exercise selection (becomes a LoggedExercise on the first logged set).
   let muscle: MuscleGroup = "chest";
   let equipment: Equipment = "dumbbell";
+  // Selected catalog movement; drives the exercise name, load type, and secondary muscles.
+  let movementId = "";
   let currentEx: LoggedExercise | null = null;
+
+  /** Point the selection at a movement id, syncing the derived muscle + load type. */
+  function selectMovement(id: string): void {
+    const mv = findMovement(id);
+    if (!mv) return;
+    movementId = mv.id;
+    muscle = mv.primaryMuscle;
+    equipment = mv.equipment;
+  }
+
+  /** Switch muscle group and reset the movement to that group's first option. */
+  function selectMuscle(m: MuscleGroup): void {
+    muscle = m;
+    const first = movementsForMuscle(m)[0];
+    if (first) selectMovement(first.id);
+  }
+
+  /** Ensure the current movement belongs to the current muscle; default if not. */
+  function ensureMovement(): void {
+    const movements = movementsForMuscle(muscle);
+    if (!movements.some((mv) => mv.id === movementId)) {
+      const first = movements[0];
+      if (first) selectMovement(first.id);
+    }
+  }
 
   /**
    * The next planned-but-not-started exercise in a routine-loaded session: the
@@ -111,6 +138,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       sub,
       muscle,
       equipment,
+      movementId,
       hasCurrentEx: currentEx !== null,
       setReps,
       setWeight,
@@ -134,6 +162,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     sub = saved.sub;
     muscle = saved.muscle;
     equipment = saved.equipment;
+    movementId = saved.movementId;
     currentEx =
       saved.hasCurrentEx && session.exercises.length > 0
         ? session.exercises[session.exercises.length - 1]!
@@ -175,8 +204,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
 
   function startSession(): void {
     setActiveLog(saveSession(newTrainingSession()));
-    muscle = "chest";
-    equipment = "dumbbell";
+    selectMuscle("chest");
     currentEx = null;
     sub = "idle";
     stage = "select";
@@ -238,6 +266,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     currentEx = ex;
     muscle = ex.muscle;
     equipment = ex.equipment;
+    movementId = ex.exerciseId ?? `${ex.muscle}::${ex.equipment}`;
     sub = "idle";
     stage = "exercise";
     render();
@@ -270,7 +299,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       durationSec: Math.round(setElapsedMs / 1000),
     };
     if (!currentEx) {
-      currentEx = newLoggedExercise(muscle, equipment);
+      const mv = findMovement(movementId);
+      if (!mv) return;
+      currentEx = newLoggedExercise(mv);
       s.exercises.push(currentEx);
     }
     currentEx.sets.push(set);
@@ -517,12 +548,22 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     }
 
     // In a routine-loaded session, the next planned exercise drives this screen;
-    // sync the toggles to its current (default) gear so the user can confirm it.
+    // sync the toggles to its current selection so the user can confirm it.
     const planned = nextPlanned();
     if (planned) {
       muscle = planned.muscle;
-      equipment = planned.equipment;
+      if (planned.exerciseId) {
+        movementId = planned.exerciseId;
+      } else {
+        // No catalog identity yet (free-text routine row): pre-highlight only a
+        // generic-gear option matching its load, never a named lift it didn't ask for.
+        const match = movementsForMuscle(muscle).find(
+          (mv) => mv.id.includes("::") && mv.equipment === planned.equipment,
+        );
+        if (match) movementId = match.id;
+      }
     }
+    ensureMovement();
 
     const nameInput = h("input", {
       class: "plan-name-input",
@@ -569,20 +610,29 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     );
     if (summary) container.append(summary);
 
-    // Toggle picks update the view-level gear, and — when confirming a planned
-    // routine exercise — write straight onto it so the choice sticks.
+    // Toggle picks update the view-level selection, and — when confirming a
+    // planned routine exercise — write straight onto it so the choice sticks.
+    const applyMovementToPlanned = (ex: LoggedExercise): void => {
+      const mv = findMovement(movementId);
+      if (!mv) return;
+      ex.muscle = mv.primaryMuscle;
+      ex.equipment = mv.equipment;
+      ex.exerciseId = mv.id;
+      if (mv.secondaryMuscles.length > 0) ex.secondaryMuscles = [...mv.secondaryMuscles];
+      else delete ex.secondaryMuscles;
+    };
     const pickMuscle = (m: string): void => {
-      muscle = m as MuscleGroup;
+      selectMuscle(m as MuscleGroup);
       if (planned) {
-        planned.muscle = muscle;
+        applyMovementToPlanned(planned);
         persist();
       }
       render();
     };
-    const pickEquipment = (eq: string): void => {
-      equipment = eq as Equipment;
+    const pickMovement = (id: string): void => {
+      selectMovement(id);
       if (planned) {
-        planned.equipment = equipment;
+        applyMovementToPlanned(planned);
         persist();
       }
       render();
@@ -595,7 +645,13 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           ? [h("p", { class: "now-target", text: planned.prescription })]
           : []),
         renderToggle("Muscle group", MUSCLE_GROUPS, (m) => MUSCLE_LABELS[m as MuscleGroup], muscle, pickMuscle),
-        renderToggle("Equipment", EQUIPMENT, (eq) => EQUIPMENT_LABELS[eq as Equipment], equipment, pickEquipment),
+        renderToggle(
+          "Exercise",
+          movementsForMuscle(muscle).map((mv) => mv.id),
+          (id) => findMovement(id)?.name ?? id,
+          movementId,
+          pickMovement,
+        ),
         h("div", { class: "btn-row" }, [
           h("button", {
             class: "btn btn-primary",
@@ -658,12 +714,16 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   }
 
   function renderExercise(): void {
+    const mv = findMovement(movementId);
+    const exName = currentEx?.name ?? mv?.name ?? MUSCLE_LABELS[muscle];
+    const secondaries = currentEx?.secondaryMuscles ?? mv?.secondaryMuscles ?? [];
+    const worked = [muscle, ...secondaries].map((m) => MUSCLE_LABELS[m]).join(" · ");
     const head = h("section", { class: "card live-ex-head" }, [
       h("span", { class: `badge badge-${equipment}`, text: EQUIPMENT_LABELS[equipment] }),
-      h("h2", { class: "now-name", text: MUSCLE_LABELS[muscle] }),
+      h("h2", { class: "now-name", text: exName }),
       h("p", {
         class: "now-eyebrow",
-        text: `${MUSCLE_LABELS[muscle]} · ${EQUIPMENT_LABELS[equipment]}`,
+        text: `${worked} · ${EQUIPMENT_LABELS[equipment]}`,
       }),
     ]);
 

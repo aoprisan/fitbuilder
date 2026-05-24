@@ -5,6 +5,7 @@ export type Equipment =
   | "kettlebell"
   | "trx"
   | "calisthenics"
+  | "machine"
   | "triceps-press"
   | "bench-press"
   | "lat-pulldown"
@@ -25,6 +26,7 @@ export const EQUIPMENT: readonly Equipment[] = [
   "kettlebell",
   "trx",
   "calisthenics",
+  "machine",
   "triceps-press",
   "bench-press",
   "lat-pulldown",
@@ -39,6 +41,7 @@ export const EQUIPMENT_LABELS: Record<Equipment, string> = {
   kettlebell: "Kettlebell",
   trx: "TRX",
   calisthenics: "Calisthenics",
+  machine: "Machine",
   "triceps-press": "Triceps Press",
   "bench-press": "Bench Press",
   "lat-pulldown": "Lat Pulldown",
@@ -137,8 +140,17 @@ export const MUSCLE_LABELS: Record<MuscleGroup, string> = {
 
 export interface LoggedExercise {
   name: string;
+  /** Primary muscle group worked. */
   muscle: MuscleGroup;
+  /** Load type — how the set is loaded (drives the kg dial and load formatting). */
   equipment: Equipment;
+  /**
+   * Stable movement identity from the exercise catalog (e.g. "incline-bench-press").
+   * Absent on legacy logs, which fall back to a "muscle::equipment" key.
+   */
+  exerciseId?: string;
+  /** Muscles also worked by a compound movement, copied from the catalog at log time. */
+  secondaryMuscles?: readonly MuscleGroup[];
   /** Free-text target carried from a routine (e.g. "30-50 repetari"); absent for ad-hoc exercises. */
   prescription?: string;
   sets: WorkSet[];

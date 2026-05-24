@@ -1,4 +1,5 @@
 import { flattenSheet } from "./execute";
+import type { Movement } from "./movements";
 import {
   EQUIPMENT_LABELS,
   LOG_SCHEMA_ID,
@@ -27,12 +28,16 @@ export function newTrainingSession(): TrainingSession {
   };
 }
 
-/** A new logged exercise, labelled from its muscle group and equipment. */
-export function newLoggedExercise(muscle: MuscleGroup, equipment: Equipment): LoggedExercise {
+/** A new logged exercise built from a catalog movement. */
+export function newLoggedExercise(movement: Movement): LoggedExercise {
   return {
-    name: `${MUSCLE_LABELS[muscle]} · ${EQUIPMENT_LABELS[equipment]}`,
-    muscle,
-    equipment,
+    name: movement.name,
+    muscle: movement.primaryMuscle,
+    equipment: movement.equipment,
+    exerciseId: movement.id,
+    ...(movement.secondaryMuscles.length > 0
+      ? { secondaryMuscles: [...movement.secondaryMuscles] }
+      : {}),
     sets: [],
   };
 }
@@ -50,6 +55,8 @@ export function repeatSession(src: TrainingSession): TrainingSession {
       name: ex.name,
       muscle: ex.muscle,
       equipment: ex.equipment,
+      ...(ex.exerciseId !== undefined ? { exerciseId: ex.exerciseId } : {}),
+      ...(ex.secondaryMuscles !== undefined ? { secondaryMuscles: [...ex.secondaryMuscles] } : {}),
       ...(ex.prescription !== undefined ? { prescription: ex.prescription } : {}),
       sets: [],
     })),

@@ -923,6 +923,7 @@ textarea {
 .badge-kettlebell { background: var(--signal); }
 .badge-trx { background: var(--pine); }
 .badge-calisthenics { background: var(--navy); }
+.badge-machine { background: var(--ink-soft); color: var(--paper); }
 .badge-triceps-press { background: var(--rust); }
 .badge-bench-press { background: var(--teal); }
 .badge-lat-pulldown { background: var(--plum); }
