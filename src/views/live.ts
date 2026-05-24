@@ -2,7 +2,7 @@ import { clear, h } from "../dom";
 import { estimateProteinG, muscleBreakdown, readEffort, readHydration } from "../effort";
 import { parseTargetReps } from "../execute";
 import { exportSessionsJson, exportSessionsXml } from "../exporters";
-import { estimatedOneRm, newLoggedExercise, newTrainingSession, repeatSession } from "../log";
+import { newLoggedExercise, newTrainingSession, repeatSession } from "../log";
 import { clearProgress, loadProgress, saveProgress, type SelectMode } from "../liveProgress";
 import { deleteSession, getSession, loadSessions, saveSession } from "../logStorage";
 import {
@@ -31,7 +31,6 @@ import {
   formatClock,
   formatLoad,
   formatSessionDate,
-  round2,
   sessionSetCount,
   sessionToSheet,
   sessionVolume,
@@ -767,52 +766,6 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
 
   // ─────────────────────────── Exercise screen ────────────────────────────────
 
-  /**
-   * One-rep max panel for a compound lift: the calculated estimate (best set,
-   * Epley) alongside an input to log a tested max. The logged value is written
-   * straight onto the exercise and persisted without a re-render, so typing
-   * never steals focus from the field.
-   */
-  function renderOneRmPanel(ex: LoggedExercise): HTMLElement {
-    const calc = estimatedOneRm(ex.sets);
-    const loggedInput = h("input", {
-      class: "onerm-input",
-      type: "number",
-      inputmode: "decimal",
-      min: "0",
-      step: "2.5",
-      placeholder: "—",
-      value: ex.oneRmKg !== undefined ? String(ex.oneRmKg) : "",
-      aria: { label: `logged one-rep max for ${ex.name} in kg` },
-    });
-    loggedInput.addEventListener("change", () => {
-      const n = parseFloat(loggedInput.value);
-      if (Number.isFinite(n) && n > 0) ex.oneRmKg = n;
-      else delete ex.oneRmKg;
-      persist();
-    });
-    return h("section", { class: "card onerm-card" }, [
-      h("h3", { class: "section-title", text: "One-rep max" }),
-      h("div", { class: "onerm-grid" }, [
-        h("div", { class: "onerm-cell" }, [
-          h("span", { class: "field-label", text: "Calculated" }),
-          h("span", { class: "onerm-calc", text: calc > 0 ? `${round2(calc)} kg` : "—" }),
-        ]),
-        h("label", { class: "onerm-cell" }, [
-          h("span", { class: "field-label", text: "Logged (kg)" }),
-          loggedInput,
-        ]),
-      ]),
-      h("p", {
-        class: "onerm-note",
-        text:
-          calc > 0
-            ? "Estimated from your best set (Epley). Log a tested max to record your own."
-            : "Log a weighted set to estimate, or enter a tested max.",
-      }),
-    ]);
-  }
-
   function renderSetList(): HTMLElement {
     const sets = currentEx?.sets ?? [];
     const host = h("div", { class: "live-set-list" });
@@ -855,12 +808,6 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     ]);
 
     container.append(h("h1", { class: "view-title", text: "Live Session" }), head, renderSetList());
-
-    // 1RM only makes sense for a compound lift; show it between sets (idle/rest),
-    // not while the set or rest timer is mid-flight.
-    if (currentEx && secondaries.length > 0 && (sub === "idle" || sub === "resting")) {
-      container.append(renderOneRmPanel(currentEx));
-    }
 
     // Routine target: when this exercise carries a prescription that parses to a
     // rep count, show how far the logged reps have filled it (reuses Execute's UI).

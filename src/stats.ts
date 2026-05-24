@@ -98,8 +98,16 @@ export interface BestOneRm {
   estimated: number;
 }
 
-/** Best logged and estimated 1-rep max across the given scope. */
-export function bestOneRm(sessions: TrainingSession[], filter: ProgressFilter): BestOneRm {
+/**
+ * Best logged and estimated 1-rep max across the given scope. `loggedMaxes` are
+ * standalone tested maxes recorded outside a workout (keyed by {@link ExerciseKey});
+ * they're folded in alongside any max still carried on a logged exercise.
+ */
+export function bestOneRm(
+  sessions: TrainingSession[],
+  filter: ProgressFilter,
+  loggedMaxes: Record<ExerciseKey, number> = {},
+): BestOneRm {
   let logged = 0;
   let estimated = 0;
   for (const session of sessions) {
@@ -108,6 +116,10 @@ export function bestOneRm(sessions: TrainingSession[], filter: ProgressFilter): 
       if (ex.oneRmKg !== undefined) logged = Math.max(logged, ex.oneRmKg);
       for (const s of ex.sets) estimated = Math.max(estimated, epley1RM(s));
     }
+  }
+  for (const [key, kg] of Object.entries(loggedMaxes)) {
+    if (filter !== "all" && key !== filter) continue;
+    logged = Math.max(logged, kg);
   }
   return { logged: round2(logged), estimated: round2(estimated) };
 }
