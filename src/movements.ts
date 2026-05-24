@@ -74,3 +74,36 @@ const REGISTRY: ReadonlyMap<string, Movement> = new Map(
 export function findMovement(id: string): Movement | undefined {
   return REGISTRY.get(id);
 }
+
+/**
+ * Every curated compound lift, in catalog order. A movement is "compound" when
+ * it taxes secondary muscles; generic-gear movements have none, so this yields
+ * only the named multi-muscle lifts (today: the curated chest movements).
+ */
+export function compoundMovements(): readonly Movement[] {
+  return MUSCLE_GROUPS.flatMap((m) => movementsForMuscle(m)).filter(
+    (mv) => mv.secondaryMuscles.length > 0,
+  );
+}
+
+/** A muscle's normalized share of a movement's work, as a whole-number percent. */
+export interface MuscleShare {
+  muscle: MuscleGroup;
+  pct: number;
+}
+
+/**
+ * How a movement's work splits across the muscles it taxes, as percentages that
+ * sum to 100. Mirrors the breakdown weighting: the primary muscle takes full
+ * credit and each secondary takes `SECONDARY_MUSCLE_SHARE`. Rounding remainder
+ * is folded into the primary so the parts always total 100.
+ */
+export function muscleShares(mv: Movement): MuscleShare[] {
+  const total = 1 + SECONDARY_MUSCLE_SHARE * mv.secondaryMuscles.length;
+  const secondaries = mv.secondaryMuscles.map((muscle) => ({
+    muscle,
+    pct: Math.round((SECONDARY_MUSCLE_SHARE / total) * 100),
+  }));
+  const secondarySum = secondaries.reduce((a, s) => a + s.pct, 0);
+  return [{ muscle: mv.primaryMuscle, pct: 100 - secondarySum }, ...secondaries];
+}
