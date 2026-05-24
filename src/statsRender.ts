@@ -17,6 +17,7 @@ import {
   wrap,
 } from "./canvasKit";
 import { lifetimeEffort, type LifetimeEffort } from "./effort";
+import { loadOneRmMaxes } from "./oneRmStore";
 import { loadTrainer } from "./trainer";
 import {
   bestOneRm,
@@ -303,7 +304,7 @@ export async function renderStatsToCanvas(
 
   const summary = buildLifetimeSummary(lifetimeEffort(sessions));
   const points: ProgressPoint[] = buildProgress(sessions, filter);
-  const best = points.length > 0 ? bestOneRm(sessions, filter) : null;
+  const best = points.length > 0 ? bestOneRm(sessions, filter, loadOneRmMaxes()) : null;
   const labels = points.map((p) => p.label);
   const scope = filter === "all" ? "All exercises" : exerciseKeyLabel(filter);
   const range =

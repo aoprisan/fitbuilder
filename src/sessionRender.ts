@@ -16,7 +16,7 @@ import {
   wrap,
 } from "./canvasKit";
 import { estimateProteinG, muscleBreakdown, readEffort, readHydration } from "./effort";
-import { estimatedOneRm } from "./log";
+import { epley1RM } from "./stats";
 import { loadTrainer } from "./trainer";
 import {
   EQUIPMENT_LABELS,
@@ -115,7 +115,7 @@ function drawExercises(ctx: Ctx, session: TrainingSession, top: number, paint: b
     const setTokens = ex.sets
       .map((s) => `${s.reps}×${s.weightKg > 0 ? `${round2(s.weightKg)} kg` : "BW"}`)
       .join("   ·   ");
-    const onerm = ex.oneRmKg ?? estimatedOneRm(ex.sets);
+    const onerm = ex.oneRmKg ?? ex.sets.reduce((m, s) => Math.max(m, epley1RM(s)), 0);
     const onermLine =
       onerm > 0 ? `1RM ${round2(onerm)} kg${ex.oneRmKg === undefined ? " est" : ""}` : "";
 

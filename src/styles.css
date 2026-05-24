@@ -28,6 +28,7 @@
   --teal: #2f6b66;      /* deep teal — machine stamp */
   --plum: #5b3552;      /* muted plum — machine stamp */
   --olive: #5f6322;     /* olive — machine stamp */
+  --clay: #7d5236;      /* clay brown — machine stamp */
 
   /* ── Stable on-fill tokens (deliberately do NOT flip in dark mode) ──────
      In light mode each equals its pre-theme value, so light is unchanged. */
@@ -977,6 +978,7 @@ textarea {
 .badge-bench-press { background: var(--teal); }
 .badge-lat-pulldown { background: var(--plum); }
 .badge-rear-delt-fly { background: var(--olive); }
+.badge-lateral-raise { background: var(--clay); }
 
 /* ─────────────────────────── HOME ─────────────────────────── */
 
@@ -1555,8 +1557,53 @@ textarea {
 
 /* ───────────────────────────── ONE-REP MAX ───────────────────────────── */
 
-.onerm-card {
+/* Home card: log a tested max for any lift, struck in the records hue. */
+.onerm-log {
   border-left: 8px solid var(--brick);
+}
+
+.onerm-log-select {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 11px 12px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 2.5px solid var(--ink);
+  box-shadow: 4px 4px 0 0 var(--ink);
+  cursor: pointer;
+  width: 100%;
+}
+
+.onerm-log-input {
+  font-variant-numeric: tabular-nums;
+}
+
+.onerm-log-list {
+  margin-top: 14px;
+}
+
+.onerm-log-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: var(--rule);
+}
+
+.onerm-log-name {
+  flex: 1 1 auto;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.onerm-log-kg {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
 }
 
 /* Stats headline: best logged vs estimated 1RM, tied to the Strength chart hue. */
@@ -1566,10 +1613,6 @@ textarea {
 
 .onerm-headline .onerm-grid {
   margin-top: 12px;
-}
-
-.onerm-card .section-title {
-  margin-top: 0;
 }
 
 .onerm-grid {
@@ -1591,10 +1634,6 @@ textarea {
   font-size: clamp(28px, 9vw, 40px);
   line-height: 0.9;
   color: var(--ink);
-  font-variant-numeric: tabular-nums;
-}
-
-.onerm-input {
   font-variant-numeric: tabular-nums;
 }
 
