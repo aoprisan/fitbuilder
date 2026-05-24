@@ -13,6 +13,7 @@ export const RECOVERY_HOURS: Record<MuscleGroup, number> = {
   chest: 48,
   back: 60,
   shoulders: 48,
+  traps: 48,
   biceps: 36,
   triceps: 36,
   legs: 72,

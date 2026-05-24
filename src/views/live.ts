@@ -1,5 +1,11 @@
 import { clear, h } from "../dom";
-import { estimateProteinG, muscleBreakdown, readEffort, readHydration } from "../effort";
+import {
+  estimateCalories,
+  estimateProteinG,
+  muscleBreakdown,
+  readEffort,
+  readHydration,
+} from "../effort";
 import { parseTargetReps } from "../execute";
 import {
   analyzeSessionInClaude,
@@ -459,6 +465,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     const hydration = readHydration(effort);
     const muscles = muscleBreakdown(session);
     const protein = estimateProteinG(effort, muscles.length);
+    const calories = estimateCalories(effort);
     const pct = Math.round(Math.min(1, effort.ratio) * 100);
 
     const fill = h("div", { class: "effort-bar-fill" });
@@ -511,6 +518,10 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       h("div", { class: "protein-row" }, [
         h("span", { class: "protein-label", text: "Protein to recover" }),
         h("span", { class: "protein-figure", text: `≈ ${protein} g` }),
+      ]),
+      h("div", { class: "calories-row" }, [
+        h("span", { class: "calories-label", text: "Energy burned" }),
+        h("span", { class: "calories-figure", text: `≈ ${calories} kcal` }),
       ]),
     ]);
   }

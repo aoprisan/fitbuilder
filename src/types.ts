@@ -106,6 +106,7 @@ export type MuscleGroup =
   | "chest"
   | "back"
   | "shoulders"
+  | "traps"
   | "biceps"
   | "triceps"
   | "legs"
@@ -118,6 +119,7 @@ export const MUSCLE_GROUPS: readonly MuscleGroup[] = [
   "chest",
   "back",
   "shoulders",
+  "traps",
   "biceps",
   "triceps",
   "legs",
@@ -132,6 +134,7 @@ export const MUSCLE_LABELS: Record<MuscleGroup, string> = {
   chest: "Chest",
   back: "Back",
   shoulders: "Shoulders",
+  traps: "Traps",
   biceps: "Biceps",
   triceps: "Triceps",
   legs: "Legs",

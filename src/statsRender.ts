@@ -72,6 +72,7 @@ function buildLifetimeSummary(lifetime: LifetimeEffort): SummaryBlock | null {
     hydration: `≈ ${liters.toFixed(1)} L · ${glassCount} ${glassCount === 1 ? "glass" : "glasses"}`,
     hydrationNote: "Total fluid to match every session's effort.",
     protein: `≈ ${lifetime.proteinG} g`,
+    calories: `≈ ${lifetime.caloriesKcal} kcal`,
   };
 }
 
