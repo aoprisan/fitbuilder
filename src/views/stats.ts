@@ -1,6 +1,15 @@
 import { clear, h } from "../dom";
 import { lifetimeEffort, type LifetimeEffort } from "../effort";
-import { canShareFiles, exportStatsPdf, exportStatsPng, shareStats } from "../exporters";
+import {
+  analyzeSessionsInClaude,
+  type AnalyzeResult,
+  canShareFiles,
+  copySessionsPrompt,
+  type CopyResult,
+  exportStatsPdf,
+  exportStatsPng,
+  shareStats,
+} from "../exporters";
 import { loadSessions } from "../logStorage";
 import { loadOneRmMaxes } from "../oneRmStore";
 import type { Cleanup, Nav } from "../router";
@@ -42,6 +51,26 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
       busy = false;
     }
   }
+  const analyzeMsg = (result: AnalyzeResult): string => {
+    switch (result) {
+      case "shared":
+        return "Opened the share sheet — pick Claude to analyse your log.";
+      case "copied-opened":
+        return "Copied your log — paste it into the new Claude chat.";
+      case "copied":
+        return "Copied to clipboard — open Claude and paste.";
+      case "downloaded":
+        return "Clipboard unavailable — saved a Markdown file instead.";
+    }
+  };
+  const copyMsg = (result: CopyResult): string => {
+    switch (result) {
+      case "copied":
+        return "Copied the prompt — paste it into any AI (ChatGPT, Gemini, Claude…).";
+      case "downloaded":
+        return "Clipboard unavailable — saved a Markdown file instead.";
+    }
+  };
 
   function render(): void {
     clear(container);
@@ -242,6 +271,7 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
    * sheet. Reads the live `filter`, so it always exports what's on screen.
    */
   function renderExportPanel(sessions: TrainingSession[]): HTMLElement {
+    const chronological = [...sessions].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
     return h("section", { class: "card live-export" }, [
       h("h2", { class: "section-title", text: "Export · Share" }),
       h("p", {
@@ -279,6 +309,36 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
           type: "button",
           text: "PDF",
           on: { click: () => runExport("Save PDF", () => exportStatsPdf(sessions, filter)) },
+        }),
+      ]),
+      h("p", {
+        class: "plan-meta",
+        text: "Hand your full training log to an AI for coaching feedback and progression tips.",
+      }),
+      h("div", { class: "btn-row" }, [
+        h("button", {
+          class: "btn btn-small btn-accent",
+          type: "button",
+          text: "Analyze in Claude ▸",
+          aria: { label: "analyse all logged sessions in Claude" },
+          on: {
+            click: () =>
+              runExport("Analyze in Claude", async () => {
+                setStatus(analyzeMsg(await analyzeSessionsInClaude(chronological)), "ok");
+              }),
+          },
+        }),
+        h("button", {
+          class: "btn btn-small",
+          type: "button",
+          text: "Copy prompt",
+          aria: { label: "copy all logged sessions as a prompt for any AI" },
+          on: {
+            click: () =>
+              runExport("Copy prompt", async () => {
+                setStatus(copyMsg(await copySessionsPrompt(chronological)), "ok");
+              }),
+          },
         }),
       ]),
       statusEl,
