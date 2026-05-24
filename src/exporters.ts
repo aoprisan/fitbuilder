@@ -1,5 +1,8 @@
 import { dataUrlToBytes, jpegToPdf } from "./pdf";
+import { renderSessionToCanvas } from "./sessionRender";
 import { renderSheetToCanvas } from "./sheetRender";
+import { renderStatsToCanvas } from "./statsRender";
+import type { ProgressFilter } from "./stats";
 import type { RoutineSheet, TrainingSession } from "./types";
 import { sessionsToJson, sessionsToXml, slug } from "./util";
 
@@ -65,35 +68,36 @@ export function exportSessionsXml(sessions: TrainingSession[]): void {
   downloadBlob(blob, sessionsFilename("xml"));
 }
 
-/** Render the sheet and download it as a PNG. */
-export async function exportSheetPng(sheet: RoutineSheet): Promise<void> {
-  const canvas = await renderSheetToCanvas(sheet);
+/** Download a rendered canvas as a PNG. */
+async function downloadCanvasPng(canvas: HTMLCanvasElement, filename: string): Promise<void> {
   const blob = await canvasToBlob(canvas, "image/png");
-  downloadBlob(blob, `${slug(sheet.name)}.png`);
+  downloadBlob(blob, filename);
 }
 
-/** Render the sheet and download it as a PDF. */
-export async function exportSheetPdf(sheet: RoutineSheet): Promise<void> {
-  const canvas = await renderSheetToCanvas(sheet);
-  downloadBlob(pdfBlobFromCanvas(canvas), `${slug(sheet.name)}.pdf`);
+/** Download a rendered canvas as a (JPEG-in-)PDF. */
+function downloadCanvasPdf(canvas: HTMLCanvasElement, filename: string): void {
+  downloadBlob(pdfBlobFromCanvas(canvas), filename);
 }
 
 export type ShareResult = "shared" | "downloaded";
 
 /**
- * Share the sheet as a PNG via the native share sheet (best on phones, where it
- * can target WhatsApp directly). Falls back to a PNG download when the platform
- * can't share files. A user-cancelled share counts as "shared" (no fallback).
+ * Share a rendered canvas as a PNG via the native share sheet (best on phones,
+ * where it can target WhatsApp directly). Falls back to a PNG download when the
+ * platform can't share files. A user-cancelled share counts as "shared".
  */
-export async function shareSheet(sheet: RoutineSheet): Promise<ShareResult> {
-  const canvas = await renderSheetToCanvas(sheet);
+async function shareCanvas(
+  canvas: HTMLCanvasElement,
+  filename: string,
+  title: string,
+): Promise<ShareResult> {
   const blob = await canvasToBlob(canvas, "image/png");
-  const file = new File([blob], `${slug(sheet.name)}.png`, { type: "image/png" });
+  const file = new File([blob], filename, { type: "image/png" });
 
   const nav = shareNav();
   if (nav.share && nav.canShare && nav.canShare({ files: [file] })) {
     try {
-      await nav.share({ files: [file], title: sheet.name, text: sheet.name });
+      await nav.share({ files: [file], title, text: title });
       return "shared";
     } catch (err) {
       // The user dismissing the share sheet rejects with AbortError — that's
@@ -105,4 +109,81 @@ export async function shareSheet(sheet: RoutineSheet): Promise<ShareResult> {
 
   downloadBlob(blob, file.name);
   return "downloaded";
+}
+
+/** Render the sheet and download it as a PNG. */
+export async function exportSheetPng(sheet: RoutineSheet): Promise<void> {
+  await downloadCanvasPng(await renderSheetToCanvas(sheet), `${slug(sheet.name)}.png`);
+}
+
+/** Render the sheet and download it as a PDF. */
+export async function exportSheetPdf(sheet: RoutineSheet): Promise<void> {
+  downloadCanvasPdf(await renderSheetToCanvas(sheet), `${slug(sheet.name)}.pdf`);
+}
+
+/** Share the sheet as a PNG (native share sheet, PNG-download fallback). */
+export async function shareSheet(sheet: RoutineSheet): Promise<ShareResult> {
+  return shareCanvas(await renderSheetToCanvas(sheet), `${slug(sheet.name)}.png`, sheet.name);
+}
+
+/** Slug for a session recap file, e.g. "push-day-recap". */
+function sessionSlug(session: TrainingSession): string {
+  return `${slug(session.name || "session")}-recap`;
+}
+
+/** Render a live-session recap (effort + exercises) and download it as a PNG. */
+export async function exportSessionPng(
+  session: TrainingSession,
+  allSessions: TrainingSession[],
+): Promise<void> {
+  await downloadCanvasPng(await renderSessionToCanvas(session, allSessions), `${sessionSlug(session)}.png`);
+}
+
+/** Render a live-session recap and download it as a PDF. */
+export async function exportSessionPdf(
+  session: TrainingSession,
+  allSessions: TrainingSession[],
+): Promise<void> {
+  downloadCanvasPdf(await renderSessionToCanvas(session, allSessions), `${sessionSlug(session)}.pdf`);
+}
+
+/** Share a live-session recap as a PNG (native share sheet, download fallback). */
+export async function shareSession(
+  session: TrainingSession,
+  allSessions: TrainingSession[],
+): Promise<ShareResult> {
+  return shareCanvas(
+    await renderSessionToCanvas(session, allSessions),
+    `${sessionSlug(session)}.png`,
+    session.name || "Session recap",
+  );
+}
+
+/** Date-stamped filename for a stats report, e.g. "gym-stats-2026-05-22". */
+function statsSlug(): string {
+  return `gym-stats-${new Date().toISOString().slice(0, 10)}`;
+}
+
+/** Render the stats report for a scope and download it as a PNG. */
+export async function exportStatsPng(
+  sessions: TrainingSession[],
+  filter: ProgressFilter,
+): Promise<void> {
+  await downloadCanvasPng(await renderStatsToCanvas(sessions, filter), `${statsSlug()}.png`);
+}
+
+/** Render the stats report and download it as a PDF. */
+export async function exportStatsPdf(
+  sessions: TrainingSession[],
+  filter: ProgressFilter,
+): Promise<void> {
+  downloadCanvasPdf(await renderStatsToCanvas(sessions, filter), `${statsSlug()}.pdf`);
+}
+
+/** Share the stats report as a PNG (native share sheet, download fallback). */
+export async function shareStats(
+  sessions: TrainingSession[],
+  filter: ProgressFilter,
+): Promise<ShareResult> {
+  return shareCanvas(await renderStatsToCanvas(sessions, filter), `${statsSlug()}.png`, "Training stats");
 }

@@ -1,5 +1,6 @@
 import { clear, h } from "../dom";
 import { lifetimeEffort, type LifetimeEffort } from "../effort";
+import { canShareFiles, exportStatsPdf, exportStatsPng, shareStats } from "../exporters";
 import { loadSessions } from "../logStorage";
 import type { Cleanup, Nav } from "../router";
 import {
@@ -10,7 +11,7 @@ import {
   presentExerciseKeys,
   type ProgressFilter,
 } from "../stats";
-import { MUSCLE_LABELS } from "../types";
+import { MUSCLE_LABELS, type TrainingSession } from "../types";
 import { formatClock, round2 } from "../util";
 import { lineChart } from "./chart";
 
@@ -19,6 +20,27 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
   root.appendChild(container);
 
   let filter: ProgressFilter = "all";
+
+  // Export / share — the element is reused so its message survives re-renders.
+  const statusEl = h("p", { class: "status", role: "status", aria: { live: "polite" } });
+  const setStatus = (msg: string, kind: "ok" | "err" | "info"): void => {
+    statusEl.textContent = msg;
+    statusEl.className = `status status-${kind}`;
+  };
+  let busy = false;
+  async function runExport(label: string, fn: () => Promise<void>): Promise<void> {
+    if (busy) return;
+    busy = true;
+    setStatus(`${label}…`, "info");
+    try {
+      await fn();
+      setStatus(`${label} ready.`, "ok");
+    } catch {
+      setStatus(`Could not ${label.toLowerCase()}. Try again.`, "err");
+    } finally {
+      busy = false;
+    }
+  }
 
   function render(): void {
     clear(container);
@@ -61,6 +83,8 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
           }),
         ]),
       );
+      // Lifetime stats may still be worth exporting even when this scope is empty.
+      if (sessions.length > 0) container.append(renderExportPanel(sessions));
       return;
     }
 
@@ -126,6 +150,8 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
         format: kg,
       }),
     );
+
+    container.append(renderExportPanel(sessions));
   }
 
   /**
@@ -206,6 +232,55 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
         h("span", { class: "protein-label", text: "Protein to recover" }),
         h("span", { class: "protein-figure", text: `≈ ${lifetime.proteinG} g` }),
       ]),
+    ]);
+  }
+
+  /**
+   * "Export · Share" card — renders the current scope (all exercises or the
+   * filtered one) as a PNG/PDF stats report or hands it to the native share
+   * sheet. Reads the live `filter`, so it always exports what's on screen.
+   */
+  function renderExportPanel(sessions: TrainingSession[]): HTMLElement {
+    return h("section", { class: "card live-export" }, [
+      h("h2", { class: "section-title", text: "Export · Share" }),
+      h("p", {
+        class: "plan-meta",
+        text: canShareFiles()
+          ? "Share sends a PNG of these stats to the native share sheet — or save a PNG/PDF."
+          : "Save a PNG or PDF of this stats report. (Direct share works on phones.)",
+      }),
+      h("div", { class: "btn-row" }, [
+        h("button", {
+          class: "btn btn-small btn-accent",
+          type: "button",
+          text: "Share ▸",
+          on: {
+            click: () =>
+              runExport("Share", async () => {
+                const result = await shareStats(sessions, filter);
+                setStatus(
+                  result === "shared"
+                    ? "Opened the share sheet — pick WhatsApp."
+                    : "Sharing isn't available here, so the PNG was downloaded instead.",
+                  "ok",
+                );
+              }),
+          },
+        }),
+        h("button", {
+          class: "btn btn-small",
+          type: "button",
+          text: "PNG",
+          on: { click: () => runExport("Save PNG", () => exportStatsPng(sessions, filter)) },
+        }),
+        h("button", {
+          class: "btn btn-small",
+          type: "button",
+          text: "PDF",
+          on: { click: () => runExport("Save PDF", () => exportStatsPdf(sessions, filter)) },
+        }),
+      ]),
+      statusEl,
     ]);
   }
 

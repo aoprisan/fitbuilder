@@ -1,7 +1,13 @@
 import { clear, h } from "../dom";
 import { estimateProteinG, muscleBreakdown, readEffort, readHydration } from "../effort";
 import { parseTargetReps } from "../execute";
-import { exportSessionsJson, exportSessionsXml } from "../exporters";
+import {
+  exportSessionPdf,
+  exportSessionPng,
+  exportSessionsJson,
+  exportSessionsXml,
+  shareSession,
+} from "../exporters";
 import { estimatedOneRm, newLoggedExercise, newTrainingSession, repeatSession } from "../log";
 import { clearProgress, loadProgress, saveProgress, type SelectMode } from "../liveProgress";
 import { deleteSession, getSession, loadSessions, saveSession } from "../logStorage";
@@ -141,6 +147,69 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
 
   function persist(): void {
     if (state.activeLog) saveSession(state.activeLog);
+  }
+
+  // ───────────────────── Export / share (PNG · PDF · share) ───────────────────
+
+  // Persists across re-renders because the element is reused, not recreated.
+  const statusEl = h("p", { class: "status", role: "status", aria: { live: "polite" } });
+  const setStatus = (msg: string, kind: "ok" | "err" | "info"): void => {
+    statusEl.textContent = msg;
+    statusEl.className = `status status-${kind}`;
+  };
+  // Guard against double-taps while an (async) render/encode runs.
+  let busy = false;
+  async function runExport(label: string, fn: () => Promise<void>): Promise<void> {
+    if (busy) return;
+    busy = true;
+    setStatus(`${label}…`, "info");
+    try {
+      await fn();
+      setStatus(`${label} ready.`, "ok");
+    } catch {
+      setStatus(`Could not ${label.toLowerCase()}. Try again.`, "err");
+    } finally {
+      busy = false;
+    }
+  }
+
+  /** Share / PNG / PDF row for one session's recap (effort + exercise ledger). */
+  function sessionExportRow(s: TrainingSession): HTMLElement {
+    const all = (): TrainingSession[] => loadSessions();
+    return h("div", { class: "btn-row saved-actions" }, [
+      h("button", {
+        class: "btn btn-small btn-accent",
+        type: "button",
+        text: "Share ▸",
+        aria: { label: `share ${s.name || "this session"}` },
+        on: {
+          click: () =>
+            runExport("Share", async () => {
+              const result = await shareSession(s, all());
+              setStatus(
+                result === "shared"
+                  ? "Opened the share sheet — pick WhatsApp."
+                  : "Sharing isn't available here, so the PNG was downloaded instead.",
+                "ok",
+              );
+            }),
+        },
+      }),
+      h("button", {
+        class: "btn btn-small",
+        type: "button",
+        text: "PNG",
+        aria: { label: `save ${s.name || "this session"} as PNG` },
+        on: { click: () => runExport("Save PNG", () => exportSessionPng(s, all())) },
+      }),
+      h("button", {
+        class: "btn btn-small",
+        type: "button",
+        text: "PDF",
+        aria: { label: `save ${s.name || "this session"} as PDF` },
+        on: { click: () => runExport("Save PDF", () => exportSessionPdf(s, all())) },
+      }),
+    ]);
   }
 
   /** Snapshot the in-flight flow so a reload can resume exactly here. */
@@ -451,6 +520,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           on: { click: startSession },
         }),
       ]),
+      statusEl,
       listHost,
     );
 
@@ -552,6 +622,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
                 on: { click: () => exportSessionsJson([s]) },
               }),
             ]),
+            sessionExportRow(s),
           ]
         : []),
     ]);
@@ -629,7 +700,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         h("p", { class: "session-date", text: formatSessionDate(session.startedAt) }),
       ]),
     );
-    if (summary) container.append(summary);
+    if (summary) {
+      container.append(summary, sessionExportRow(session), statusEl);
+    }
 
     // Toggle picks update the view-level selection, and — when confirming a
     // planned routine exercise — write straight onto it so the choice sticks.
