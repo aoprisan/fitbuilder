@@ -1876,6 +1876,45 @@ textarea {
   margin-top: 10px;
 }
 
+/* Two readiness rings side by side: per-muscle average and systemic/CNS load. */
+.recovery-rings {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 22px;
+  margin-top: 4px;
+}
+
+.recovery-ring-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.recovery-ring--dual {
+  width: min(38vw, 148px);
+  margin: 0;
+}
+
+.recovery-ring--dual .recovery-ring-pct {
+  font-size: 26px;
+}
+
+.recovery-ring--dual .recovery-ring-status {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+}
+
+.recovery-ring-caption {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
 .recovery-home-row {
   display: flex;
   align-items: center;

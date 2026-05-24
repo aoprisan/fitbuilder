@@ -1,6 +1,11 @@
 import { h } from "../dom";
 import { loadSessions } from "../logStorage";
-import { muscleRecovery, overallRecovery, type MuscleRecovery } from "../recovery";
+import {
+  muscleRecovery,
+  overallRecovery,
+  systemicReadiness,
+  type MuscleRecovery,
+} from "../recovery";
 import type { Cleanup, Nav } from "../router";
 import { MUSCLE_LABELS } from "../types";
 import { clamp, formatSessionDate } from "../util";
@@ -41,7 +46,7 @@ export function overallStatus(recovered: number): string {
 export function recoveryRing(
   recovered: number,
   statusLabel: string,
-  opts: { small?: boolean } = {},
+  opts: { size?: "sm" | "dual" } = {},
 ): HTMLElement {
   const color = recoveryColor(recovered);
   const fill = svgEl("circle", {
@@ -61,17 +66,30 @@ export function recoveryRing(
   const pct = h("span", { class: "recovery-ring-pct", text: `${Math.round(recovered * 100)}%` });
   pct.style.color = color;
 
-  return h(
-    "div",
-    { class: opts.small ? "dial-wrap recovery-ring recovery-ring--sm" : "dial-wrap recovery-ring" },
-    [
-      svg,
-      h("div", { class: "dial-center recovery-ring-center" }, [
-        pct,
-        h("span", { class: "recovery-ring-status", text: statusLabel }),
-      ]),
-    ],
-  );
+  const sizeClass =
+    opts.size === "sm" ? " recovery-ring--sm" : opts.size === "dual" ? " recovery-ring--dual" : "";
+  return h("div", { class: `dial-wrap recovery-ring${sizeClass}` }, [
+    svg,
+    h("div", { class: "dial-center recovery-ring-center" }, [
+      pct,
+      h("span", { class: "recovery-ring-status", text: statusLabel }),
+    ]),
+  ]);
+}
+
+function ringCell(ring: HTMLElement, caption: string): HTMLElement {
+  return h("div", { class: "recovery-ring-cell" }, [
+    ring,
+    h("span", { class: "recovery-ring-caption", text: caption }),
+  ]);
+}
+
+/** One-line read on systemic load, keyed off the same readiness fraction. */
+function systemicNote(readiness: number): string {
+  if (readiness >= 0.85) return "Systemic load is low — fully fresh for hard work.";
+  if (readiness >= 0.6) return "Systemic load is moderate — you can train hard.";
+  if (readiness >= 0.35) return "Systemic load is building — keep total volume in check.";
+  return "Systemic load is high — favour light work or a rest day.";
 }
 
 function recoveryRow(r: MuscleRecovery): HTMLElement {
@@ -103,7 +121,8 @@ function recoveryRow(r: MuscleRecovery): HTMLElement {
 }
 
 export function mountRecovery(root: HTMLElement, nav: Nav): Cleanup {
-  const recoveries = muscleRecovery(loadSessions());
+  const sessions = loadSessions();
+  const recoveries = muscleRecovery(sessions);
   const hasHistory = recoveries.some((r) => r.lastTrainedAt !== null);
 
   const header = h("section", { class: "card" }, [
@@ -138,16 +157,21 @@ export function mountRecovery(root: HTMLElement, nav: Nav): Cleanup {
   }
 
   const overall = overallRecovery(recoveries);
+  const systemic = systemicReadiness(sessions);
   const recovering = recoveries.filter((r) => r.recovered < 1).length;
-  const note =
+  const muscleNote =
     recovering === 0
       ? "Every muscle group is fully recovered — good to go."
       : `${recovering} muscle ${recovering === 1 ? "group" : "groups"} still recovering — train the green ones.`;
 
   const totalCard = h("section", { class: "card recovery-total" }, [
     h("p", { class: "eyebrow", text: "Overall" }),
-    recoveryRing(overall, overallStatus(overall)),
-    h("p", { class: "plan-meta recovery-total-note", text: note }),
+    h("div", { class: "recovery-rings" }, [
+      ringCell(recoveryRing(overall, overallStatus(overall), { size: "dual" }), "Muscles"),
+      ringCell(recoveryRing(systemic, overallStatus(systemic), { size: "dual" }), "Systemic"),
+    ]),
+    h("p", { class: "plan-meta recovery-total-note", text: muscleNote }),
+    h("p", { class: "plan-meta recovery-total-note", text: systemicNote(systemic) }),
   ]);
 
   const musclesCard = h("section", { class: "card" }, [
