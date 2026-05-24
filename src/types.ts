@@ -9,7 +9,8 @@ export type Equipment =
   | "triceps-press"
   | "bench-press"
   | "lat-pulldown"
-  | "rear-delt-fly";
+  | "rear-delt-fly"
+  | "lateral-raise";
 
 export interface WorkSet {
   reps: number;
@@ -31,6 +32,7 @@ export const EQUIPMENT: readonly Equipment[] = [
   "bench-press",
   "lat-pulldown",
   "rear-delt-fly",
+  "lateral-raise",
 ] as const;
 
 /** Human-readable label for each equipment type. */
@@ -46,6 +48,7 @@ export const EQUIPMENT_LABELS: Record<Equipment, string> = {
   "bench-press": "Bench Press",
   "lat-pulldown": "Lat Pulldown",
   "rear-delt-fly": "Rear Delt Fly",
+  "lateral-raise": "Lateral Raise",
 };
 
 /** Equipment whose sets are bodyweight-based; any weight is *added* load. */

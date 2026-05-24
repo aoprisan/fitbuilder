@@ -28,6 +28,7 @@
   --teal: #2f6b66;      /* deep teal — machine stamp */
   --plum: #5b3552;      /* muted plum — machine stamp */
   --olive: #5f6322;     /* olive — machine stamp */
+  --clay: #7d5236;      /* clay brown — machine stamp */
 
   /* ── Stable on-fill tokens (deliberately do NOT flip in dark mode) ──────
      In light mode each equals its pre-theme value, so light is unchanged. */
@@ -977,6 +978,7 @@ textarea {
 .badge-bench-press { background: var(--teal); }
 .badge-lat-pulldown { background: var(--plum); }
 .badge-rear-delt-fly { background: var(--olive); }
+.badge-lateral-raise { background: var(--clay); }
 
 /* ─────────────────────────── HOME ─────────────────────────── */
 
