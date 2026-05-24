@@ -186,6 +186,16 @@ export function estimateProteinG(effort: EffortReading, muscleCount: number): nu
   return Math.round(raw / 5) * 5;
 }
 
+// Rough energy a session burns, drawn from the same effort points that drive
+// hydration. Tuned so a full session (~45 pts) lands near ~300 kcal for an
+// average lifter; a brutal one north of 400. Deliberately a ballpark figure.
+const KCAL_PER_EFFORT_POINT = 7;
+
+/** Rough calories burned in a session, from accumulated effort. Rounded to 10. */
+export function estimateCalories(effort: EffortReading): number {
+  return Math.round((effort.points * KCAL_PER_EFFORT_POINT) / 10) * 10;
+}
+
 const HYDRATION_NOTES: Record<EffortTier, string> = {
   warmup: "Take a few sips to start.",
   light: "Sip water between sets.",
@@ -217,6 +227,8 @@ export interface LifetimeEffort {
   hydrationMl: number;
   /** Total recovery protein across every session, g. */
   proteinG: number;
+  /** Rough total calories burned across every session, kcal. */
+  caloriesKcal: number;
 }
 
 /**
@@ -229,11 +241,13 @@ export function lifetimeEffort(sessions: TrainingSession[]): LifetimeEffort {
   let points = 0;
   let hydrationMl = 0;
   let proteinG = 0;
+  let caloriesKcal = 0;
   for (const session of logged) {
     const effort = readEffort(session, sessions);
     points += effort.points;
     hydrationMl += readHydration(effort).ml;
     proteinG += estimateProteinG(effort, muscleBreakdown(session).length);
+    caloriesKcal += estimateCalories(effort);
   }
   return {
     sessions: logged.length,
@@ -241,5 +255,6 @@ export function lifetimeEffort(sessions: TrainingSession[]): LifetimeEffort {
     muscles: accumulateMuscleWork(logged),
     hydrationMl,
     proteinG,
+    caloriesKcal,
   };
 }

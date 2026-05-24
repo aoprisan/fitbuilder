@@ -4,12 +4,12 @@ import { getSession, loadSessions } from "../logStorage";
 import { allMovements } from "../movements";
 import { clearOneRm, loadOneRmMaxes, setOneRm } from "../oneRmStore";
 import { forceAppUpdate } from "../pwa";
-import { muscleRecovery, overallRecovery } from "../recovery";
+import { muscleRecovery, overallRecovery, systemicRecovery } from "../recovery";
 import type { Nav } from "../router";
 import { exerciseKeyLabel } from "../stats";
 import { MUSCLE_LABELS } from "../types";
 import { formatSessionDate, round2, sessionSetCount } from "../util";
-import { overallStatus, recoveryRing } from "./recovery";
+import { overallStatus, recoveryRing, ringCell } from "./recovery";
 
 export function mountHome(root: HTMLElement, nav: Nav): void {
   const sessions = loadSessions().sort((a, b) => b.startedAt.localeCompare(a.startedAt));
@@ -75,6 +75,7 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
       );
     } else {
       const overall = overallRecovery(recoveries);
+      const systemic = systemicRecovery(sessions);
       const top = recoveries[0]!; // least recovered
       const meta =
         top.recovered >= 1
@@ -82,7 +83,13 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
           : `Most fatigued: ${MUSCLE_LABELS[top.muscle]} · ${Math.round(top.recovered * 100)}% (~${top.hoursRemaining}h to go).`;
       body.push(
         h("div", { class: "recovery-home-row" }, [
-          recoveryRing(overall, overallStatus(overall), { size: "sm" }),
+          h("div", { class: "recovery-rings" }, [
+            ringCell(recoveryRing(overall, overallStatus(overall), { size: "sm" }), "Muscles"),
+            ringCell(
+              recoveryRing(systemic.readiness, overallStatus(systemic.readiness), { size: "sm" }),
+              "Systemic",
+            ),
+          ]),
           h("p", { class: "plan-meta recovery-home-meta", text: meta }),
         ]),
       );

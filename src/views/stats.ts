@@ -262,6 +262,10 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
         h("span", { class: "protein-label", text: "Protein to recover" }),
         h("span", { class: "protein-figure", text: `≈ ${lifetime.proteinG} g` }),
       ]),
+      h("div", { class: "calories-row" }, [
+        h("span", { class: "calories-label", text: "Energy burned" }),
+        h("span", { class: "calories-figure", text: `≈ ${lifetime.caloriesKcal} kcal` }),
+      ]),
     ]);
   }
 

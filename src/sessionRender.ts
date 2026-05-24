@@ -15,7 +15,13 @@ import {
   type Ctx,
   wrap,
 } from "./canvasKit";
-import { estimateProteinG, muscleBreakdown, readEffort, readHydration } from "./effort";
+import {
+  estimateCalories,
+  estimateProteinG,
+  muscleBreakdown,
+  readEffort,
+  readHydration,
+} from "./effort";
 import { epley1RM } from "./stats";
 import { loadTrainer } from "./trainer";
 import {
@@ -55,6 +61,7 @@ function buildSessionSummary(
   const hydration = readHydration(effort);
   const muscles = muscleBreakdown(session);
   const protein = estimateProteinG(effort, muscles.length);
+  const calories = estimateCalories(effort);
   const topEffort = muscles.reduce((m, x) => Math.max(m, x.effort), 0);
   const glasses = `${hydration.glasses} ${hydration.glasses === 1 ? "glass" : "glasses"}`;
 
@@ -75,6 +82,7 @@ function buildSessionSummary(
     hydration: `≈ ${hydration.liters.toFixed(1)} L · ${glasses}`,
     hydrationNote: hydration.note,
     protein: `≈ ${protein} g`,
+    calories: `≈ ${calories} kcal`,
   };
 }
 

@@ -13,6 +13,7 @@ export const RECOVERY_HOURS: Record<MuscleGroup, number> = {
   chest: 48,
   back: 60,
   shoulders: 48,
+  traps: 48,
   biceps: 36,
   triceps: 36,
   legs: 72,
@@ -123,15 +124,30 @@ function median(values: number[]): number {
   return sorted.length % 2 === 1 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
 }
 
+// Readiness at which systemic load counts as cleared — matches the "Rested" band.
+const CNS_RESTED = 0.85;
+
+export interface SystemicRecovery {
+  /** Systemic readiness 0..1: 0 = heavily fatigued (red), 1 = fully fresh (green). */
+  readiness: number;
+  /**
+   * Whole hours until systemic load decays back to rested (0 once rested).
+   * Because CNS load decays exponentially, this targets the top "Rested" band
+   * rather than a literal 100%, whose asymptotic tail would read as many days.
+   */
+  hoursRemaining: number;
+}
+
 /**
- * Whole-body systemic (nervous-system) readiness, 0..1: 0 = heavily fatigued
- * (red), 1 = fully fresh (green). Pools recent sessions' intensity-weighted load
- * with exponential time-decay and measures it against a typical session.
+ * Whole-body systemic (nervous-system) recovery. `readiness` is 0..1: 0 = heavily
+ * fatigued (red), 1 = fully fresh (green). Pools recent sessions' intensity-weighted
+ * load with exponential time-decay, measured against a typical session, then projects
+ * that same decay forward to estimate the hours left until systemic load clears.
  */
-export function systemicReadiness(
+export function systemicRecovery(
   sessions: readonly TrainingSession[],
   now: Date = new Date(),
-): number {
+): SystemicRecovery {
   const nowMs = now.getTime();
   const loads: number[] = [];
   let decayed = 0;
@@ -145,7 +161,15 @@ export function systemicReadiness(
     if (hoursSince < 0) continue; // future-dated; counts toward reference, not load
     decayed += load * Math.pow(0.5, hoursSince / CNS_HALF_LIFE_HOURS);
   }
-  if (loads.length === 0) return 1;
-  const reference = median(loads) || CNS_FALLBACK_LOAD;
-  return clamp(1 - decayed / (reference * CNS_SATURATION), 0, 1);
+  if (loads.length === 0) return { readiness: 1, hoursRemaining: 0 };
+  const saturation = (median(loads) || CNS_FALLBACK_LOAD) * CNS_SATURATION;
+  const readiness = clamp(1 - decayed / saturation, 0, 1);
+
+  // The pool decays uniformly: decayed(t) = decayed · 0.5^(t / half-life). Solve for
+  // the hours until that projected load drops to the rested threshold's load.
+  const restedLoad = saturation * (1 - CNS_RESTED);
+  const hoursRemaining =
+    decayed <= restedLoad ? 0 : Math.ceil(CNS_HALF_LIFE_HOURS * Math.log2(decayed / restedLoad));
+
+  return { readiness, hoursRemaining };
 }

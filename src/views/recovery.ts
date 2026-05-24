@@ -3,7 +3,7 @@ import { loadSessions } from "../logStorage";
 import {
   muscleRecovery,
   overallRecovery,
-  systemicReadiness,
+  systemicRecovery,
   type MuscleRecovery,
 } from "../recovery";
 import type { Cleanup, Nav } from "../router";
@@ -77,19 +77,20 @@ export function recoveryRing(
   ]);
 }
 
-function ringCell(ring: HTMLElement, caption: string): HTMLElement {
+export function ringCell(ring: HTMLElement, caption: string): HTMLElement {
   return h("div", { class: "recovery-ring-cell" }, [
     ring,
     h("span", { class: "recovery-ring-caption", text: caption }),
   ]);
 }
 
-/** One-line read on systemic load, keyed off the same readiness fraction. */
-function systemicNote(readiness: number): string {
+/** One-line read on systemic load, with an estimate of hours back to rested. */
+function systemicNote(readiness: number, hoursRemaining: number): string {
+  const eta = hoursRemaining > 0 ? ` ~${hoursRemaining}h to fully recover.` : "";
   if (readiness >= 0.85) return "Systemic load is low — fully fresh for hard work.";
-  if (readiness >= 0.6) return "Systemic load is moderate — you can train hard.";
-  if (readiness >= 0.35) return "Systemic load is building — keep total volume in check.";
-  return "Systemic load is high — favour light work or a rest day.";
+  if (readiness >= 0.6) return "Systemic load is moderate — you can train hard." + eta;
+  if (readiness >= 0.35) return "Systemic load is building — keep total volume in check." + eta;
+  return "Systemic load is high — favour light work or a rest day." + eta;
 }
 
 function recoveryRow(r: MuscleRecovery): HTMLElement {
@@ -157,7 +158,7 @@ export function mountRecovery(root: HTMLElement, nav: Nav): Cleanup {
   }
 
   const overall = overallRecovery(recoveries);
-  const systemic = systemicReadiness(sessions);
+  const systemic = systemicRecovery(sessions);
   const recovering = recoveries.filter((r) => r.recovered < 1).length;
   const muscleNote =
     recovering === 0
@@ -168,10 +169,16 @@ export function mountRecovery(root: HTMLElement, nav: Nav): Cleanup {
     h("p", { class: "eyebrow", text: "Overall" }),
     h("div", { class: "recovery-rings" }, [
       ringCell(recoveryRing(overall, overallStatus(overall), { size: "dual" }), "Muscles"),
-      ringCell(recoveryRing(systemic, overallStatus(systemic), { size: "dual" }), "Systemic"),
+      ringCell(
+        recoveryRing(systemic.readiness, overallStatus(systemic.readiness), { size: "dual" }),
+        "Systemic",
+      ),
     ]),
     h("p", { class: "plan-meta recovery-total-note", text: muscleNote }),
-    h("p", { class: "plan-meta recovery-total-note", text: systemicNote(systemic) }),
+    h("p", {
+      class: "plan-meta recovery-total-note",
+      text: systemicNote(systemic.readiness, systemic.hoursRemaining),
+    }),
   ]);
 
   const musclesCard = h("section", { class: "card" }, [

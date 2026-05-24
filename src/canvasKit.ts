@@ -260,6 +260,8 @@ export interface SummaryBlock {
   hydration: string;
   hydrationNote: string;
   protein: string;
+  /** Rough energy burned, e.g. "≈ 310 kcal". */
+  calories: string;
 }
 
 function drawKV(
@@ -361,6 +363,7 @@ function layoutSummary(ctx: Ctx, x: number, y: number, w: number, b: SummaryBloc
   cy += 6;
 
   cy = drawKV(ctx, ix, iw, cy, "Protein to recover", b.protein, paint);
+  cy = drawKV(ctx, ix, iw, cy, "Energy burned", b.calories, paint);
 
   return cy + PP;
 }
