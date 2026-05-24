@@ -148,6 +148,11 @@ export function analyzeSessionInClaude(session: TrainingSession): Promise<Analyz
   );
 }
 
+/** Hand a plan-building prompt to Claude (share sheet on phones, clipboard + new chat on desktop). */
+export function startPlanInClaude(prompt: string): Promise<AnalyzeResult> {
+  return shareForAnalysis(prompt, "fitbuilder-plan.md", "Build my training plan");
+}
+
 export type CopyResult = "copied" | "downloaded";
 
 /** Copy a Markdown report to the clipboard so it can be pasted into any AI; download as a backstop. */
@@ -165,6 +170,11 @@ export function copySessionsPrompt(sessions: TrainingSession[]): Promise<CopyRes
 /** Copy one session as a Markdown analysis prompt for any AI. */
 export function copySessionPrompt(session: TrainingSession): Promise<CopyResult> {
   return copyForAnalysis(sessionsToMarkdown([session]), `${sessionSlug(session)}.md`);
+}
+
+/** Copy the plan-building prompt to the clipboard so it can be pasted into any AI; download as a backstop. */
+export function copyPlanPrompt(prompt: string): Promise<CopyResult> {
+  return copyForAnalysis(prompt, "fitbuilder-plan.md");
 }
 
 /** Download a rendered canvas as a PNG. */
