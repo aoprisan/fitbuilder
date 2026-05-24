@@ -1,6 +1,7 @@
 {
   "name": "gym-log-exercise-builder",
   "private": true,
+  "license": "UNLICENSED",
   "version": "0.1.0",
   "type": "module",
   "description": "Gym Log — Exercise Builder: build workout plans, export them as JSON, and run a live training session.",
