@@ -3,6 +3,8 @@ import { lifetimeEffort, type LifetimeEffort } from "../effort";
 import { loadSessions } from "../logStorage";
 import type { Cleanup, Nav } from "../router";
 import {
+  bestOneRm,
+  type BestOneRm,
   buildProgress,
   exerciseKeyLabel,
   presentExerciseKeys,
@@ -64,6 +66,7 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
 
     const labels = points.map((p) => p.label);
     const kg = (n: number): string => String(round2(n));
+    const best = bestOneRm(sessions, filter);
 
     container.append(
       h("p", {
@@ -73,6 +76,11 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
             ? `1 session · ${labels[0]}`
             : `${points.length} sessions · ${labels[0]} → ${labels[labels.length - 1]}`,
       }),
+    );
+
+    if (best.logged > 0 || best.estimated > 0) container.append(renderOneRmHeadline(best));
+
+    container.append(
       lineChart({
         title: "Reps",
         unit: "reps",
@@ -118,6 +126,32 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
         format: kg,
       }),
     );
+  }
+
+  /**
+   * Headline best one-rep max for the current scope: the heaviest tested max the
+   * user has logged shown beside the best Epley estimate from their sets. Either
+   * reads "—" when nothing qualifies (e.g. bodyweight-only work has no estimate).
+   */
+  function renderOneRmHeadline(best: BestOneRm): HTMLElement {
+    const fmt = (n: number): string => (n > 0 ? `${round2(n)} kg` : "—");
+    return h("section", { class: "card onerm-headline" }, [
+      h("span", { class: "effort-eyebrow", text: "Best one-rep max" }),
+      h("div", { class: "onerm-grid" }, [
+        h("div", { class: "onerm-cell" }, [
+          h("span", { class: "field-label", text: "Logged" }),
+          h("span", { class: "onerm-calc", text: fmt(best.logged) }),
+        ]),
+        h("div", { class: "onerm-cell" }, [
+          h("span", { class: "field-label", text: "Estimated" }),
+          h("span", { class: "onerm-calc", text: fmt(best.estimated) }),
+        ]),
+      ]),
+      h("p", {
+        class: "onerm-note",
+        text: "Heaviest tested max you've logged beside your best Epley estimate.",
+      }),
+    ]);
   }
 
   /**

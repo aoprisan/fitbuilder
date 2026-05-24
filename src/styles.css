@@ -1559,6 +1559,15 @@ textarea {
   border-left: 8px solid var(--brick);
 }
 
+/* Stats headline: best logged vs estimated 1RM, tied to the Strength chart hue. */
+.onerm-headline {
+  border-left: 8px solid var(--pine);
+}
+
+.onerm-headline .onerm-grid {
+  margin-top: 12px;
+}
+
 .onerm-card .section-title {
   margin-top: 0;
 }
