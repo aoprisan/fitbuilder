@@ -261,11 +261,11 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
   root.appendChild(
     h("div", { class: "view view-home" }, [
       hero,
-      claudeStartCard,
       trainingLane,
       renderRecoveryCard(),
-      renderOneRmCard(),
+      claudeStartCard,
       routinesLane,
+      renderOneRmCard(),
       updateCard,
     ]),
   );
