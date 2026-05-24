@@ -1,3 +1,4 @@
+import { findMovement } from "./movements";
 import {
   EQUIPMENT_LABELS,
   MUSCLE_LABELS,
@@ -30,17 +31,31 @@ export function epley1RM(set: WorkSet): number {
   return set.weightKg * (1 + set.reps / 30);
 }
 
-/** Stable identity for "the same exercise" across sessions: muscle + equipment. */
+/**
+ * Stable identity for "the same exercise" across sessions: the catalog movement
+ * id when known, else the legacy "muscle::equipment" pairing (kept so logs made
+ * before the exercise catalog still group together).
+ */
 export type ExerciseKey = string;
 
-export function exerciseKey(ex: { muscle: MuscleGroup; equipment: Equipment }): ExerciseKey {
-  return `${ex.muscle}::${ex.equipment}`;
+export function exerciseKey(ex: {
+  muscle: MuscleGroup;
+  equipment: Equipment;
+  exerciseId?: string;
+}): ExerciseKey {
+  return ex.exerciseId !== undefined && ex.exerciseId !== ""
+    ? ex.exerciseId
+    : `${ex.muscle}::${ex.equipment}`;
 }
 
-/** Human-readable label for an exercise key, e.g. "Chest · Dumbbell". */
+/** Human-readable label for an exercise key, e.g. "Chest · Incline Bench Press". */
 export function exerciseKeyLabel(key: ExerciseKey): string {
-  const [muscle, equipment] = key.split("::") as [MuscleGroup, Equipment];
-  return `${MUSCLE_LABELS[muscle]} · ${EQUIPMENT_LABELS[equipment]}`;
+  if (key.includes("::")) {
+    const [muscle, equipment] = key.split("::") as [MuscleGroup, Equipment];
+    return `${MUSCLE_LABELS[muscle]} · ${EQUIPMENT_LABELS[equipment]}`;
+  }
+  const movement = findMovement(key);
+  return movement ? `${MUSCLE_LABELS[movement.primaryMuscle]} · ${movement.name}` : key;
 }
 
 /** Distinct exercises that have at least one logged set, sorted for stable menus. */
