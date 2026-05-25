@@ -24,6 +24,7 @@ import {
 import { MUSCLE_LABELS, type TrainingSession } from "../types";
 import { formatClock, round2 } from "../util";
 import { lineChart } from "./chart";
+import { lookbackSlider } from "./lookback";
 
 export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
   const container = h("div", { class: "view view-stats" });
@@ -276,6 +277,7 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
    */
   function renderExportPanel(sessions: TrainingSession[]): HTMLElement {
     const chronological = [...sessions].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+    const lookback = lookbackSlider(chronological.length);
     return h("section", { class: "card live-export" }, [
       h("h2", { class: "section-title", text: "Export · Share" }),
       h("p", {
@@ -317,18 +319,19 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
       ]),
       h("p", {
         class: "plan-meta",
-        text: "Hand your full training log to an AI for coaching feedback and progression tips.",
+        text: "Hand your recent training log to an AI for coaching feedback and progression tips.",
       }),
+      ...(chronological.length > 1 ? [lookback.field] : []),
       h("div", { class: "btn-row" }, [
         h("button", {
           class: "btn btn-small btn-accent",
           type: "button",
           text: "Analyze in Claude ▸",
-          aria: { label: "analyse all logged sessions in Claude" },
+          aria: { label: "analyse recent logged sessions in Claude" },
           on: {
             click: () =>
               runExport("Analyze in Claude", async () => {
-                setStatus(analyzeMsg(await analyzeSessionsInClaude(chronological)), "ok");
+                setStatus(analyzeMsg(await analyzeSessionsInClaude(lookback.pick(chronological))), "ok");
               }),
           },
         }),
@@ -336,11 +339,11 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
           class: "btn btn-small",
           type: "button",
           text: "Copy prompt",
-          aria: { label: "copy all logged sessions as a prompt for any AI" },
+          aria: { label: "copy recent logged sessions as a prompt for any AI" },
           on: {
             click: () =>
               runExport("Copy prompt", async () => {
-                setStatus(copyMsg(await copySessionsPrompt(chronological)), "ok");
+                setStatus(copyMsg(await copySessionsPrompt(lookback.pick(chronological))), "ok");
               }),
           },
         }),
