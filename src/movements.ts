@@ -43,7 +43,7 @@ function genericMovement(muscle: MuscleGroup, equipment: Equipment): Movement {
   };
 }
 
-/** Curated, named movements per muscle group. Only chest is curated for now. */
+/** Curated, named movements per muscle group; the rest fall back to generic gear. */
 const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
   chest: [
     { id: "bench-press", name: "Bench Press", primaryMuscle: "chest", secondaryMuscles: ["triceps", "shoulders"], equipment: "barbell" },
@@ -56,6 +56,21 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
     genericMovement("chest", "dumbbell"),
     genericMovement("chest", "barbell"),
     genericMovement("chest", "cable"),
+  ],
+  legs: [
+    { id: "deadlift", name: "Deadlift", primaryMuscle: "legs", secondaryMuscles: ["glutes", "back"], equipment: "barbell" },
+    { id: "romanian-deadlift", name: "Romanian Deadlift", primaryMuscle: "legs", secondaryMuscles: ["glutes", "back"], equipment: "barbell" },
+    { id: "leg-press", name: "Leg Press", primaryMuscle: "legs", secondaryMuscles: [], equipment: "machine" },
+    { id: "leg-extension", name: "Leg Extension", primaryMuscle: "legs", secondaryMuscles: [], equipment: "machine" },
+    { id: "prone-leg-curl", name: "Prone Leg Curl", primaryMuscle: "legs", secondaryMuscles: [], equipment: "machine" },
+    genericMovement("legs", "barbell"),
+    genericMovement("legs", "dumbbell"),
+    genericMovement("legs", "cable"),
+  ],
+  calves: [
+    { id: "calf-raise", name: "Calf Raise", primaryMuscle: "calves", secondaryMuscles: [], equipment: "machine" },
+    genericMovement("calves", "dumbbell"),
+    genericMovement("calves", "barbell"),
   ],
 };
 
@@ -84,7 +99,7 @@ export function allMovements(): readonly Movement[] {
 /**
  * Every curated compound lift, in catalog order. A movement is "compound" when
  * it taxes secondary muscles; generic-gear movements have none, so this yields
- * only the named multi-muscle lifts (today: the curated chest movements).
+ * only the named multi-muscle lifts (e.g. the bench/incline presses, deadlifts).
  */
 export function compoundMovements(): readonly Movement[] {
   return MUSCLE_GROUPS.flatMap((m) => movementsForMuscle(m)).filter(
