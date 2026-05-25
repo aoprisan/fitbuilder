@@ -54,6 +54,7 @@ import {
   sessionVolume,
 } from "../util";
 import { dialField } from "./dial";
+import { lookbackSlider } from "./lookback";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 // Pulled in from the rim so the thicker ring stroke clears the gauge ticks.
@@ -571,22 +572,24 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
    */
   function renderExportPanel(sessions: TrainingSession[]): HTMLElement {
     const chronological = [...sessions].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+    const lookback = lookbackSlider(chronological.length);
     return h("section", { class: "card live-export" }, [
       h("h2", { class: "section-title", text: "Export sessions" }),
       h("p", {
         class: "plan-meta",
         text: `Download all ${sessions.length} logged ${sessions.length === 1 ? "session" : "sessions"} to import into other tools and analyse elsewhere.`,
       }),
+      ...(chronological.length > 1 ? [lookback.field] : []),
       h("div", { class: "btn-row" }, [
         h("button", {
           class: "btn btn-small btn-accent",
           type: "button",
           text: "Analyze in Claude ▸",
-          aria: { label: "analyse all logged sessions in Claude" },
+          aria: { label: "analyse recent logged sessions in Claude" },
           on: {
             click: () =>
               runExport("Analyze in Claude", async () => {
-                setStatus(analyzeMsg(await analyzeSessionsInClaude(chronological)), "ok");
+                setStatus(analyzeMsg(await analyzeSessionsInClaude(lookback.pick(chronological))), "ok");
               }),
           },
         }),
@@ -594,11 +597,11 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           class: "btn btn-small",
           type: "button",
           text: "Copy prompt",
-          aria: { label: "copy all logged sessions as a prompt for any AI" },
+          aria: { label: "copy recent logged sessions as a prompt for any AI" },
           on: {
             click: () =>
               runExport("Copy prompt", async () => {
-                setStatus(copyMsg(await copySessionsPrompt(chronological)), "ok");
+                setStatus(copyMsg(await copySessionsPrompt(lookback.pick(chronological))), "ok");
               }),
           },
         }),
