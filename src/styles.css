@@ -1494,6 +1494,35 @@ textarea {
   stroke: var(--navy);
 }
 
+/* The grip that sweeps the face while dragging — the "joystick" handle. */
+.dial-rotor {
+  transition: transform 160ms ease;
+}
+
+.dial-knob.is-dragging .dial-rotor {
+  transition: none;
+}
+
+.dial-needle {
+  stroke: var(--ink-faint);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.dial-thumb {
+  fill: var(--signal);
+  stroke: var(--paper);
+  stroke-width: 3;
+}
+
+.dial-thumb.tone-navy {
+  fill: var(--navy);
+}
+
+.dial-knob.is-dragging .dial-thumb {
+  stroke-width: 4;
+}
+
 .dial-input-center {
   position: absolute;
   inset: 25%;

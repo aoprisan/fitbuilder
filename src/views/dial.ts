@@ -57,6 +57,22 @@ export function dialField(opts: DialFieldOpts): HTMLElement {
   );
   svg.appendChild(fill);
 
+  // A grip that sweeps the whole face: it sticks to the finger while dragging
+  // (so the dial visibly turns under your touch), and rests at the fill edge.
+  const rotor = svgEl("g", { class: "dial-rotor" });
+  rotor.appendChild(
+    svgEl("line", { class: "dial-needle", x1: "60", y1: "60", x2: "60", y2: "26" }),
+  );
+  rotor.appendChild(
+    svgEl("circle", {
+      class: opts.tone === "navy" ? "dial-thumb tone-navy" : "dial-thumb",
+      cx: "60",
+      cy: String(60 - DIAL_R),
+      r: "8",
+    }),
+  );
+  svg.appendChild(rotor);
+
   const input = h("input", {
     class: "dial-input-num",
     type: "text",
@@ -91,8 +107,17 @@ export function dialField(opts: DialFieldOpts): HTMLElement {
     return Math.min(1, above / softMax);
   };
 
+  // Drag state lives up here so paint() can park the grip when idle.
+  let mode: "idle" | "armed" | "drag" = "idle";
+
+  // Rotate the grip group around the dial centre (degrees, clockwise from top).
+  const setSpin = (deg: number): void => {
+    rotor.setAttribute("transform", `rotate(${deg.toFixed(2)} 60 60)`);
+  };
+
   const paint = (): void => {
     fill.setAttribute("stroke-dashoffset", String(DIAL_C * (1 - fracFor(current))));
+    if (mode !== "drag") setSpin(fracFor(current) * 360);
     knob.setAttribute("aria-valuenow", String(current));
     knob.setAttribute("aria-valuetext", valueText());
   };
@@ -133,7 +158,6 @@ export function dialField(opts: DialFieldOpts): HTMLElement {
   // tap, which focuses the centre number for typing. This lets you spin from
   // anywhere — including over the number — without losing tap-to-type.
   const DRAG_THRESHOLD_SQ = 6 * 6;
-  let mode: "idle" | "armed" | "drag" = "idle";
   let lastAngle = 0;
   let accum = 0;
   let dragStart = 0;
@@ -169,6 +193,8 @@ export function dialField(opts: DialFieldOpts): HTMLElement {
     }
     e.preventDefault();
     const a = angleAt(e);
+    // Glue the grip to the finger (top of the dial is −90°, so +90° aligns it).
+    setSpin((a * 180) / Math.PI + 90);
     let d = a - lastAngle;
     if (d > Math.PI) d -= 2 * Math.PI;
     else if (d < -Math.PI) d += 2 * Math.PI;
@@ -182,6 +208,8 @@ export function dialField(opts: DialFieldOpts): HTMLElement {
     mode = "idle";
     knob.classList.remove("is-dragging");
     if (knob.hasPointerCapture(e.pointerId)) knob.releasePointerCapture(e.pointerId);
+    // Settle the grip back to the value's resting position.
+    paint();
     if (tap && wasTap && pressedCenter) input.focus();
   };
   knob.addEventListener("pointerup", (e: PointerEvent) => endDrag(e, true));
