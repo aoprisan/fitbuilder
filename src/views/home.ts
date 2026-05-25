@@ -4,12 +4,17 @@ import { getSession, loadSessions } from "../logStorage";
 import { allMovements } from "../movements";
 import { clearOneRm, loadOneRmMaxes, setOneRm } from "../oneRmStore";
 import { forceAppUpdate } from "../pwa";
-import { muscleRecovery, overallRecovery, systemicRecovery } from "../recovery";
+import {
+  muscleRecovery,
+  overallRecovery,
+  overallStatus,
+  systemicRecovery,
+} from "../recovery";
 import type { Nav } from "../router";
 import { exerciseKeyLabel } from "../stats";
 import { MUSCLE_LABELS } from "../types";
 import { formatSessionDate, round2, sessionSetCount } from "../util";
-import { overallStatus, recoveryRing, ringCell } from "./recovery";
+import { recoveryRing, ringCell } from "./recovery";
 
 export function mountHome(root: HTMLElement, nav: Nav): void {
   const sessions = loadSessions().sort((a, b) => b.startedAt.localeCompare(a.startedAt));
