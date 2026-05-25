@@ -187,9 +187,11 @@ export function estimateProteinG(effort: EffortReading, muscleCount: number): nu
 }
 
 // Rough energy a session burns, drawn from the same effort points that drive
-// hydration. Tuned so a full session (~45 pts) lands near ~300 kcal for an
-// average lifter; a brutal one north of 400. Deliberately a ballpark figure.
-const KCAL_PER_EFFORT_POINT = 7;
+// hydration. Tuned so a full session (~45 pts) lands near ~225 kcal of
+// exercise-attributable burn for an average lifter; a brutal one near ~300.
+// Resistance training with normal rest periods averages ~3.5 METs, so this is
+// a deliberately conservative ballpark (trackers tend to overestimate).
+const KCAL_PER_EFFORT_POINT = 5;
 
 /** Rough calories burned in a session, from accumulated effort. Rounded to 10. */
 export function estimateCalories(effort: EffortReading): number {
