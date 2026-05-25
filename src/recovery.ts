@@ -94,10 +94,13 @@ export function overallRecovery(recoveries: readonly MuscleRecovery[]): number {
    than a light one.
    ========================================================================== */
 
-// CNS load roughly halves every this-many hours; tuned longer than muscle windows.
-const CNS_HALF_LIFE_HOURS = 40;
-// Decayed load (in "typical sessions") at which systemic readiness bottoms out.
-const CNS_SATURATION = 2.5;
+// CNS load roughly halves every this-many hours; kept short so normal training-day
+// spacing decays between sessions instead of stacking into chronic fatigue.
+const CNS_HALF_LIFE_HOURS = 24;
+// Decayed load (in "typical sessions") at which systemic readiness bottoms out. Set
+// high enough that consistent every-other-day training still reads as ready — only
+// daily-hard or genuinely brutal, back-to-back work drives the gauge into the red.
+const CNS_SATURATION = 4.5;
 // Reference session load when there's no history to calibrate against.
 const CNS_FALLBACK_LOAD = 45;
 
