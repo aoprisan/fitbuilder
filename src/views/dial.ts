@@ -57,20 +57,24 @@ export function dialField(opts: DialFieldOpts): HTMLElement {
   );
   svg.appendChild(fill);
 
-  // A grip that sweeps the whole face: it sticks to the finger while dragging
-  // (so the dial visibly turns under your touch), and rests at the fill edge.
+  // A machined gauge hand the finger rides: a bold needle pivots behind the
+  // readout plate out to a grip knob. It sticks to the finger while dragging
+  // (so the whole dial visibly turns under your touch) and settles at the fill
+  // edge on release. The needle tip overlaps the knob so they read as one piece.
   const rotor = svgEl("g", { class: "dial-rotor" });
   rotor.appendChild(
-    svgEl("line", { class: "dial-needle", x1: "60", y1: "60", x2: "60", y2: "26" }),
+    svgEl("line", { class: "dial-needle", x1: "60", y1: "52", x2: "60", y2: "21" }),
   );
-  rotor.appendChild(
-    svgEl("circle", {
-      class: opts.tone === "navy" ? "dial-thumb tone-navy" : "dial-thumb",
-      cx: "60",
-      cy: String(60 - DIAL_R),
-      r: "8",
-    }),
+  const grip = svgEl("g", {
+    class: opts.tone === "navy" ? "dial-grip tone-navy" : "dial-grip",
+  });
+  grip.appendChild(
+    svgEl("circle", { class: "dial-grip-body", cx: "60", cy: String(60 - DIAL_R), r: "9" }),
   );
+  grip.appendChild(
+    svgEl("circle", { class: "dial-grip-knurl", cx: "60", cy: String(60 - DIAL_R), r: "4.2" }),
+  );
+  rotor.appendChild(grip);
   svg.appendChild(rotor);
 
   const input = h("input", {

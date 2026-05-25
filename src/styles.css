@@ -1494,9 +1494,12 @@ textarea {
   stroke: var(--navy);
 }
 
-/* The grip that sweeps the face while dragging — the "joystick" handle. */
+/* The machined gauge hand that sweeps the face while dragging — the "joystick"
+   handle. A bold ink needle pivots behind the readout plate out to a grip knob
+   ringed in hard ink, the same block-print weight as the buttons. (No drop
+   shadow: the rotor turns, so a directional shadow would swing the wrong way.) */
 .dial-rotor {
-  transition: transform 160ms ease;
+  transition: transform 220ms var(--ease);
 }
 
 .dial-knob.is-dragging .dial-rotor {
@@ -1504,23 +1507,40 @@ textarea {
 }
 
 .dial-needle {
-  stroke: var(--ink-faint);
-  stroke-width: 3;
+  stroke: var(--ink);
+  stroke-width: 3.4;
   stroke-linecap: round;
+  transition: stroke-width 130ms ease;
 }
 
-.dial-thumb {
+.dial-grip-body {
   fill: var(--signal);
-  stroke: var(--paper);
-  stroke-width: 3;
+  stroke: var(--ink);
+  stroke-width: 2.4;
+  r: 9;
+  transition: stroke-width 130ms ease, r 130ms var(--ease);
 }
 
-.dial-thumb.tone-navy {
+.dial-grip.tone-navy .dial-grip-body {
   fill: var(--navy);
 }
 
-.dial-knob.is-dragging .dial-thumb {
+/* A lighter machined groove across the cap so the knob reads as grabbable. */
+.dial-grip-knurl {
+  fill: none;
+  stroke: var(--paper);
+  stroke-width: 1.6;
+  opacity: 0.6;
+}
+
+/* Press in: the hand bolds and the knob swells under the finger. */
+.dial-knob.is-dragging .dial-needle {
   stroke-width: 4;
+}
+
+.dial-knob.is-dragging .dial-grip-body {
+  stroke-width: 3.2;
+  r: 10.5;
 }
 
 .dial-input-center {
