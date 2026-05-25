@@ -72,6 +72,13 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
     genericMovement("calves", "dumbbell"),
     genericMovement("calves", "barbell"),
   ],
+  core: [
+    { id: "plank", name: "Plank", primaryMuscle: "core", secondaryMuscles: [], equipment: "calisthenics" },
+    { id: "bench-crunches", name: "Bench Crunches", primaryMuscle: "core", secondaryMuscles: [], equipment: "calisthenics" },
+    { id: "lateral-abs-machine", name: "Lateral Abs Machine", primaryMuscle: "core", secondaryMuscles: [], equipment: "lateral-abs-machine" },
+    genericMovement("core", "cable"),
+    genericMovement("core", "dumbbell"),
+  ],
 };
 
 /**
