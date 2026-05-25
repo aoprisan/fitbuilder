@@ -31,9 +31,9 @@ export interface DialFieldOpts {
 }
 
 /**
- * A circular gauge that doubles as an input: drag around the ring like a knob,
- * tap −/＋ for single steps, or type straight into the centre. Built to match
- * the rest-timer dial's pressure-gauge look.
+ * A circular gauge that doubles as an input: grab anywhere on the face and spin
+ * it like a joystick, tap −/＋ for single steps, or tap the centre to type. Built
+ * to match the rest-timer dial's pressure-gauge look.
  */
 export function dialField(opts: DialFieldOpts): HTMLElement {
   const { label, step, min, integer, unit, onCommit } = opts;
@@ -128,23 +128,45 @@ export function dialField(opts: DialFieldOpts): HTMLElement {
     return Math.atan2(e.clientY - c.y, e.clientX - c.x);
   };
 
-  let dragging = false;
+  // The whole face is grabbable. We arm on press but only commit to a spin once
+  // the pointer travels past a small threshold; a press that never moves is a
+  // tap, which focuses the centre number for typing. This lets you spin from
+  // anywhere — including over the number — without losing tap-to-type.
+  const DRAG_THRESHOLD_SQ = 6 * 6;
+  let mode: "idle" | "armed" | "drag" = "idle";
   let lastAngle = 0;
   let accum = 0;
   let dragStart = 0;
+  let startX = 0;
+  let startY = 0;
+  let pressedCenter = false;
 
   knob.addEventListener("pointerdown", (e: PointerEvent) => {
-    // Let taps that land on the number focus it for typing instead of dragging.
-    if (input.contains(e.target as Node)) return;
-    dragging = true;
+    mode = "armed";
     dragStart = current;
     accum = 0;
+    startX = e.clientX;
+    startY = e.clientY;
     lastAngle = angleAt(e);
-    knob.classList.add("is-dragging");
+    pressedCenter = center.contains(e.target as Node);
     knob.setPointerCapture(e.pointerId);
+    // Suppress the native focus/selection so a press can become a spin without
+    // popping the keyboard; taps focus the input explicitly on pointerup.
+    e.preventDefault();
   });
   knob.addEventListener("pointermove", (e: PointerEvent) => {
-    if (!dragging) return;
+    if (mode === "idle") return;
+    if (mode === "armed") {
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if (dx * dx + dy * dy < DRAG_THRESHOLD_SQ) return;
+      mode = "drag";
+      knob.classList.add("is-dragging");
+      if (document.activeElement === input) input.blur();
+      // Re-anchor the angle where the spin actually begins so the first step
+      // isn't a jump from a near-centre press point.
+      lastAngle = angleAt(e);
+    }
     e.preventDefault();
     const a = angleAt(e);
     let d = a - lastAngle;
@@ -154,14 +176,16 @@ export function dialField(opts: DialFieldOpts): HTMLElement {
     accum += d;
     setValue(dragStart + Math.round(accum / RAD_PER_STEP) * step, true);
   });
-  const endDrag = (e: PointerEvent): void => {
-    if (!dragging) return;
-    dragging = false;
+  const endDrag = (e: PointerEvent, tap: boolean): void => {
+    if (mode === "idle") return;
+    const wasTap = mode === "armed";
+    mode = "idle";
     knob.classList.remove("is-dragging");
     if (knob.hasPointerCapture(e.pointerId)) knob.releasePointerCapture(e.pointerId);
+    if (tap && wasTap && pressedCenter) input.focus();
   };
-  knob.addEventListener("pointerup", endDrag);
-  knob.addEventListener("pointercancel", endDrag);
+  knob.addEventListener("pointerup", (e: PointerEvent) => endDrag(e, true));
+  knob.addEventListener("pointercancel", (e: PointerEvent) => endDrag(e, false));
 
   knob.addEventListener("keydown", (e: KeyboardEvent) => {
     if (e.target === input) return; // typing in the centre owns the arrows
