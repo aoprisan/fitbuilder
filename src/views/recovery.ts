@@ -1,13 +1,22 @@
 import { h } from "../dom";
+import {
+  canShareFiles,
+  exportRecoveryPdf,
+  exportRecoveryPng,
+  shareRecovery,
+} from "../exporters";
 import { loadSessions } from "../logStorage";
 import {
   muscleRecovery,
   overallRecovery,
+  recoveryColor,
+  overallStatus,
+  systemicNote,
   systemicRecovery,
   type MuscleRecovery,
 } from "../recovery";
 import type { Cleanup, Nav } from "../router";
-import { MUSCLE_LABELS } from "../types";
+import { MUSCLE_LABELS, type TrainingSession } from "../types";
 import { clamp, formatSessionDate } from "../util";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -18,28 +27,6 @@ function svgEl(tag: string, attrs: Record<string, string>): SVGElement {
   const el = document.createElementNS(SVG_NS, tag);
   for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
   return el;
-}
-
-// Theme press inks as RGB: signal red (0.0) → ochre (0.5) → field green (1.0).
-const RED: readonly [number, number, number] = [0xd6, 0x42, 0x2b];
-const AMBER: readonly [number, number, number] = [0xc9, 0x96, 0x2a];
-const GREEN: readonly [number, number, number] = [0x3a, 0x5a, 0x40];
-
-/** Map a 0..1 recovery fraction to a red→amber→green colour string. */
-export function recoveryColor(recovered: number): string {
-  const t = clamp(recovered, 0, 1);
-  const [from, to, seg] =
-    t < 0.5 ? ([RED, AMBER, t / 0.5] as const) : ([AMBER, GREEN, (t - 0.5) / 0.5] as const);
-  const mix = (i: number): number => Math.round(from[i]! + (to[i]! - from[i]!) * seg);
-  return `rgb(${mix(0)}, ${mix(1)}, ${mix(2)})`;
-}
-
-/** Short status word for an overall recovery fraction. */
-export function overallStatus(recovered: number): string {
-  if (recovered >= 0.85) return "Rested";
-  if (recovered >= 0.6) return "Ready";
-  if (recovered >= 0.35) return "Recovering";
-  return "Rest up";
 }
 
 /** A circular red→green recovery gauge with a percentage and status in the centre. */
@@ -82,15 +69,6 @@ export function ringCell(ring: HTMLElement, caption: string): HTMLElement {
     ring,
     h("span", { class: "recovery-ring-caption", text: caption }),
   ]);
-}
-
-/** One-line read on systemic load, with an estimate of hours back to rested. */
-function systemicNote(readiness: number, hoursRemaining: number): string {
-  const eta = hoursRemaining > 0 ? ` ~${hoursRemaining}h to fully recover.` : "";
-  if (readiness >= 0.85) return "Systemic load is low — fully fresh for hard work.";
-  if (readiness >= 0.6) return "Systemic load is moderate — you can train hard." + eta;
-  if (readiness >= 0.35) return "Systemic load is building — keep total volume in check." + eta;
-  return "Systemic load is high — favour light work or a rest day." + eta;
 }
 
 function recoveryRow(r: MuscleRecovery): HTMLElement {
@@ -187,6 +165,81 @@ export function mountRecovery(root: HTMLElement, nav: Nav): Cleanup {
     h("div", { class: "summary-muscles" }, recoveries.map(recoveryRow)),
   ]);
 
-  root.appendChild(h("div", { class: "view view-recovery" }, [header, totalCard, musclesCard]));
+  root.appendChild(
+    h("div", { class: "view view-recovery" }, [
+      header,
+      totalCard,
+      musclesCard,
+      renderExportPanel(sessions),
+    ]),
+  );
   return () => {};
+}
+
+/**
+ * "Export · Share" card — renders the recovery board as a PNG/PDF or hands it to
+ * the native share sheet. Mirrors the stats view's export panel.
+ */
+function renderExportPanel(sessions: TrainingSession[]): HTMLElement {
+  const statusEl = h("p", { class: "status", role: "status", aria: { live: "polite" } });
+  const setStatus = (msg: string, kind: "ok" | "err" | "info"): void => {
+    statusEl.textContent = msg;
+    statusEl.className = `status status-${kind}`;
+  };
+  let busy = false;
+  async function runExport(label: string, fn: () => Promise<void>): Promise<void> {
+    if (busy) return;
+    busy = true;
+    setStatus(`${label}…`, "info");
+    try {
+      await fn();
+      setStatus(`${label} ready.`, "ok");
+    } catch {
+      setStatus(`Could not ${label.toLowerCase()}. Try again.`, "err");
+    } finally {
+      busy = false;
+    }
+  }
+
+  return h("section", { class: "card live-export" }, [
+    h("h2", { class: "section-title", text: "Export · Share" }),
+    h("p", {
+      class: "plan-meta",
+      text: canShareFiles()
+        ? "Share sends a PNG of your recovery board to the native share sheet — or save a PNG/PDF."
+        : "Save a PNG or PDF of this recovery board. (Direct share works on phones.)",
+    }),
+    h("div", { class: "btn-row" }, [
+      h("button", {
+        class: "btn btn-small btn-accent",
+        type: "button",
+        text: "Share ▸",
+        on: {
+          click: () =>
+            runExport("Share", async () => {
+              const result = await shareRecovery(sessions);
+              setStatus(
+                result === "shared"
+                  ? "Opened the share sheet — pick WhatsApp."
+                  : "Sharing isn't available here, so the PNG was downloaded instead.",
+                "ok",
+              );
+            }),
+        },
+      }),
+      h("button", {
+        class: "btn btn-small",
+        type: "button",
+        text: "PNG",
+        on: { click: () => runExport("Save PNG", () => exportRecoveryPng(sessions)) },
+      }),
+      h("button", {
+        class: "btn btn-small",
+        type: "button",
+        text: "PDF",
+        on: { click: () => runExport("Save PDF", () => exportRecoveryPdf(sessions)) },
+      }),
+    ]),
+    statusEl,
+  ]);
 }

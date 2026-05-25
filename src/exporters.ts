@@ -1,4 +1,5 @@
 import { dataUrlToBytes, jpegToPdf } from "./pdf";
+import { renderRecoveryToCanvas } from "./recoveryRender";
 import { renderSessionToCanvas } from "./sessionRender";
 import { renderSheetToCanvas } from "./sheetRender";
 import { renderStatsToCanvas } from "./statsRender";
@@ -295,4 +296,24 @@ export async function shareStats(
   filter: ProgressFilter,
 ): Promise<ShareResult> {
   return shareCanvas(await renderStatsToCanvas(sessions, filter), `${statsSlug()}.png`, "Training stats");
+}
+
+/** Date-stamped filename for a recovery board, e.g. "gym-recovery-2026-05-22". */
+function recoverySlug(): string {
+  return `gym-recovery-${new Date().toISOString().slice(0, 10)}`;
+}
+
+/** Render the recovery board and download it as a PNG. */
+export async function exportRecoveryPng(sessions: TrainingSession[]): Promise<void> {
+  await downloadCanvasPng(await renderRecoveryToCanvas(sessions), `${recoverySlug()}.png`);
+}
+
+/** Render the recovery board and download it as a PDF. */
+export async function exportRecoveryPdf(sessions: TrainingSession[]): Promise<void> {
+  downloadCanvasPdf(await renderRecoveryToCanvas(sessions), `${recoverySlug()}.pdf`);
+}
+
+/** Share the recovery board as a PNG (native share sheet, download fallback). */
+export async function shareRecovery(sessions: TrainingSession[]): Promise<ShareResult> {
+  return shareCanvas(await renderRecoveryToCanvas(sessions), `${recoverySlug()}.png`, "Recovery");
 }
