@@ -96,6 +96,7 @@ export function coerceSession(input: unknown): TrainingSession | null {
   const exercises = Array.isArray(rawExercises) ? rawExercises.map(coerceExercise) : [];
 
   const updatedAt = input["updatedAt"];
+  const source = input["source"];
 
   return {
     schema: LOG_SCHEMA_ID,
@@ -104,6 +105,7 @@ export function coerceSession(input: unknown): TrainingSession | null {
     name: typeof input["name"] === "string" ? input["name"] : "",
     startedAt,
     exercises,
+    ...(source === "live" || source === "routine" ? { source } : {}),
     ...(typeof updatedAt === "string" ? { updatedAt } : {}),
   };
 }

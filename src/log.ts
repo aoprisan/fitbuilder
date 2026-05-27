@@ -1,4 +1,4 @@
-import { flattenSheet } from "./execute";
+import { type ExecuteController, flattenSheet } from "./execute";
 import type { Movement } from "./movements";
 import {
   EQUIPMENT_LABELS,
@@ -88,4 +88,36 @@ export function sheetToSession(sheet: RoutineSheet): TrainingSession {
       sets: [],
     })),
   };
+}
+
+/**
+ * Turn a finished or partial Execute run into a saveable training session, so
+ * the work logged while following a routine feeds the same effort / recovery /
+ * stats pipeline as a live session. Only rows with at least one recorded set are
+ * carried (untouched rows don't inflate the log); each keeps its routine
+ * prescription and the muscle / load identity the run resolved for it. Stamped
+ * `source: "routine"` to set it apart from a live log.
+ */
+export function executeRunToSession(ctl: ExecuteController, name: string): TrainingSession {
+  const base = newTrainingSession();
+  const exercises: LoggedExercise[] = [];
+  ctl.items.forEach((item, i) => {
+    const sets = ctl.workSets(i);
+    const meta = ctl.exercise(i);
+    if (sets.length === 0 || !meta) return;
+    exercises.push({
+      name:
+        item.name.trim() ||
+        `${MUSCLE_LABELS[meta.muscle]} · ${EQUIPMENT_LABELS[meta.equipment]}`,
+      muscle: meta.muscle,
+      equipment: meta.equipment,
+      ...(meta.exerciseId !== undefined ? { exerciseId: meta.exerciseId } : {}),
+      ...(meta.secondaryMuscles && meta.secondaryMuscles.length > 0
+        ? { secondaryMuscles: [...meta.secondaryMuscles] }
+        : {}),
+      ...(item.prescription.trim() !== "" ? { prescription: item.prescription } : {}),
+      sets: sets.map((s) => ({ ...s })),
+    });
+  });
+  return { ...base, name: name.trim() || base.name, source: "routine", exercises };
 }

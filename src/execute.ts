@@ -1,4 +1,5 @@
-import type { RoutineSheet } from "./types";
+import { findMovement, matchMovementByName, type Movement, movementsForMuscle } from "./movements";
+import type { Equipment, MuscleGroup, RoutineSheet, WorkSet } from "./types";
 
 /** One runnable line in an execute run — a single exercise within a routine. */
 export interface RunItem {
@@ -95,26 +96,69 @@ export function flattenSheet(sheet: RoutineSheet): RunItem[] {
 }
 
 /**
+ * What a run row is credited to when the run is saved to the log: the muscle,
+ * load type and (optional) catalog identity that turn it into a LoggedExercise.
+ * Auto-mapped from the exercise name where it matches the catalog; otherwise a
+ * bodyweight placeholder the user confirms ({@link ExecuteController.exercise}).
+ */
+export interface RunExercise {
+  muscle: MuscleGroup;
+  equipment: Equipment;
+  exerciseId?: string;
+  secondaryMuscles?: readonly MuscleGroup[];
+  /** True when the name matched a catalog movement; false = a placeholder to confirm. */
+  mapped: boolean;
+}
+
+// Placeholder identity for an unmatched free-text row: bodyweight, weight 0 —
+// the same least-wrong default sheetToSession uses for routine-loaded sessions.
+const DEFAULT_MUSCLE: MuscleGroup = "chest";
+const DEFAULT_EQUIPMENT: Equipment = "calisthenics";
+
+/** Build a row's identity from a matched catalog movement. */
+function mappedExercise(mv: Movement): RunExercise {
+  return {
+    muscle: mv.primaryMuscle,
+    equipment: mv.equipment,
+    exerciseId: mv.id,
+    ...(mv.secondaryMuscles.length > 0 ? { secondaryMuscles: [...mv.secondaryMuscles] } : {}),
+    mapped: true,
+  };
+}
+
+/**
  * Execute state for a routine sheet: the user works each row to its rep target,
  * recording one set at a time until the prescribed volume is fulfilled. Unlike
- * {@link SessionController} there is no clock, no rest, and no auto-advance —
- * progress is entirely user-driven and sets may be logged in any order.
+ * the live runner there is no clock, no rest, and no auto-advance — progress is
+ * entirely user-driven and sets may be logged in any order.
+ *
+ * Each recorded set is a {@link WorkSet} (reps plus optional weight / RIR), and
+ * every row carries a {@link RunExercise} identity, so a finished or partial run
+ * can be converted into a TrainingSession (see `executeRunToSession`) and fed
+ * into the same effort / recovery / stats pipeline as a live session.
  *
  * Rows whose prescription has no countable rep target (timed holds, "x N
- * runde") fall back to a single manual done/undone toggle.
+ * runde") fall back to a single manual done/undone toggle, which records one
+ * placeholder set (optionally a hold duration / RIR) so they still count.
  */
 export class ExecuteController {
   readonly items: RunItem[];
-  /** Per item: the reps recorded for each completed set, in order. */
-  private readonly sets: number[][];
-  /** Timed/hold items the user has manually marked done (no rep target). */
-  private readonly manualDone = new Set<number>();
+  /** Per item: the WorkSets recorded so far, in order. */
+  private readonly logged: WorkSet[][];
+  /** Per item: what it's credited to when saved to the log. */
+  private readonly meta: RunExercise[];
   /** The row the focused "now" card drives. */
   private selected = 0;
 
   constructor(sheet: RoutineSheet) {
     this.items = flattenSheet(sheet);
-    this.sets = this.items.map(() => []);
+    this.logged = this.items.map(() => []);
+    this.meta = this.items.map((it) => {
+      const mv = matchMovementByName(it.name);
+      return mv
+        ? mappedExercise(mv)
+        : { muscle: DEFAULT_MUSCLE, equipment: DEFAULT_EQUIPMENT, mapped: false };
+    });
     const first = this.firstIncompleteIndex();
     this.selected = first < 0 ? 0 : first;
   }
@@ -127,14 +171,29 @@ export class ExecuteController {
     return this.items[index]?.targetReps ?? null;
   }
 
+  /** Whether this row is a timed/hold row completed by a manual toggle (no rep target). */
+  isManual(index: number): boolean {
+    return this.targetReps(index) == null;
+  }
+
   /** Total reps recorded so far for an item. */
   loggedReps(index: number): number {
-    return (this.sets[index] ?? []).reduce((a, b) => a + b, 0);
+    return (this.logged[index] ?? []).reduce((a, s) => a + s.reps, 0);
   }
 
   /** Reps recorded per set, for the "12 · 10 · 8" breakdown. */
   setReps(index: number): readonly number[] {
-    return this.sets[index] ?? [];
+    return (this.logged[index] ?? []).map((s) => s.reps);
+  }
+
+  /** The WorkSets recorded for an item, for conversion / display. */
+  workSets(index: number): readonly WorkSet[] {
+    return this.logged[index] ?? [];
+  }
+
+  /** Total sets recorded across every row — whether the run has anything to save. */
+  loggedSetCount(): number {
+    return this.logged.reduce((sum, sets) => sum + sets.length, 0);
   }
 
   /** Reps still owed before the target is met (0 once fulfilled / untargeted). */
@@ -153,7 +212,7 @@ export class ExecuteController {
 
   isDone(index: number): boolean {
     const t = this.items[index]?.targetReps;
-    if (t == null || t <= 0) return this.manualDone.has(index);
+    if (t == null || t <= 0) return (this.logged[index]?.length ?? 0) > 0;
     return this.loggedReps(index) >= t;
   }
 
@@ -166,6 +225,25 @@ export class ExecuteController {
 
   allDone(): boolean {
     return this.total > 0 && this.completedCount() === this.total;
+  }
+
+  // ---- Exercise identity (what a row counts as) ----------------------------
+  /** The identity a row is credited to when saved. undefined for an out-of-range index. */
+  exercise(index: number): RunExercise | undefined {
+    return this.meta[index];
+  }
+
+  /** Point a row at a catalog movement, syncing its muscle / load type / secondaries. */
+  setMovement(index: number, id: string): void {
+    const mv = findMovement(id);
+    if (!mv || !this.meta[index]) return;
+    this.meta[index] = mappedExercise(mv);
+  }
+
+  /** Switch a row's muscle group, defaulting to that group's first movement. */
+  setMuscle(index: number, muscle: MuscleGroup): void {
+    const first = movementsForMuscle(muscle)[0];
+    if (first) this.setMovement(index, first.id);
   }
 
   // ---- Rep-volume aggregates (over rep-target rows only) -------------------
@@ -198,35 +276,56 @@ export class ExecuteController {
   }
 
   // ---- Mutations -----------------------------------------------------------
-  /** Record one set of `reps` against an item; ignores non-positive input. */
-  logSet(index: number, reps: number): void {
+  /**
+   * Record one set of `reps` against an item; ignores non-positive input.
+   * Optional `weightKg` (added/external load) and `rir` (reps in reserve) are
+   * stored when given so the run carries the same intensity signal as a live log.
+   */
+  logSet(index: number, reps: number, opts?: { weightKg?: number; rir?: number }): void {
     if (index < 0 || index >= this.total) return;
     const n = Math.floor(reps);
     if (!Number.isFinite(n) || n <= 0) return;
-    this.sets[index]!.push(n);
+    const weightKg = opts?.weightKg;
+    const rir = opts?.rir;
+    this.logged[index]!.push({
+      reps: n,
+      weightKg: typeof weightKg === "number" && weightKg > 0 ? weightKg : 0,
+      ...(typeof rir === "number" && rir >= 0 ? { rir } : {}),
+    });
     this.advanceIfDone(index);
   }
 
   /** Remove the most recent set from an item (undo a mistaken tap). */
   undoSet(index: number): void {
     if (index < 0 || index >= this.total) return;
-    this.sets[index]!.pop();
+    this.logged[index]!.pop();
   }
 
-  /** Flip a timed/hold (no rep target) item's done state. */
-  toggleManual(index: number): void {
+  /**
+   * Flip a timed/hold (no rep target) item's done state. Marking done records a
+   * single placeholder set (reps 0); an optional hold `durationSec` and `rir`
+   * give it real time-under-tension / intensity so the row still feeds effort.
+   */
+  toggleManual(index: number, meta?: { durationSec?: number; rir?: number }): void {
     if (index < 0 || index >= this.total) return;
-    if (this.manualDone.has(index)) {
-      this.manualDone.delete(index);
-    } else {
-      this.manualDone.add(index);
-      this.advanceIfDone(index);
+    const sets = this.logged[index]!;
+    if (sets.length > 0) {
+      sets.length = 0;
+      return;
     }
+    const durationSec = meta?.durationSec;
+    const rir = meta?.rir;
+    sets.push({
+      reps: 0,
+      weightKg: 0,
+      ...(typeof durationSec === "number" && durationSec > 0 ? { durationSec } : {}),
+      ...(typeof rir === "number" && rir >= 0 ? { rir } : {}),
+    });
+    this.advanceIfDone(index);
   }
 
   reset(): void {
-    this.sets.forEach((s) => (s.length = 0));
-    this.manualDone.clear();
+    this.logged.forEach((sets) => (sets.length = 0));
     const first = this.firstIncompleteIndex();
     this.selected = first < 0 ? 0 : first;
   }

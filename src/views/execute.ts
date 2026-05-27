@@ -1,10 +1,23 @@
 import { clear, h } from "../dom";
+import { estimateCalories, readEffort } from "../effort";
 import { ExecuteController } from "../execute";
+import { executeRunToSession } from "../log";
 import { loadLogo } from "../logo";
+import { loadSessions, saveSession } from "../logStorage";
+import { findMovement, movementsForMuscle } from "../movements";
 import type { Cleanup, Nav } from "../router";
 import { state } from "../state";
 import { loadTrainer } from "../trainer";
-import type { RoutineSheet } from "../types";
+import { isBodyweight, MUSCLE_GROUPS, MUSCLE_LABELS, type MuscleGroup, type RoutineSheet } from "../types";
+
+/** Reps-in-reserve chips for the optional intensity input; "4+" stores 4 (fresh). */
+const RIR_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
+  { value: 0, label: "Failure" },
+  { value: 1, label: "1" },
+  { value: 2, label: "2" },
+  { value: 3, label: "3" },
+  { value: 4, label: "4+" },
+];
 
 /** Brand-logo banner for the top of the Execute screen, or null when unset. */
 function logoBanner(): HTMLElement | null {
@@ -20,6 +33,32 @@ function setText(el: HTMLElement, value: string): void {
   if (el.textContent !== value) el.textContent = value;
 }
 
+/** A labelled segmented toggle (muscle group / exercise), in the shared toggle style. */
+function toggleRow(
+  label: string,
+  options: readonly string[],
+  labelFor: (value: string) => string,
+  current: string,
+  onPick: (value: string) => void,
+): HTMLElement {
+  return h("div", { class: "field" }, [
+    h("span", { class: "field-label", text: label }),
+    h(
+      "div",
+      { class: "toggle", role: "group", aria: { label } },
+      options.map((opt) =>
+        h("button", {
+          class: current === opt ? "toggle-btn active" : "toggle-btn",
+          type: "button",
+          text: labelFor(opt),
+          aria: { pressed: String(current === opt) },
+          on: { click: () => onPick(opt) },
+        }),
+      ),
+    ),
+  ]);
+}
+
 export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
   // Snapshot chosen by nav.runSheet; fall back to the working sheet so the
   // Execute tab always has something to run.
@@ -27,11 +66,28 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
   const ctl = new ExecuteController(sheet);
   const empty = ctl.total === 0;
 
+  // Optional per-set intensity, applied to the next logged set then cleared.
+  let pendingRir: number | null = null;
+  // Whether the optional weight/RIR (or hold/RIR) inputs are expanded.
+  let showOptional = false;
+  // Whether the "counts as" identity picker is expanded (always open when unmapped).
+  let showIdentity = false;
+  // Step size for the aux stepper (kg vs. seconds), set per row in update().
+  let auxStep = 2.5;
+  // Last focused row — switching rows resets the per-set optional inputs.
+  let lastSelected = -1;
+  // Id of the session this run was saved into, so re-saving updates it in place.
+  let savedSessionId: string | null = null;
+
   // ---- Focused "now" card ---------------------------------------------------
   const eyebrow = h("p", { class: "now-eyebrow" });
   const nameEl = h("h2", { class: "now-name" });
   const stepEl = h("p", { class: "now-set" });
   const presEl = h("p", { class: "now-target" });
+
+  // Per-row "counts as" identity (muscle + catalog movement), so a saved run
+  // credits the right muscle and load type instead of a placeholder.
+  const identityHost = h("div", { class: "exec-identity" });
 
   // Big per-exercise rep tally + its own progress bar.
   const tallyDone = h("span", { class: "tally-done" });
@@ -85,16 +141,36 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
     chipRow,
   ]);
 
+  // ---- Optional weight / RIR (or hold / RIR) inputs, collapsed by default ----
+  const optToggle = h("button", { class: "btn btn-small exec-opt-toggle", type: "button", text: "+ Add weight / RIR" });
+  const auxLabelEl = h("p", { class: "rep-logger-label" });
+  const auxMinus = h("button", { class: "step-btn", type: "button", text: "−", aria: { label: "decrease" } });
+  const auxInput = h("input", {
+    class: "rep-input",
+    type: "number",
+    inputmode: "decimal",
+    min: "0",
+    value: "0",
+    aria: { label: "added weight or hold time" },
+  });
+  const auxPlus = h("button", { class: "step-btn", type: "button", text: "+", aria: { label: "increase" } });
+  const auxStepper = h("div", { class: "rep-stepper" }, [auxMinus, auxInput, auxPlus]);
+  const rirHost = h("div", { class: "field rir-field" });
+  const optBody = h("div", { class: "exec-optional", hidden: true }, [auxLabelEl, auxStepper, rirHost]);
+
   const nowCard = h("section", { class: "card session-now exec-now", aria: { live: "polite" } }, [
     eyebrow,
     nameEl,
     stepEl,
     presEl,
+    identityHost,
     tally,
     nowBar,
     setsEl,
     repControls,
     manualBtn,
+    optToggle,
+    optBody,
   ]);
 
   // ---- Completion banner ----------------------------------------------------
@@ -102,6 +178,21 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
   const doneCard = h("section", { class: "card session-done", hidden: true }, [
     h("p", { class: "done-title", text: "Routine complete" }),
     doneSub,
+  ]);
+
+  // ---- Save run to log ------------------------------------------------------
+  const savePreview = h("p", { class: "exec-save-preview" });
+  const saveBtn = h("button", { class: "btn btn-primary", type: "button", text: "Save to log" });
+  const saveStatus = h("p", { class: "status", role: "status", aria: { live: "polite" } });
+  const saveCard = h("section", { class: "card exec-save", hidden: true }, [
+    h("p", { class: "exec-save-title", text: "Save this run to your log" }),
+    h("p", {
+      class: "plan-meta",
+      text: "Logs what you did here as a session — it counts toward effort, recovery and stats in Live & Stats.",
+    }),
+    savePreview,
+    saveBtn,
+    saveStatus,
   ]);
 
   // ---- Overall progress + meta ----------------------------------------------
@@ -192,9 +283,118 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
     el.classList.add("stamp");
   }
 
+  // ---- Optional inputs ------------------------------------------------------
+  function round1(n: number): number {
+    return Math.round(n * 10) / 10;
+  }
+
+  function nudgeAux(delta: number): void {
+    const next = Math.max(0, round1((parseFloat(auxInput.value) || 0) + delta));
+    auxInput.value = String(next);
+  }
+
+  /** Re-render the RIR chips so the active selection reflects `pendingRir`. */
+  function renderRir(): void {
+    clear(rirHost);
+    rirHost.append(
+      h("span", { class: "field-label", text: "Reps in reserve (optional)" }),
+      h(
+        "div",
+        { class: "toggle rir-toggle", role: "group", aria: { label: "Reps in reserve" } },
+        RIR_OPTIONS.map((o) =>
+          h("button", {
+            class: pendingRir === o.value ? "toggle-btn active" : "toggle-btn",
+            type: "button",
+            text: o.label,
+            aria: {
+              pressed: String(pendingRir === o.value),
+              label: o.value === 0 ? "trained to failure" : `${o.label} reps in reserve`,
+            },
+            on: {
+              click: () => {
+                pendingRir = pendingRir === o.value ? null : o.value;
+                renderRir();
+              },
+            },
+          }),
+        ),
+      ),
+    );
+  }
+
+  /** Re-render the "counts as" muscle/exercise picker for the focused row. */
+  function renderIdentity(): void {
+    clear(identityHost);
+    const i = ctl.selectedIndex();
+    const m = ctl.exercise(i);
+    if (!m) return;
+    const mvName = m.exerciseId ? findMovement(m.exerciseId)?.name : undefined;
+    const summary = h("div", { class: "exec-id-summary" }, [
+      h("span", {
+        class: "exec-id-label",
+        text: `Counts as ${MUSCLE_LABELS[m.muscle]}${mvName ? ` · ${mvName}` : ""}`,
+      }),
+      ...(m.mapped
+        ? [
+            h("button", {
+              class: "btn btn-small exec-id-change",
+              type: "button",
+              text: showIdentity ? "Done" : "Change",
+              on: {
+                click: () => {
+                  showIdentity = !showIdentity;
+                  renderIdentity();
+                },
+              },
+            }),
+          ]
+        : []),
+    ]);
+    identityHost.append(summary);
+
+    if (showIdentity || !m.mapped) {
+      if (!m.mapped) {
+        identityHost.append(
+          h("p", {
+            class: "rir-hint",
+            text: "Pick what this counts as so it credits the right muscle and load.",
+          }),
+        );
+      }
+      identityHost.append(
+        toggleRow(
+          "Muscle group",
+          MUSCLE_GROUPS,
+          (mg) => MUSCLE_LABELS[mg as MuscleGroup],
+          m.muscle,
+          (mg) => {
+            ctl.setMuscle(i, mg as MuscleGroup);
+            renderIdentity();
+          },
+        ),
+        toggleRow(
+          "Exercise",
+          movementsForMuscle(m.muscle).map((mv) => mv.id),
+          (id) => findMovement(id)?.name ?? id,
+          m.exerciseId ?? "",
+          (id) => {
+            ctl.setMovement(i, id);
+            renderIdentity();
+          },
+        ),
+      );
+    }
+  }
+
   // ---- Logger actions -------------------------------------------------------
   function logReps(n: number): void {
-    ctl.logSet(ctl.selectedIndex(), n);
+    const i = ctl.selectedIndex();
+    const weight = parseFloat(auxInput.value);
+    ctl.logSet(i, n, {
+      ...(Number.isFinite(weight) && weight > 0 ? { weightKg: weight } : {}),
+      ...(pendingRir !== null ? { rir: pendingRir } : {}),
+    });
+    pendingRir = null;
     update();
     pulseStamp(tallyDone);
   }
@@ -211,9 +411,32 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
     update();
   });
   manualBtn.addEventListener("click", () => {
-    ctl.toggleManual(ctl.selectedIndex());
+    const i = ctl.selectedIndex();
+    const hold = parseFloat(auxInput.value);
+    ctl.toggleManual(i, {
+      ...(Number.isFinite(hold) && hold > 0 ? { durationSec: hold } : {}),
+      ...(pendingRir !== null ? { rir: pendingRir } : {}),
+    });
+    pendingRir = null;
     update();
   });
+
+  auxMinus.addEventListener("click", () => nudgeAux(-auxStep));
+  auxPlus.addEventListener("click", () => nudgeAux(auxStep));
+  optToggle.addEventListener("click", () => {
+    showOptional = !showOptional;
+    update();
+  });
+  saveBtn.addEventListener("click", saveRun);
+
+  function saveRun(): void {
+    const session = executeRunToSession(ctl, sheet.name);
+    if (session.exercises.length === 0) return;
+    if (savedSessionId) session.id = savedSessionId; // update the same logged session
+    const stored = saveSession(session);
+    savedSessionId = stored.id;
+    update();
+  }
 
   // ---- Controls -------------------------------------------------------------
   const resetBtn = h("button", {
@@ -223,6 +446,11 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
     on: {
       click: () => {
         ctl.reset();
+        savedSessionId = null;
+        pendingRir = null;
+        showOptional = false;
+        auxInput.value = "0";
+        lastSelected = -1;
         update();
       },
     },
@@ -271,11 +499,20 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
     const i = ctl.selectedIndex();
     const item = exTotal > 0 ? ctl.items[i] : undefined;
     if (item && !allDone) {
+      // Switching rows clears the per-set optional inputs (weight/hold + RIR).
+      if (i !== lastSelected) {
+        lastSelected = i;
+        auxInput.value = "0";
+        pendingRir = null;
+      }
+
       const target = item.targetReps;
       setText(eyebrow, item.routineTitle || "Current exercise");
       setText(nameEl, item.name || "Untitled exercise");
       setText(stepEl, `EXERCISE ${i + 1} OF ${exTotal}`);
       setText(presEl, item.prescription || "—");
+
+      renderIdentity();
 
       const repItem = target != null && target > 0;
       // Rep logger vs. manual done toggle, depending on the prescription.
@@ -302,6 +539,47 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
       } else {
         manualBtn.textContent = ctl.isDone(i) ? "Mark not done" : "Mark done";
       }
+
+      // Optional inputs adapt to the row: weight for rep rows, hold time for
+      // timed/manual rows. RIR applies to both.
+      const m = ctl.exercise(i);
+      const manual = !repItem;
+      auxStep = manual ? 5 : 2.5;
+      setText(
+        auxLabelEl,
+        manual
+          ? "Hold (seconds)"
+          : m && isBodyweight(m.equipment)
+            ? "Added weight (kg)"
+            : "Weight (kg)",
+      );
+      setText(
+        optToggle,
+        `${showOptional ? "− Hide" : "+ Add"} ${manual ? "hold / RIR" : "weight / RIR"}`,
+      );
+      optBody.hidden = !showOptional;
+      renderRir();
+    }
+
+    // Save card — available whenever there's at least one logged set.
+    const loggedSets = ctl.loggedSetCount();
+    saveCard.hidden = empty || loggedSets === 0;
+    if (!saveCard.hidden) {
+      const session = executeRunToSession(ctl, sheet.name);
+      const effort = readEffort(session, loadSessions());
+      const vs = effort.vsTypicalPct !== null ? ` · ${effort.vsTypicalPct}% of your usual` : "";
+      setText(
+        savePreview,
+        `${loggedSets} ${loggedSets === 1 ? "set" : "sets"} · ≈ ${effort.label} effort · ~${estimateCalories(effort)} kcal${vs}`,
+      );
+      saveBtn.textContent = savedSessionId ? "Update log" : "Save to log";
+      if (savedSessionId) {
+        setText(saveStatus, "Logged ✓ — view it in the Live tab. Log more, then Update to refresh it.");
+        saveStatus.className = "status status-ok";
+      } else {
+        setText(saveStatus, "");
+        saveStatus.className = "status";
+      }
     }
 
     renderChecklist();
@@ -319,6 +597,7 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
     doneCard,
     progress,
     meta,
+    saveCard,
     checklist,
     controls,
   ]);

@@ -184,6 +184,13 @@ export interface TrainingSession {
   /** ISO timestamp of when the session was started. */
   startedAt: string;
   exercises: LoggedExercise[];
+  /**
+   * How the session was logged: "live" (the Live tab, set-by-set with timers) or
+   * "routine" (saved from an Execute run of a routine sheet). Absent on older
+   * logs and treated as "live"; lets effort calibration tell the two apart if
+   * routine runs (often reps-only) start skewing the median.
+   */
+  source?: "live" | "routine";
   /** ISO timestamp of last save. */
   updatedAt?: string;
 }

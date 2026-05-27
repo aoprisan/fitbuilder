@@ -103,6 +103,40 @@ export function allMovements(): readonly Movement[] {
   return [...REGISTRY.values()];
 }
 
+/** Lowercased, diacritic-stripped, whitespace-collapsed form for loose name matching. */
+function normalizeName(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Curated lifts only (ids without "::"). Generic-gear movements are named just
+// "Dumbbell"/"Cable"/… and repeat across muscles, so matching them by name would
+// be ambiguous and let an equipment word masquerade as a movement.
+const BY_NAME: ReadonlyMap<string, Movement> = (() => {
+  const map = new Map<string, Movement>();
+  for (const mv of REGISTRY.values()) {
+    if (mv.id.includes("::")) continue;
+    const key = normalizeName(mv.name);
+    if (!map.has(key)) map.set(key, mv);
+  }
+  return map;
+})();
+
+/**
+ * Best-effort match of a free-text exercise name (e.g. a routine row) to a
+ * curated catalog movement — case- and diacritic-insensitive, exact on the
+ * normalized name. Returns undefined when there's no confident match (the
+ * common case for free-text Romanian rows), so the caller asks the user.
+ */
+export function matchMovementByName(name: string): Movement | undefined {
+  const key = normalizeName(name);
+  return key === "" ? undefined : BY_NAME.get(key);
+}
+
 /**
  * Every curated compound lift, in catalog order. A movement is "compound" when
  * it taxes secondary muscles; generic-gear movements have none, so this yields
