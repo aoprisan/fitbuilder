@@ -4,13 +4,15 @@ import { renderSessionToCanvas } from "./sessionRender";
 import { renderSheetToCanvas } from "./sheetRender";
 import { renderStatsToCanvas } from "./statsRender";
 import type { ProgressFilter } from "./stats";
+import { renderRoutineQrCanvas } from "./qr";
+import { encodeRoutineLink } from "./shareRoutine";
 import type { RoutineSheet, TrainingSession } from "./types";
 import { sessionsToJson, sessionsToMarkdown, sessionsToXml, slug } from "./util";
 
 // Web Share API (Level 2, with files) isn't in every lib.dom version; describe
 // just what we use so the code type-checks and degrades gracefully.
 interface ShareCapableNavigator {
-  share?: (data: { files?: File[]; title?: string; text?: string }) => Promise<void>;
+  share?: (data: { files?: File[]; title?: string; text?: string; url?: string }) => Promise<void>;
   canShare?: (data: { files?: File[] }) => boolean;
 }
 
@@ -234,6 +236,47 @@ export async function exportSheetPdf(sheet: RoutineSheet): Promise<void> {
 /** Share the sheet as a PNG (native share sheet, PNG-download fallback). */
 export async function shareSheet(sheet: RoutineSheet): Promise<ShareResult> {
   return shareCanvas(await renderSheetToCanvas(sheet), `${slug(sheet.name)}.png`, sheet.name);
+}
+
+export interface LinkShareResult {
+  /** "shared" via the OS share sheet, "copied" to the clipboard, or "manual" (neither worked). */
+  result: "shared" | "copied" | "manual";
+  /** The encoded share link — always returned so callers can show it for manual copy. */
+  url: string;
+}
+
+/**
+ * Share an *importable* routine link (opens the routine in the recipient's app),
+ * as opposed to shareSheet's PNG picture. Prefers the native share sheet (so it
+ * can target WhatsApp directly), falls back to the clipboard, and as a last
+ * resort returns "manual" so the caller can surface the URL to copy by hand.
+ */
+export async function shareRoutineLink(sheet: RoutineSheet): Promise<LinkShareResult> {
+  const url = encodeRoutineLink(sheet);
+  const nav = shareNav();
+
+  if (typeof nav.share === "function") {
+    try {
+      await nav.share({ title: sheet.name, text: `Routine: ${sheet.name}`, url });
+      return { result: "shared", url };
+    } catch (err) {
+      // User dismissed the share sheet — a completed interaction, not a failure.
+      if (err instanceof DOMException && err.name === "AbortError") return { result: "shared", url };
+      // Anything else: fall through to the clipboard.
+    }
+  }
+
+  try {
+    await navigator.clipboard.writeText(url);
+    return { result: "copied", url };
+  } catch {
+    return { result: "manual", url };
+  }
+}
+
+/** Render a routine's QR code and download it as a PNG (to print for a session). */
+export async function exportRoutineQrPng(sheet: RoutineSheet): Promise<void> {
+  await downloadCanvasPng(await renderRoutineQrCanvas(sheet), `${slug(sheet.name)}-qr.png`);
 }
 
 /** Slug for a session recap file, e.g. "push-day-recap". */

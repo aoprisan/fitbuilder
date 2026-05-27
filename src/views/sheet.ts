@@ -1,6 +1,7 @@
 import { clear, h } from "../dom";
-import { canShareFiles, exportSheetPdf, exportSheetPng, shareSheet } from "../exporters";
+import { canShareFiles, exportRoutineQrPng, exportSheetPdf, exportSheetPng, shareRoutineLink, shareSheet } from "../exporters";
 import { ImportError, importRoutineFile } from "../import";
+import { renderRoutineQrCanvas } from "../qr";
 import { clearLogo, fileToLogoDataUrl, loadLogo, LogoError, saveLogo } from "../logo";
 import type { Cleanup, Nav } from "../router";
 import { blankRoutine, blankRoutineExercise, blankSheet, singleRoutineSheet } from "../sheet";
@@ -11,6 +12,47 @@ import type { Routine, RoutineExercise, RoutineSheet } from "../types";
 import { cloneSheet, sheetToJson, slug } from "../util";
 
 type StatusKind = "ok" | "err" | "info";
+
+/**
+ * Show a routine's QR code in a modal overlay (scan to load, or save to print
+ * for a group session). Lives on document.body, so the caller must hold the
+ * returned close fn and call it on view teardown. Returns a no-op disposer.
+ */
+function showQrOverlay(canvas: HTMLCanvasElement, title: string, onSavePng: () => void): () => void {
+  const onKey = (e: KeyboardEvent): void => {
+    if (e.key === "Escape") close();
+  };
+  function close(): void {
+    document.removeEventListener("keydown", onKey);
+    overlay.remove();
+  }
+
+  canvas.classList.add("qr-overlay__canvas");
+  const card = h(
+    "div",
+    { class: "qr-overlay__card", role: "dialog", aria: { modal: "true", label: `QR code for ${title}` } },
+    [
+      h("p", { class: "qr-overlay__title", text: title }),
+      canvas,
+      h("p", {
+        class: "qr-overlay__hint",
+        text: "Scan to load this routine — or save it as a PNG to print for a group session.",
+      }),
+      h("div", { class: "btn-row qr-overlay__actions" }, [
+        h("button", { class: "btn btn-small btn-primary", type: "button", text: "Save PNG", on: { click: onSavePng } }),
+        h("button", { class: "btn btn-small", type: "button", text: "Close", on: { click: () => close() } }),
+      ]),
+    ],
+  );
+  const overlay = h(
+    "div",
+    { class: "qr-overlay", on: { click: (e) => { if (e.target === overlay) close(); } } },
+    [card],
+  );
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(overlay);
+  return close;
+}
 
 export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
   // Captured once: state.editingSheet IS this object, so edits persist across
@@ -184,6 +226,20 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
         h("button", {
           class: "btn btn-small",
           type: "button",
+          text: "Link ▸",
+          aria: { label: `share an importable link to routine ${rIndex + 1}` },
+          on: { click: () => void shareLinkFor(singleRoutineSheet(sheet, routine, rIndex)) },
+        }),
+        h("button", {
+          class: "btn btn-small",
+          type: "button",
+          text: "QR",
+          aria: { label: `show a scannable QR code for routine ${rIndex + 1}` },
+          on: { click: () => void showQrFor(singleRoutineSheet(sheet, routine, rIndex)) },
+        }),
+        h("button", {
+          class: "btn btn-small",
+          type: "button",
           text: "PNG",
           aria: { label: `save routine ${rIndex + 1} as PNG` },
           on: {
@@ -330,6 +386,9 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
   // ---- Export ---------------------------------------------------------------
   // Guard against double-taps while the (async) render/encode runs.
   let busy = false;
+  // The QR overlay lives on document.body (outside this view), so track it and
+  // tear it down on cleanup if the user navigates away while it's open.
+  let dismissOverlay: (() => void) | null = null;
   async function runExport(label: string, fn: () => Promise<void>): Promise<void> {
     if (busy) return;
     busy = true;
@@ -339,6 +398,48 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
       setStatus(`${label} ready.`, "ok");
     } catch {
       setStatus(`Could not ${label.toLowerCase()}. Try again.`, "err");
+    } finally {
+      busy = false;
+    }
+  }
+
+  // Share/QR a routine as an importable link. Used by both the per-routine cards
+  // (live single-routine slices) and the saved-library cards (whole sheets). Not
+  // runExport: the share/copy outcome IS the status, which runExport would clobber.
+  async function shareLinkFor(target: RoutineSheet): Promise<void> {
+    if (busy) return;
+    busy = true;
+    setStatus("Building link…", "info");
+    try {
+      const { result, url } = await shareRoutineLink(target);
+      setStatus(
+        result === "shared"
+          ? "Opened the share sheet — send the link in WhatsApp."
+          : result === "copied"
+            ? "Routine link copied — paste it into WhatsApp."
+            : `Copy this link to share: ${url}`,
+        "ok",
+      );
+    } catch {
+      setStatus("Couldn't create a share link. Try again.", "err");
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function showQrFor(target: RoutineSheet): Promise<void> {
+    if (busy) return;
+    busy = true;
+    setStatus("Building QR…", "info");
+    try {
+      const canvas = await renderRoutineQrCanvas(target);
+      dismissOverlay?.();
+      dismissOverlay = showQrOverlay(canvas, target.name, () => {
+        void runExport("Save QR PNG", () => exportRoutineQrPng(target));
+      });
+      setStatus("Scan the QR to load this routine.", "ok");
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Couldn't build a QR code. Try again.", "err");
     } finally {
       busy = false;
     }
@@ -486,6 +587,20 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
               type: "button",
               text: "Open",
               on: { click: () => nav.editSheet(cloneSheet(s)) },
+            }),
+            h("button", {
+              class: "btn btn-small",
+              type: "button",
+              text: "Link ▸",
+              aria: { label: `share an importable link to "${s.name}"` },
+              on: { click: () => void shareLinkFor(s) },
+            }),
+            h("button", {
+              class: "btn btn-small",
+              type: "button",
+              text: "QR",
+              aria: { label: `show a scannable QR code for "${s.name}"` },
+              on: { click: () => void showQrFor(s) },
             }),
             h("button", {
               class: "btn btn-small danger",
@@ -652,5 +767,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
   const flash = takeSheetFlash();
   if (flash) setStatus(flash.msg, flash.kind);
   root.appendChild(container);
-  return () => {};
+  return () => {
+    dismissOverlay?.();
+  };
 }

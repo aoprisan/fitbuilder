@@ -3116,3 +3116,57 @@ textarea:focus-visible {
     opacity: 1;
   }
 }
+
+/* ──────────────────────── QR SHARE OVERLAY ──────────────────────── */
+/* A routine's import link shown as a scannable / printable QR. The card uses
+   theme tokens, but the QR canvas itself is drawn in the fixed ledger palette
+   (dark modules on a light ground) so it scans in any UI theme. */
+
+.qr-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(27, 22, 16, 0.62);
+}
+
+.qr-overlay__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: min(92vw, 420px);
+  padding: 20px;
+  background: var(--paper-deep);
+  border: var(--rule);
+  box-shadow: 6px 6px 0 0 var(--ink);
+}
+
+.qr-overlay__title {
+  margin: 0;
+  font-weight: 700;
+  text-align: center;
+  color: var(--ink);
+}
+
+.qr-overlay__canvas {
+  width: 100%;
+  max-width: 320px;
+  height: auto;
+  image-rendering: pixelated; /* keep module edges crisp */
+  background: var(--paper);
+}
+
+.qr-overlay__hint {
+  margin: 0;
+  font-size: 0.85rem;
+  text-align: center;
+  color: var(--ink-soft);
+}
+
+.qr-overlay__actions {
+  justify-content: center;
+}

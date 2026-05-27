@@ -5,7 +5,9 @@ import { sheetToSession } from "./log";
 import { clearProgress } from "./liveProgress";
 import { saveSession } from "./logStorage";
 import type { Cleanup, Nav, ViewName } from "./router";
-import { setActiveLog, setEditingSheet, setExecuting, state } from "./state";
+import { importRoutineFromUrl, urlWithoutRoutine } from "./shareRoutine";
+import { saveSheet } from "./sheetStorage";
+import { setActiveLog, setEditingSheet, setExecuting, setSheetFlash, state } from "./state";
 import { cloneSheet } from "./util";
 import { mountClaudeStart } from "./views/claudeStart";
 import { mountExecute } from "./views/execute";
@@ -47,6 +49,32 @@ const NAV_ITEMS: ReadonlyArray<{ name: ViewName; label: string; icon: () => SVGE
   { name: "sheet", label: "Routines", icon: () => navIcon("M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01") },
   { name: "execute", label: "Execute", icon: () => navIcon("M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0zM8.5 12l2.5 2.5 5-5") },
 ];
+
+/**
+ * If the app was opened from a routine share link (`#routine=<base64url>`),
+ * import the routine into the library, open it for editing, and strip the token
+ * from the URL so a refresh won't re-import. Returns the view to land on, or
+ * null when there's no link (boot then falls back to home). Phase 2 (Capacitor)
+ * will call importRoutineFromUrl the same way from an appUrlOpen listener.
+ */
+function consumeSharedRoutine(): ViewName | null {
+  let sheet;
+  try {
+    sheet = importRoutineFromUrl(window.location.href);
+  } catch (err) {
+    // A token was present but unreadable — clear it and report on the Routines view.
+    history.replaceState(null, "", urlWithoutRoutine(window.location.href));
+    setSheetFlash(err instanceof Error ? err.message : "Couldn't open that routine link.", "err");
+    return "sheet";
+  }
+  if (!sheet) return null;
+
+  history.replaceState(null, "", urlWithoutRoutine(window.location.href));
+  const stored = saveSheet(sheet);
+  setEditingSheet(cloneSheet(stored));
+  setSheetFlash(`Imported "${stored.name}" from a shared link. Edit or save it here.`, "ok");
+  return "sheet";
+}
 
 function boot(): void {
   const app = document.getElementById("app");
@@ -158,7 +186,7 @@ function boot(): void {
   ]);
 
   app.append(header, viewHost);
-  navigate("home");
+  navigate(consumeSharedRoutine() ?? "home");
 }
 
 registerServiceWorker();
