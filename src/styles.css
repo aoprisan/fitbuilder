@@ -989,8 +989,11 @@ textarea {
   color: var(--paper);
 }
 
-/* Reps-in-reserve chips when logging a set — reuse the toggle; five fit one row. */
+/* Reps-in-reserve chips when logging a set — reuse the toggle; five fit one row.
+   Spans the full width of the dials card so it sits as its own row below the
+   two dials (not squeezed into a third column on wide screens). */
 .rir-field {
+  flex: 1 1 100%;
   margin-top: 8px;
 }
 
