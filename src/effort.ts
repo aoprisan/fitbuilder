@@ -1,3 +1,4 @@
+import { effectiveLoadKg } from "./loadProfile";
 import { SECONDARY_MUSCLE_SHARE } from "./movements";
 import type { Equipment, MuscleGroup, TrainingSession, WorkSet } from "./types";
 
@@ -29,38 +30,28 @@ const SECONDS_PER_POINT = 120; // 2 min under tension ≈ 1 point
 // calibrate against (a first session). ~12–16 solid sets land near here.
 const FULL_SESSION_EFFORT = 45;
 
-// Load types whose stack number overstates how hard the work actually is —
-// cable stacks and assisted isolation machines where a high plate count isn't
-// "heavy" the way a free-weight lift is. Their sets contribute effort at a
-// reduced weight so a light cable/core day doesn't read like a full session.
-const EFFORT_EQUIPMENT_WEIGHT: Partial<Record<Equipment, number>> = {
-  cable: 0.5,
-  "lateral-abs-machine": 0.5,
-};
-
-function equipmentEffortWeight(equipment: Equipment | undefined): number {
-  return equipment ? EFFORT_EQUIPMENT_WEIGHT[equipment] ?? 1 : 1;
-}
-
 // Recommended fluid (ml) per effort point — tuned so a full session (~45 pts)
 // suggests ≈ 0.8 L, a brutal one north of a litre.
 const ML_PER_EFFORT_POINT = 18;
 const ML_PER_GLASS = 250;
 
 /**
- * Effort points contributed by a single logged set. Cable / assisted-machine
- * work, whose stack number overstates real effort, is discounted via its
- * equipment weight (see EFFORT_EQUIPMENT_WEIGHT).
+ * Effort points contributed by a single logged set. The volume term is driven
+ * by *effective* load (see {@link effectiveLoadKg}), so cable / leverage-machine
+ * work — whose stack number overstates the real resistance — contributes less
+ * than the same indicated kg on a free weight, while its reps and time under
+ * tension still count in full.
  */
 export function setEffort(set: WorkSet, equipment?: Equipment): number {
-  const volume = set.reps * Math.max(0, set.weightKg);
+  const load = equipment ? effectiveLoadKg(set.weightKg, equipment) : Math.max(0, set.weightKg);
+  const volume = set.reps * load;
   const duration = set.durationSec ?? 0;
-  const points =
+  return (
     1 +
     set.reps / REPS_PER_POINT +
     volume / VOLUME_PER_POINT +
-    duration / SECONDS_PER_POINT;
-  return points * equipmentEffortWeight(equipment);
+    duration / SECONDS_PER_POINT
+  );
 }
 
 /** Accumulated effort points across every logged set in a session. */
