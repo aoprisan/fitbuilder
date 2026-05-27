@@ -14,6 +14,7 @@ import { mountLive } from "./views/live";
 import { mountRecovery } from "./views/recovery";
 import { mountSheet } from "./views/sheet";
 import { mountStats } from "./views/stats";
+import { mountWeekly } from "./views/weekly";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -112,6 +113,9 @@ function boot(): void {
         break;
       case "stats":
         result = mountStats(viewHost, nav);
+        break;
+      case "weekly":
+        result = mountWeekly(viewHost, nav);
         break;
       case "recovery":
         result = mountRecovery(viewHost, nav);

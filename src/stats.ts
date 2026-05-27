@@ -1,7 +1,9 @@
+import { stimulusProximity } from "./effort";
 import { effectiveLoadKg, hypertrophyFactor, strengthFactor } from "./loadProfile";
-import { findMovement } from "./movements";
+import { findMovement, SECONDARY_MUSCLE_SHARE } from "./movements";
 import {
   EQUIPMENT_LABELS,
+  MUSCLE_GROUPS,
   MUSCLE_LABELS,
   type Equipment,
   type LoggedExercise,
@@ -179,7 +181,8 @@ export function buildProgress(
         volume += s.reps * eff;
         strength = Math.max(strength, strengthScore(s, eq, compound));
         if (s.reps >= HYPERTROPHY_MIN_REPS && s.reps <= HYPERTROPHY_MAX_REPS) {
-          hypertrophy += s.reps * eff * growthFactor;
+          // Effective reps: volume stopped far from failure stimulates less growth.
+          hypertrophy += s.reps * eff * growthFactor * stimulusProximity(s.rir);
         }
       }
     }
@@ -198,4 +201,85 @@ export function buildProgress(
   }
 
   return points;
+}
+
+/* =============================================================================
+   Weekly volume per muscle — the dose unit hypertrophy research is built on.
+   The dose-response is *per muscle, per week*: growth is reliably productive at
+   roughly 10–20 hard sets, with a minimum effective dose near ~6 and clearly
+   diminishing returns past ~20 (each added set returns less — the final
+   increments of growth need several times the volume of the first). Surfaced
+   over a trailing 7-day window so it reads as "what each muscle got this week".
+   ========================================================================== */
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Evidence-based weekly hard-set landmarks per muscle group. */
+export const WEEKLY_MAINTENANCE_SETS = 6;
+export const WEEKLY_PRODUCTIVE_MIN = 10;
+export const WEEKLY_PRODUCTIVE_MAX = 20;
+
+export type VolumeBand = "none" | "under" | "maintenance" | "productive" | "high";
+
+/** Bucket a weekly set count against the dose-response landmarks. */
+export function classifyWeeklyVolume(sets: number): VolumeBand {
+  if (sets <= 0) return "none";
+  if (sets < WEEKLY_MAINTENANCE_SETS) return "under";
+  if (sets < WEEKLY_PRODUCTIVE_MIN) return "maintenance";
+  if (sets <= WEEKLY_PRODUCTIVE_MAX) return "productive";
+  return "high";
+}
+
+/**
+ * Concave marginal-value of a week's volume, 0..1: the first sets buy the most
+ * growth and later ones progressively less (~63% of attainable stimulus by 8
+ * sets, ~86% by 16, ~95% by 24). A simple stand-in for the diminishing
+ * dose-response curve, not a literal percentage of gains.
+ */
+export function volumeStimulus(sets: number): number {
+  return 1 - Math.exp(-Math.max(0, sets) / 8);
+}
+
+export interface MuscleWeeklyVolume {
+  muscle: MuscleGroup;
+  /** Effective hard working sets this muscle received in the trailing 7 days. */
+  sets: number;
+  band: VolumeBand;
+  /** Concave marginal-value of that volume, 0..1. */
+  stimulus: number;
+}
+
+/**
+ * Effective weekly hard sets per muscle over the trailing 7 days, busiest first.
+ * Each logged set credits its primary muscle a full set and each secondary a
+ * {@link SECONDARY_MUSCLE_SHARE}, scaled by proximity to failure so sets stopped
+ * well short of failure count as fractional (junk) volume rather than full sets.
+ */
+export function weeklyMuscleVolume(
+  sessions: TrainingSession[],
+  now: Date = new Date(),
+): MuscleWeeklyVolume[] {
+  const nowMs = now.getTime();
+  const cutoff = nowMs - WEEK_MS;
+  const sets = new Map<MuscleGroup, number>();
+  const credit = (muscle: MuscleGroup, amount: number): void => {
+    sets.set(muscle, (sets.get(muscle) ?? 0) + amount);
+  };
+
+  for (const session of sessions) {
+    const at = new Date(session.startedAt).getTime();
+    if (Number.isNaN(at) || at < cutoff || at > nowMs) continue;
+    for (const ex of session.exercises) {
+      for (const s of ex.sets) {
+        const hardSet = stimulusProximity(s.rir); // a full near-failure set = 1
+        credit(ex.muscle, hardSet);
+        for (const sec of ex.secondaryMuscles ?? []) credit(sec, hardSet * SECONDARY_MUSCLE_SHARE);
+      }
+    }
+  }
+
+  return MUSCLE_GROUPS.map((muscle): MuscleWeeklyVolume => {
+    const n = round2(sets.get(muscle) ?? 0);
+    return { muscle, sets: n, band: classifyWeeklyVolume(n), stimulus: volumeStimulus(n) };
+  }).sort((a, b) => b.sets - a.sets);
 }

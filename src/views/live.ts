@@ -30,6 +30,7 @@ import {
   movementsForMuscle,
   muscleShares,
 } from "../movements";
+import { muscleRecovery, type MuscleRecovery, recoveryColor } from "../recovery";
 import type { Cleanup, Nav } from "../router";
 import { saveSheet } from "../sheetStorage";
 import { setActiveLog, setEditingSheet, setSheetFlash, state } from "../state";
@@ -70,6 +71,64 @@ function svgEl(tag: string, attrs: Record<string, string>): SVGElement {
 /** Total reps logged across an exercise's sets — used for the routine target tally. */
 function sumReps(sets: readonly WorkSet[]): number {
   return sets.reduce((a, s) => a + s.reps, 0);
+}
+
+/** Reps-in-reserve chips shown when logging a set. "4+" stores 4 (fresh — minimal stimulus). */
+const RIR_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
+  { value: 0, label: "Failure" },
+  { value: 1, label: "1" },
+  { value: 2, label: "2" },
+  { value: 3, label: "3" },
+  { value: 4, label: "4+" },
+];
+
+// A target muscle below this readiness (0..1, from prior sessions) is flagged
+// before you train it again; below the severe mark it's a strong warning.
+const RECOVERY_WARN_BELOW = 0.6;
+const RECOVERY_WARN_SEVERE = 0.35;
+
+/**
+ * Pre-training caution for the muscles a movement works that haven't recovered
+ * from *earlier* sessions yet — the most direct guard against hammering a still-
+ * fatigued muscle (injury / overtraining risk). The active session is excluded
+ * from the readiness so doing a second exercise for the same muscle within one
+ * workout doesn't false-alarm. Returns null when every target muscle is ready.
+ */
+function renderRecoveryWarning(
+  muscles: readonly MuscleGroup[],
+  recByMuscle: ReadonlyMap<MuscleGroup, MuscleRecovery>,
+): HTMLElement | null {
+  const flagged = muscles
+    .map((m) => recByMuscle.get(m))
+    .filter((r): r is MuscleRecovery => r !== undefined && r.recovered < RECOVERY_WARN_BELOW)
+    .sort((a, b) => a.recovered - b.recovered);
+  if (flagged.length === 0) return null;
+
+  const severe = flagged[0]!.recovered < RECOVERY_WARN_SEVERE;
+  const rows = flagged.map((r) => {
+    const span = h("span", {
+      class: "recovery-warn-muscle",
+      text: `${MUSCLE_LABELS[r.muscle]} · ${Math.round(r.recovered * 100)}% · ~${r.hoursRemaining}h to go`,
+    });
+    span.style.color = recoveryColor(r.recovered);
+    return h("div", { class: "recovery-warn-row" }, [span]);
+  });
+
+  return h(
+    "section",
+    { class: "card live-recovery-warn", dataset: { severity: severe ? "high" : "med" } },
+    [
+      h("p", {
+        class: "recovery-warn-head",
+        text: severe ? "⚠ Still fatigued — consider resting these" : "Heads up — not fully recovered",
+      }),
+      ...rows,
+      h("p", {
+        class: "recovery-warn-note",
+        text: "Training a muscle hard before it recovers raises injury and overtraining risk — go lighter or pick another muscle.",
+      }),
+    ],
+  );
 }
 
 /** Top-level place in the live flow. */
@@ -140,6 +199,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   // In-flight set values.
   let setReps = 10;
   let setWeight = 10;
+  // Reps in reserve for the set being logged; null until tapped (optional).
+  let pendingRir: number | null = null;
 
   // Stopwatch. Anchored to wall-clock time (epoch ms) so it keeps correct time
   // across a reload or phone lock, not just within one page session.
@@ -263,6 +324,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       hasCurrentEx: currentEx !== null,
       setReps,
       setWeight,
+      setRir: pendingRir,
       setStartEpoch,
       setElapsedMs,
       restStartEpoch,
@@ -291,6 +353,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         : null;
     setReps = saved.setReps;
     setWeight = saved.setWeight;
+    pendingRir = saved.setRir;
     setStartEpoch = saved.setStartEpoch;
     setElapsedMs = saved.setElapsedMs;
     restStartEpoch = saved.restStartEpoch;
@@ -408,6 +471,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       currentEx && currentEx.sets.length ? currentEx.sets[currentEx.sets.length - 1]! : null;
     setReps = last ? last.reps : 10;
     setWeight = last ? last.weightKg : isBodyweight(equipment) ? 0 : 10;
+    pendingRir = null; // proximity to failure is logged fresh per set
     sub = "logging";
     render();
   }
@@ -419,6 +483,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       reps: setReps,
       weightKg: setWeight,
       durationSec: Math.round(setElapsedMs / 1000),
+      ...(pendingRir !== null ? { rir: pendingRir } : {}),
     };
     if (!currentEx) {
       const mv = findMovement(movementId);
@@ -776,7 +841,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       );
     }
 
-    const summary = renderSessionSummary(session, loadSessions());
+    const allSessions = loadSessions();
+    const summary = renderSessionSummary(session, allSessions);
 
     container.append(
       h("h1", { class: "view-title", text: "Live Session" }),
@@ -880,6 +946,21 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
             ),
           ];
 
+    // Caution if the picked movement's muscles haven't recovered from earlier
+    // sessions — the active session is excluded so within-session repeats are fine.
+    const selectedMovement = findMovement(movementId);
+    const targetMuscles = selectedMovement
+      ? [selectedMovement.primaryMuscle, ...selectedMovement.secondaryMuscles]
+      : [muscle];
+    const recWarn = renderRecoveryWarning(
+      targetMuscles,
+      new Map(
+        muscleRecovery(allSessions.filter((s) => s.id !== session.id)).map(
+          (r): [MuscleGroup, MuscleRecovery] => [r.muscle, r],
+        ),
+      ),
+    );
+
     container.append(
       h("section", { class: "card live-select" }, [
         h("h2", { class: "section-title", text: planned ? planned.name || "Next exercise" : "Next exercise" }),
@@ -894,6 +975,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           pickMode,
         ),
         ...picker,
+        ...(recWarn ? [recWarn] : []),
         h("div", { class: "btn-row" }, [
           h("button", {
             class: "btn btn-primary",
@@ -937,6 +1019,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     }
     sets.forEach((s, i) => {
       const bits = [`${s.reps} reps`, formatLoad(equipment, s.weightKg)];
+      if (s.rir !== undefined) bits.push(s.rir === 0 ? "to failure" : `RIR ${s.rir}`);
       if (s.durationSec !== undefined) bits.push(formatClock(s.durationSec));
       host.appendChild(
         h("div", { class: "live-set" }, [
@@ -953,6 +1036,42 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       );
     });
     return host;
+  }
+
+  /** Optional reps-in-reserve selector for the set being logged; tapping the active chip clears it. */
+  function renderRirField(): HTMLElement {
+    const hint =
+      pendingRir === null
+        ? "Tap how many reps you had left — skip to leave intensity unweighted."
+        : pendingRir === 0
+          ? "To failure — counted as maximum intensity."
+          : `${pendingRir} ${pendingRir === 1 ? "rep" : "reps"} left in the tank.`;
+    return h("div", { class: "field rir-field" }, [
+      h("span", { class: "field-label", text: "Reps in reserve (optional)" }),
+      h(
+        "div",
+        { class: "toggle rir-toggle", role: "group", aria: { label: "Reps in reserve" } },
+        RIR_OPTIONS.map((o) =>
+          h("button", {
+            class: pendingRir === o.value ? "toggle-btn active" : "toggle-btn",
+            type: "button",
+            text: o.label,
+            aria: {
+              pressed: String(pendingRir === o.value),
+              label: o.value === 0 ? "trained to failure" : `${o.label} reps in reserve`,
+            },
+            on: {
+              click: () => {
+                pendingRir = pendingRir === o.value ? null : o.value;
+                snapshot();
+                render();
+              },
+            },
+          }),
+        ),
+      ),
+      h("p", { class: "rir-hint", text: hint }),
+    ]);
   }
 
   function renderExercise(): void {
@@ -1160,6 +1279,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
             snapshot();
           },
         }),
+        renderRirField(),
       ]),
     );
   }

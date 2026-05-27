@@ -186,7 +186,7 @@ export function sessionsToXml(sessions: TrainingSession[]): string {
       );
       for (const set of ex.sets) {
         lines.push(
-          `      <set${attr("reps", set.reps)}${attr("weightKg", set.weightKg)}${attr("durationSec", set.durationSec)} />`,
+          `      <set${attr("reps", set.reps)}${attr("weightKg", set.weightKg)}${attr("durationSec", set.durationSec)}${attr("rir", set.rir)} />`,
         );
       }
       lines.push("    </exercise>");
@@ -246,11 +246,14 @@ function sessionToMarkdown(session: TrainingSession): string {
       return;
     }
     lines.push("");
-    lines.push("| Set | Reps | Load | Time |");
-    lines.push("|----:|-----:|------|-----:|");
+    lines.push("| Set | Reps | Load | RIR | Time |");
+    lines.push("|----:|-----:|------|----:|-----:|");
     ex.sets.forEach((set, j) => {
       const time = set.durationSec !== undefined ? formatClock(set.durationSec) : "—";
-      lines.push(`| ${j + 1} | ${set.reps} | ${formatLoad(ex.equipment, set.weightKg)} | ${time} |`);
+      const rir = set.rir === undefined ? "—" : set.rir === 0 ? "0 (failure)" : String(set.rir);
+      lines.push(
+        `| ${j + 1} | ${set.reps} | ${formatLoad(ex.equipment, set.weightKg)} | ${rir} | ${time} |`,
+      );
     });
   });
   return lines.join("\n");

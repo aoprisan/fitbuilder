@@ -1,6 +1,7 @@
 import { effectiveLoadKg } from "./loadProfile";
 import { SECONDARY_MUSCLE_SHARE } from "./movements";
 import type { Equipment, MuscleGroup, TrainingSession, WorkSet } from "./types";
+import { clamp } from "./util";
 
 /**
  * Live-session effort and hydration heuristics.
@@ -36,6 +37,34 @@ const ML_PER_EFFORT_POINT = 18;
 const ML_PER_GLASS = 250;
 
 /**
+ * Proximity-to-failure weighting from a set's reps-in-reserve (RIR).
+ *
+ * Proximity to failure is the single strongest per-set driver of both growth
+ * stimulus and fatigue, so the two effects are modelled separately:
+ *
+ *  - {@link stimulusProximity} — growth stimulus / "effective reps". Reps far
+ *    from failure are mostly junk volume, so the credit plateaus near failure
+ *    (RIR 0–2 ≈ full) and falls off as more reps are left in reserve.
+ *  - {@link fatigueProximity} — fatigue, recovery demand and how hard a session
+ *    *felt*. Training to failure costs disproportionately more, so this runs
+ *    above 1 at failure and below 1 when sets stop well short.
+ *
+ * Both return 1 when RIR is absent: an untracked set is treated as a typical
+ * hard working set (≈1.5 RIR), so logs without RIR behave exactly as before.
+ */
+export function stimulusProximity(rir?: number): number {
+  if (rir === undefined) return 1;
+  // Flat until ~2 RIR (effective reps), then a linear decline to a 0.4 floor.
+  return clamp(1 - 0.11 * Math.max(0, rir - 2), 0.4, 1);
+}
+
+export function fatigueProximity(rir?: number): number {
+  if (rir === undefined) return 1;
+  // Centred so the untracked baseline (1.0) lands at ~1.5 RIR; failure costs more.
+  return clamp(1.15 - 0.1 * rir, 0.6, 1.2);
+}
+
+/**
  * Effort points contributed by a single logged set. The volume term is driven
  * by *effective* load (see {@link effectiveLoadKg}), so cable / leverage-machine
  * work — whose stack number overstates the real resistance — contributes less
@@ -54,7 +83,7 @@ export function setEffort(set: WorkSet, equipment?: Equipment): number {
   );
 }
 
-/** Accumulated effort points across every logged set in a session. */
+/** Accumulated effort points across every logged set in a session — work done. */
 export function sessionEffort(session: TrainingSession): number {
   let total = 0;
   for (const ex of session.exercises) {
@@ -64,21 +93,41 @@ export function sessionEffort(session: TrainingSession): number {
 }
 
 /**
+ * Session effort weighted by proximity to failure — the basis for the
+ * easy/hard reading. Sets pushed to failure read harder and sets stopped well
+ * short read easier; with no RIR logged this equals {@link sessionEffort}.
+ */
+function sessionEffortIntensity(session: TrainingSession): number {
+  let total = 0;
+  for (const ex of session.exercises) {
+    for (const s of ex.sets) total += setEffort(s, ex.equipment) * fatigueProximity(s.rir);
+  }
+  return total;
+}
+
+/** Median of a per-session measure across prior sessions (the active one excluded). */
+function medianSessionMeasure(
+  history: TrainingSession[],
+  excludeId: string | undefined,
+  measure: (session: TrainingSession) => number,
+): number {
+  const values = history
+    .filter((s) => s.id !== excludeId)
+    .map(measure)
+    .filter((v) => v > 0)
+    .sort((a, b) => a - b);
+  if (values.length === 0) return 0;
+  const mid = Math.floor(values.length / 2);
+  return values.length % 2 === 1 ? values[mid]! : (values[mid - 1]! + values[mid]!) / 2;
+}
+
+/**
  * Median effort of the user's prior sessions, used to calibrate the gauge.
  * The active session is excluded so it never anchors against itself. Returns 0
  * when there's no usable history.
  */
 export function typicalEffort(history: TrainingSession[], excludeId?: string): number {
-  const efforts = history
-    .filter((s) => s.id !== excludeId)
-    .map(sessionEffort)
-    .filter((e) => e > 0)
-    .sort((a, b) => a - b);
-  if (efforts.length === 0) return 0;
-  const mid = Math.floor(efforts.length / 2);
-  return efforts.length % 2 === 1
-    ? efforts[mid]!
-    : (efforts[mid - 1]! + efforts[mid]!) / 2;
+  return medianSessionMeasure(history, excludeId, sessionEffort);
 }
 
 export type EffortTier = "warmup" | "light" | "moderate" | "solid" | "hard" | "brutal";
@@ -95,29 +144,38 @@ const TIERS: ReadonlyArray<{ tier: EffortTier; label: string; min: number }> = [
 ];
 
 export interface EffortReading {
-  /** Raw accumulated effort points. */
+  /** Raw accumulated effort points (work done) — drives hydration, calories, protein. */
   points: number;
-  /** Gauge fill, current effort ÷ full-session target (can exceed 1). */
+  /** Gauge fill, current *intensity-weighted* effort ÷ target (can exceed 1). */
   ratio: number;
   tier: EffortTier;
   label: string;
-  /** Current effort as a % of the user's typical session, or null with no history. */
+  /** Intensity-weighted effort as a % of the user's typical session, or null with no history. */
   vsTypicalPct: number | null;
 }
 
-/** Read the current effort gauge for a session, calibrated against history. */
+/**
+ * Read the current effort gauge for a session, calibrated against history.
+ *
+ * The easy/hard *tier* and gauge fill run off proximity-to-failure-weighted
+ * effort (a hard, near-failure session reads higher than an easy one of equal
+ * tonnage), while {@link EffortReading.points} stays raw work so the downstream
+ * hydration / calorie / protein estimates track energy expended, not intensity.
+ * With no RIR logged the two coincide, so the gauge is unchanged for older logs.
+ */
 export function readEffort(session: TrainingSession, history: TrainingSession[]): EffortReading {
   const points = sessionEffort(session);
-  const typical = typicalEffort(history, session.id);
+  const intensity = sessionEffortIntensity(session);
+  const typical = medianSessionMeasure(history, session.id, sessionEffortIntensity);
   const target = typical > 0 ? typical : FULL_SESSION_EFFORT;
-  const ratio = points / target;
+  const ratio = intensity / target;
   const { tier, label } = TIERS.find((t) => ratio >= t.min) ?? TIERS[TIERS.length - 1]!;
   return {
     points,
     ratio,
     tier,
     label,
-    vsTypicalPct: typical > 0 ? Math.round((points / typical) * 100) : null,
+    vsTypicalPct: typical > 0 ? Math.round((intensity / typical) * 100) : null,
   };
 }
 

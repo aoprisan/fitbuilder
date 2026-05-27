@@ -989,6 +989,60 @@ textarea {
   color: var(--paper);
 }
 
+/* Reps-in-reserve chips when logging a set — reuse the toggle; five fit one row. */
+.rir-field {
+  margin-top: 8px;
+}
+
+.rir-toggle .toggle-btn {
+  flex: 1 1 20%;
+}
+
+.rir-hint {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--ink-soft);
+}
+
+/* Pre-training "muscle not recovered" caution on the live select screen. */
+.live-recovery-warn {
+  border-color: var(--mustard);
+}
+
+.live-recovery-warn[data-severity="high"] {
+  border-color: var(--signal);
+}
+
+.recovery-warn-head {
+  margin: 0 0 8px;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.recovery-warn-row + .recovery-warn-row {
+  margin-top: 2px;
+}
+
+.recovery-warn-muscle {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.recovery-warn-note {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
 /* ──────────────────── COMPOUND-LIFT MUSCLE SPLIT ──────────────────── */
 /* Live select screen, compound mode: how a lift's work splits across muscles. */
 
