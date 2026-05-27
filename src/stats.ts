@@ -1,8 +1,10 @@
+import { effectiveLoadKg, hypertrophyFactor, strengthFactor } from "./loadProfile";
 import { findMovement } from "./movements";
 import {
   EQUIPMENT_LABELS,
   MUSCLE_LABELS,
   type Equipment,
+  type LoggedExercise,
   type MuscleGroup,
   type TrainingSession,
   type WorkSet,
@@ -29,6 +31,23 @@ const HYPERTROPHY_MAX_REPS = 20;
 export function epley1RM(set: WorkSet): number {
   if (set.weightKg <= 0) return 0;
   return set.weightKg * (1 + set.reps / 30);
+}
+
+/** A lift counts as compound when it taxes secondary muscles. */
+function isCompound(ex: LoggedExercise): boolean {
+  return (ex.secondaryMuscles?.length ?? 0) > 0;
+}
+
+/**
+ * Equipment-aware strength proxy: an Epley estimate computed on *effective*
+ * load, then scaled by how well the load type and movement transfer to maximal
+ * strength. So a 70 kg cable reads as far less strength than a 70 kg bench, and
+ * a free-weight compound reads as more than an isolation machine.
+ */
+export function strengthScore(set: WorkSet, equipment: Equipment, compound: boolean): number {
+  const load = effectiveLoadKg(set.weightKg, equipment);
+  if (load <= 0) return 0;
+  return load * (1 + set.reps / 30) * strengthFactor(equipment, compound);
 }
 
 /**
@@ -114,7 +133,8 @@ export function bestOneRm(
     for (const ex of session.exercises) {
       if (filter !== "all" && exerciseKey(ex) !== filter) continue;
       if (ex.oneRmKg !== undefined) logged = Math.max(logged, ex.oneRmKg);
-      for (const s of ex.sets) estimated = Math.max(estimated, epley1RM(s));
+      const compound = isCompound(ex);
+      for (const s of ex.sets) estimated = Math.max(estimated, strengthScore(s, ex.equipment, compound));
     }
   }
   for (const [key, kg] of Object.entries(loggedMaxes)) {
@@ -122,15 +142,6 @@ export function bestOneRm(
     logged = Math.max(logged, kg);
   }
   return { logged: round2(logged), estimated: round2(estimated) };
-}
-
-function matchingSets(session: TrainingSession, filter: ProgressFilter): WorkSet[] {
-  const out: WorkSet[] = [];
-  for (const ex of session.exercises) {
-    if (filter !== "all" && exerciseKey(ex) !== filter) continue;
-    out.push(...ex.sets);
-  }
-  return out;
 }
 
 function shortDate(iso: string): string {
@@ -148,24 +159,32 @@ export function buildProgress(
   const points: ProgressPoint[] = [];
 
   for (const session of ordered) {
-    const sets = matchingSets(session, filter);
-    if (sets.length === 0) continue;
-
+    let setCount = 0;
     let reps = 0;
     let topWeight = 0;
     let volume = 0;
     let strength = 0;
     let hypertrophy = 0;
 
-    for (const s of sets) {
-      reps += s.reps;
-      topWeight = Math.max(topWeight, s.weightKg);
-      volume += s.reps * s.weightKg;
-      strength = Math.max(strength, epley1RM(s));
-      if (s.reps >= HYPERTROPHY_MIN_REPS && s.reps <= HYPERTROPHY_MAX_REPS) {
-        hypertrophy += s.reps * s.weightKg;
+    for (const ex of session.exercises) {
+      if (filter !== "all" && exerciseKey(ex) !== filter) continue;
+      const eq = ex.equipment;
+      const compound = isCompound(ex);
+      const growthFactor = hypertrophyFactor(eq);
+      for (const s of ex.sets) {
+        setCount += 1;
+        reps += s.reps;
+        topWeight = Math.max(topWeight, s.weightKg); // raw: the heaviest load actually handled
+        const eff = effectiveLoadKg(s.weightKg, eq);
+        volume += s.reps * eff;
+        strength = Math.max(strength, strengthScore(s, eq, compound));
+        if (s.reps >= HYPERTROPHY_MIN_REPS && s.reps <= HYPERTROPHY_MAX_REPS) {
+          hypertrophy += s.reps * eff * growthFactor;
+        }
       }
     }
+
+    if (setCount === 0) continue;
 
     points.push({
       date: session.startedAt,

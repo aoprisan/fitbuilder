@@ -1,9 +1,16 @@
 import { setEffort } from "./effort";
-import type { MuscleGroup, TrainingSession } from "./types";
+import { cnsFactor, muscleDemandFactor } from "./loadProfile";
+import { SECONDARY_MUSCLE_SHARE } from "./movements";
+import type { LoggedExercise, MuscleGroup, TrainingSession } from "./types";
 import { MUSCLE_GROUPS } from "./types";
 import { clamp } from "./util";
 
 const HOUR_MS = 3_600_000;
+
+/** A lift counts as compound when it taxes secondary muscles. */
+function isCompound(ex: LoggedExercise): boolean {
+  return (ex.secondaryMuscles?.length ?? 0) > 0;
+}
 
 /**
  * Hours after training a muscle group until it's treated as fully recovered.
@@ -33,20 +40,44 @@ export interface MuscleRecovery {
   hoursRemaining: number;
 }
 
+// The base RECOVERY_HOURS window assumes a typical hard bout for a muscle. The
+// most-recent bout's recovery demand stretches or shrinks it around that
+// reference: a light machine-isolation pump clears faster, a heavy free-weight
+// compound day needs longer. Bounded so the clock stays sensible either way.
+const RECOVERY_REF_DEMAND = 16;
+const RECOVERY_SCALE_MIN = 0.6;
+const RECOVERY_SCALE_MAX = 1.6;
+
+interface MuscleBout {
+  at: number;
+  iso: string;
+  /** Recovery demand of this most-recent bout (effort × equipment/compound × share). */
+  demand: number;
+}
+
 /**
  * Per-muscle recovery readiness derived from logged training history. A muscle
  * counts as trained when it is the primary OR a secondary muscle of an exercise
- * that has at least one logged set. Returned least-recovered first, so what still
- * needs rest leads; never-trained groups read as fully ready and sink to the end.
+ * that has at least one logged set. The recovery window is scaled by the demand
+ * of the muscle's most recent bout — heavier / compound / free-weight work needs
+ * longer than light supported isolation. Returned least-recovered first, so what
+ * still needs rest leads; never-trained groups read as fully ready and sink to
+ * the end.
  */
 export function muscleRecovery(
   sessions: readonly TrainingSession[],
   now: Date = new Date(),
 ): MuscleRecovery[] {
-  const lastTrained = new Map<MuscleGroup, { at: number; iso: string }>();
-  const mark = (muscle: MuscleGroup, at: number, iso: string): void => {
+  const lastTrained = new Map<MuscleGroup, MuscleBout>();
+  const mark = (muscle: MuscleGroup, at: number, iso: string, demand: number): void => {
     const prev = lastTrained.get(muscle);
-    if (prev === undefined || at > prev.at) lastTrained.set(muscle, { at, iso });
+    if (prev === undefined || at > prev.at) {
+      // A newer bout replaces the clock and resets accumulated demand.
+      lastTrained.set(muscle, { at, iso, demand });
+    } else if (at === prev.at) {
+      // Same bout, another set's worth of demand on this muscle.
+      prev.demand += demand;
+    }
   };
 
   for (const session of sessions) {
@@ -54,8 +85,14 @@ export function muscleRecovery(
     if (Number.isNaN(at)) continue;
     for (const ex of session.exercises) {
       if (ex.sets.length === 0) continue;
-      mark(ex.muscle, at, session.startedAt);
-      for (const sec of ex.secondaryMuscles ?? []) mark(sec, at, session.startedAt);
+      const compound = isCompound(ex);
+      const demandFactor = muscleDemandFactor(ex.equipment, compound);
+      for (const s of ex.sets) {
+        const demand = setEffort(s, ex.equipment) * demandFactor;
+        mark(ex.muscle, at, session.startedAt, demand);
+        for (const sec of ex.secondaryMuscles ?? [])
+          mark(sec, at, session.startedAt, demand * SECONDARY_MUSCLE_SHARE);
+      }
     }
   }
 
@@ -65,7 +102,12 @@ export function muscleRecovery(
     if (entry === undefined) {
       return { muscle, lastTrainedAt: null, recovered: 1, hoursRemaining: 0 };
     }
-    const window = RECOVERY_HOURS[muscle];
+    const scale = clamp(
+      entry.demand / RECOVERY_REF_DEMAND,
+      RECOVERY_SCALE_MIN,
+      RECOVERY_SCALE_MAX,
+    );
+    const window = RECOVERY_HOURS[muscle] * scale;
     const hoursSince = (nowMs - entry.at) / HOUR_MS;
     return {
       muscle,
@@ -142,11 +184,19 @@ function repsIntensity(reps: number): number {
   return 0.6; // high-rep / endurance
 }
 
-/** Intensity-weighted CNS load of one session. */
+/**
+ * Intensity-weighted CNS load of one session. On top of the rep-range weighting,
+ * each set is scaled by its equipment/compound CNS factor: a heavy free-weight
+ * compound taxes the nervous system far more than guided machine isolation at the
+ * same effort. This layers on the effective-load discount already baked into
+ * {@link setEffort} — fidelity captures lighter resistance, this captures lower
+ * neural cost per unit of it.
+ */
 function sessionCnsLoad(session: TrainingSession): number {
   let load = 0;
   for (const ex of session.exercises) {
-    for (const s of ex.sets) load += setEffort(s, ex.equipment) * repsIntensity(s.reps);
+    const factor = cnsFactor(ex.equipment, isCompound(ex));
+    for (const s of ex.sets) load += setEffort(s, ex.equipment) * repsIntensity(s.reps) * factor;
   }
   return load;
 }
