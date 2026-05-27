@@ -146,7 +146,7 @@ function repsIntensity(reps: number): number {
 function sessionCnsLoad(session: TrainingSession): number {
   let load = 0;
   for (const ex of session.exercises) {
-    for (const s of ex.sets) load += setEffort(s) * repsIntensity(s.reps);
+    for (const s of ex.sets) load += setEffort(s, ex.equipment) * repsIntensity(s.reps);
   }
   return load;
 }

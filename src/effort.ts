@@ -1,5 +1,5 @@
 import { SECONDARY_MUSCLE_SHARE } from "./movements";
-import type { MuscleGroup, TrainingSession, WorkSet } from "./types";
+import type { Equipment, MuscleGroup, TrainingSession, WorkSet } from "./types";
 
 /**
  * Live-session effort and hydration heuristics.
@@ -29,28 +29,45 @@ const SECONDS_PER_POINT = 120; // 2 min under tension ≈ 1 point
 // calibrate against (a first session). ~12–16 solid sets land near here.
 const FULL_SESSION_EFFORT = 45;
 
+// Load types whose stack number overstates how hard the work actually is —
+// cable stacks and assisted isolation machines where a high plate count isn't
+// "heavy" the way a free-weight lift is. Their sets contribute effort at a
+// reduced weight so a light cable/core day doesn't read like a full session.
+const EFFORT_EQUIPMENT_WEIGHT: Partial<Record<Equipment, number>> = {
+  cable: 0.5,
+  "lateral-abs-machine": 0.5,
+};
+
+function equipmentEffortWeight(equipment: Equipment | undefined): number {
+  return equipment ? EFFORT_EQUIPMENT_WEIGHT[equipment] ?? 1 : 1;
+}
+
 // Recommended fluid (ml) per effort point — tuned so a full session (~45 pts)
 // suggests ≈ 0.8 L, a brutal one north of a litre.
 const ML_PER_EFFORT_POINT = 18;
 const ML_PER_GLASS = 250;
 
-/** Effort points contributed by a single logged set. */
-export function setEffort(set: WorkSet): number {
+/**
+ * Effort points contributed by a single logged set. Cable / assisted-machine
+ * work, whose stack number overstates real effort, is discounted via its
+ * equipment weight (see EFFORT_EQUIPMENT_WEIGHT).
+ */
+export function setEffort(set: WorkSet, equipment?: Equipment): number {
   const volume = set.reps * Math.max(0, set.weightKg);
   const duration = set.durationSec ?? 0;
-  return (
+  const points =
     1 +
     set.reps / REPS_PER_POINT +
     volume / VOLUME_PER_POINT +
-    duration / SECONDS_PER_POINT
-  );
+    duration / SECONDS_PER_POINT;
+  return points * equipmentEffortWeight(equipment);
 }
 
 /** Accumulated effort points across every logged set in a session. */
 export function sessionEffort(session: TrainingSession): number {
   let total = 0;
   for (const ex of session.exercises) {
-    for (const s of ex.sets) total += setEffort(s);
+    for (const s of ex.sets) total += setEffort(s, ex.equipment);
   }
   return total;
 }
@@ -138,13 +155,18 @@ export interface MuscleWork {
 /** Per-muscle work across the given sessions, busiest first (by volume, then time). */
 function accumulateMuscleWork(sessions: Iterable<TrainingSession>): MuscleWork[] {
   const byMuscle = new Map<MuscleGroup, MuscleWork>();
-  const credit = (muscle: MuscleGroup, set: WorkSet, share: number): void => {
+  const credit = (
+    muscle: MuscleGroup,
+    set: WorkSet,
+    share: number,
+    equipment: Equipment,
+  ): void => {
     const entry =
       byMuscle.get(muscle) ?? { muscle, volume: 0, timeSec: 0, sets: 0, effort: 0 };
     entry.volume += set.reps * Math.max(0, set.weightKg) * share;
     entry.timeSec += (set.durationSec ?? 0) * share;
     entry.sets += 1;
-    entry.effort += setEffort(set) * share;
+    entry.effort += setEffort(set, equipment) * share;
     byMuscle.set(muscle, entry);
   };
   for (const session of sessions) {
@@ -152,8 +174,9 @@ function accumulateMuscleWork(sessions: Iterable<TrainingSession>): MuscleWork[]
       for (const s of ex.sets) {
         // Primary muscle takes full credit; a compound lift's secondary muscles
         // each take a fixed share so they register as worked in the breakdown.
-        credit(ex.muscle, s, 1);
-        for (const sec of ex.secondaryMuscles ?? []) credit(sec, s, SECONDARY_MUSCLE_SHARE);
+        credit(ex.muscle, s, 1, ex.equipment);
+        for (const sec of ex.secondaryMuscles ?? [])
+          credit(sec, s, SECONDARY_MUSCLE_SHARE, ex.equipment);
       }
     }
   }
