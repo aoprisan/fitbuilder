@@ -8,6 +8,7 @@ import type { Cleanup, Nav, ViewName } from "./router";
 import { importRoutineFromUrl, urlWithoutRoutine } from "./shareRoutine";
 import { saveSheet } from "./sheetStorage";
 import { setActiveLog, setEditingSheet, setExecuting, setSheetFlash, state } from "./state";
+import { type AppMode, loadMode, saveMode } from "./mode";
 import { cloneSheet } from "./util";
 import { mountClaudeStart } from "./views/claudeStart";
 import { mountExecute } from "./views/execute";
@@ -16,6 +17,7 @@ import { mountLive } from "./views/live";
 import { mountRecovery } from "./views/recovery";
 import { mountSheet } from "./views/sheet";
 import { mountStats } from "./views/stats";
+import { mountTrain } from "./views/train";
 import { mountWeekly } from "./views/weekly";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -39,30 +41,72 @@ function navIcon(...paths: string[]): SVGElement {
   return svg;
 }
 
-const NAV_ITEMS: ReadonlyArray<{ name: ViewName; label: string; icon: () => SVGElement }> = [
-  { name: "home", label: "Home", icon: () => navIcon("M3 10.5 12 3l9 7.5M5.5 9.5V20h13V9.5M9.5 20v-6h5v6") },
-  {
-    name: "live",
-    label: "Live",
-    icon: () => navIcon("M3 12h3.5l2.5-7 4 14 2.5-7H21"),
-  },
-  { name: "sheet", label: "Routines", icon: () => navIcon("M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01") },
-  { name: "execute", label: "Execute", icon: () => navIcon("M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0zM8.5 12l2.5 2.5 5-5") },
-];
+interface NavItem {
+  name: ViewName;
+  label: string;
+  icon: () => SVGElement;
+}
+
+const NAV_HOME: NavItem = {
+  name: "home",
+  label: "Home",
+  icon: () => navIcon("M3 10.5 12 3l9 7.5M5.5 9.5V20h13V9.5M9.5 20v-6h5v6"),
+};
+const NAV_TRAIN: NavItem = {
+  name: "train",
+  label: "Train",
+  icon: () => navIcon("M2 10v4", "M5 7v10", "M19 7v10", "M22 10v4", "M5 12h14"),
+};
+const NAV_ROUTINES: NavItem = {
+  name: "sheet",
+  label: "Routines",
+  icon: () => navIcon("M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"),
+};
+const NAV_STATS: NavItem = {
+  name: "stats",
+  label: "Stats",
+  icon: () => navIcon("M4 20h16", "M7 20v-6", "M12 20V8", "M17 20v-9"),
+};
+const NAV_RECOVERY: NavItem = {
+  name: "recovery",
+  label: "Recovery",
+  icon: () =>
+    navIcon("M12 20s-6.5-4.2-6.5-8.5A3.5 3.5 0 0 1 12 8a3.5 3.5 0 0 1 6.5 3.5C18.5 15.8 12 20 12 20z"),
+};
+
+// Hard gate: each mode exposes only its audience's tabs. Student = the training
+// surfaces; Trainer = routine authoring + sharing (the share flow lives inside
+// Routines). Other views (live/execute/weekly/claudeStart) are reached via
+// nav.go from inside these and map back onto a visible tab for highlighting.
+const NAV_BY_MODE: Record<AppMode, ReadonlyArray<NavItem>> = {
+  student: [NAV_HOME, NAV_TRAIN, NAV_STATS, NAV_RECOVERY],
+  trainer: [NAV_HOME, NAV_ROUTINES],
+};
+
+/** Which visible tab a given view belongs under (for active-state highlighting). */
+function tabForView(view: ViewName): ViewName {
+  if (view === "live" || view === "execute") return "train";
+  if (view === "weekly") return "stats";
+  if (view === "claudeStart") return "home";
+  return view;
+}
 
 /**
  * If the app was opened from a routine share link (`#routine=<base64url>`),
- * import the routine into the library, open it for editing, and strip the token
- * from the URL so a refresh won't re-import. Returns the view to land on, or
- * null when there's no link (boot then falls back to home). Phase 2 (Capacitor)
- * will call importRoutineFromUrl the same way from an appUrlOpen listener.
+ * import the routine into the library, strip the token from the URL so a
+ * refresh won't re-import, and return the view to land on (or null when there's
+ * no link). A trainer lands on the authoring view to edit/save it; a student
+ * lands on Train, where the freshly imported routine is ready to run. Phase 2
+ * (Capacitor) will call importRoutineFromUrl the same way from an appUrlOpen
+ * listener.
  */
-function consumeSharedRoutine(): ViewName | null {
+function consumeSharedRoutine(mode: AppMode): ViewName | null {
   let sheet;
   try {
     sheet = importRoutineFromUrl(window.location.href);
   } catch (err) {
-    // A token was present but unreadable — clear it and report on the Routines view.
+    // A token was present but unreadable — clear it and report on the Routines
+    // view (the only flash surface; rare enough to accept in either mode).
     history.replaceState(null, "", urlWithoutRoutine(window.location.href));
     setSheetFlash(err instanceof Error ? err.message : "Couldn't open that routine link.", "err");
     return "sheet";
@@ -72,8 +116,12 @@ function consumeSharedRoutine(): ViewName | null {
   history.replaceState(null, "", urlWithoutRoutine(window.location.href));
   const stored = saveSheet(sheet);
   setEditingSheet(cloneSheet(stored));
-  setSheetFlash(`Imported "${stored.name}" from a shared link. Edit or save it here.`, "ok");
-  return "sheet";
+  if (mode === "trainer") {
+    setSheetFlash(`Imported "${stored.name}" from a shared link. Edit or save it here.`, "ok");
+    return "sheet";
+  }
+  // Student: it's now in the library — land on Train to run it.
+  return "train";
 }
 
 function boot(): void {
@@ -82,6 +130,7 @@ function boot(): void {
 
   let cleanup: Cleanup | null = null;
   let currentView: ViewName = "home";
+  let mode: AppMode = loadMode();
 
   const viewHost = h("main", { class: "view-host", id: "view" });
 
@@ -118,17 +167,16 @@ function boot(): void {
       cleanup = null;
     }
     currentView = view;
-    for (const [name, btn] of navButtons) {
-      const active = name === currentView;
-      btn.classList.toggle("active", active);
-      btn.setAttribute("aria-current", active ? "page" : "false");
-    }
+    highlightNav();
 
     clear(viewHost);
     let result: Cleanup | void;
     switch (view) {
       case "home":
         result = mountHome(viewHost, nav);
+        break;
+      case "train":
+        result = mountTrain(viewHost, nav);
         break;
       case "sheet":
         result = mountSheet(viewHost, nav);
@@ -156,20 +204,63 @@ function boot(): void {
     window.scrollTo(0, 0);
   }
 
-  const navRow = h(
-    "nav",
-    { class: "nav", aria: { label: "Primary" } },
-    NAV_ITEMS.map((item) => {
+  // Empty nav shell; renderNav() fills it with the current mode's tabs.
+  const navRow = h("nav", { class: "nav", aria: { label: "Primary" } });
+
+  function highlightNav(): void {
+    const tab = tabForView(currentView);
+    for (const [name, btn] of navButtons) {
+      const active = name === tab;
+      btn.classList.toggle("active", active);
+      btn.setAttribute("aria-current", active ? "page" : "false");
+    }
+  }
+
+  function renderNav(): void {
+    clear(navRow);
+    navButtons.clear();
+    for (const item of NAV_BY_MODE[mode]) {
       const btn = h("button", { class: "nav-btn", type: "button", aria: { label: item.label } }, [
         item.icon(),
         h("span", { class: "nav-label", text: item.label }),
       ]);
-      btn.addEventListener("click", () => {
-        // The Execute tab runs the current working sheet as a snapshot.
-        if (item.name === "execute") nav.runSheet(cloneSheet(state.editingSheet));
-        else nav.go(item.name);
-      });
+      btn.addEventListener("click", () => nav.go(item.name));
       navButtons.set(item.name, btn);
+      navRow.appendChild(btn);
+    }
+    highlightNav();
+  }
+
+  // Mode toggle (Student / Trainer): a hard gate that swaps the whole surface.
+  const modeButtons = new Map<AppMode, HTMLButtonElement>();
+  function highlightMode(): void {
+    for (const [m, btn] of modeButtons) {
+      const active = m === mode;
+      btn.classList.toggle("active", active);
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+    }
+  }
+  function setMode(next: AppMode): void {
+    if (next === mode) return;
+    mode = next;
+    saveMode(next);
+    highlightMode();
+    renderNav();
+    navigate(next === "trainer" ? "sheet" : "train");
+  }
+  const modeToggle = h(
+    "div",
+    { class: "mode-toggle", role: "group", aria: { label: "App mode" } },
+    (["student", "trainer"] as const).map((m) => {
+      const label = m === "student" ? "Student" : "Trainer";
+      const btn = h("button", {
+        class: "mode-toggle-btn",
+        type: "button",
+        text: label,
+        aria: { label: `${label} mode` },
+      });
+      btn.addEventListener("click", () => setMode(m));
+      modeButtons.set(m, btn);
       return btn;
     }),
   );
@@ -182,11 +273,14 @@ function boot(): void {
       aria: { label: "Gym Log home" },
       on: { click: () => nav.go("home") },
     }),
+    modeToggle,
     navRow,
   ]);
 
   app.append(header, viewHost);
-  navigate(consumeSharedRoutine() ?? "home");
+  highlightMode();
+  renderNav();
+  navigate(consumeSharedRoutine(mode) ?? (mode === "trainer" ? "sheet" : "home"));
 }
 
 registerServiceWorker();

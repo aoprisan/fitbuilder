@@ -1,5 +1,5 @@
 import { findMovement, matchMovementByName, type Movement, movementsForMuscle } from "./movements";
-import type { Equipment, MuscleGroup, RoutineSheet, WorkSet } from "./types";
+import type { Equipment, MuscleGroup, RoutineSheet, SetTarget, WorkSet } from "./types";
 
 /** One runnable line in an execute run — a single exercise within a routine. */
 export interface RunItem {
@@ -13,11 +13,18 @@ export interface RunItem {
   /** Free-text prescription, e.g. "30-50 repetari". */
   prescription: string;
   /**
-   * Total rep volume to fulfil, parsed from the prescription, or null when the
-   * work is timed / hold / round-based and has no countable rep target (those
-   * rows are completed by a manual "done" tap instead).
+   * Total rep volume to fulfil, parsed from the prescription (or summed from
+   * `setTargets` when structured), or null when the work is timed / hold /
+   * round-based and has no countable rep target (those rows are completed by a
+   * manual "done" tap instead).
    */
   targetReps: number | null;
+  /**
+   * Structured per-set targets carried from the routine exercise. When present
+   * the row is driven set-by-set against these (reps + optional load), and
+   * `isDone` / `fraction` count *sets* rather than total reps.
+   */
+  setTargets?: SetTarget[];
 }
 
 /** Read a trailing "x N" multiplier (e.g. " x 5", " x3"); defaults to 1. */
@@ -82,13 +89,26 @@ export function flattenSheet(sheet: RoutineSheet): RunItem[] {
   sheet.routines.forEach((routine, routineIndex) => {
     routine.exercises.forEach((ex, exerciseIndex) => {
       if (ex.name.trim() === "" && ex.prescription.trim() === "") return;
+      const structured = ex.setTargets && ex.setTargets.length > 0 ? ex.setTargets : undefined;
       items.push({
         routineIndex,
         routineTitle: routine.title,
         exerciseIndex,
         name: ex.name,
         prescription: ex.prescription,
-        targetReps: parseTargetReps(ex.prescription),
+        // Structured rows derive a rep total from their sets so the grand-total
+        // tallies still read; otherwise fall back to parsing the free text.
+        targetReps: structured
+          ? structured.reduce((a, t) => a + t.reps, 0)
+          : parseTargetReps(ex.prescription),
+        ...(structured
+          ? {
+              setTargets: structured.map((t) => ({
+                reps: t.reps,
+                ...(t.loadKg !== undefined ? { loadKg: t.loadKg } : {}),
+              })),
+            }
+          : {}),
       });
     });
   });
@@ -203,14 +223,39 @@ export class ExecuteController {
     return Math.max(0, t - this.loggedReps(index));
   }
 
+  /** Structured per-set targets for a row, or null when it's free-text/manual. */
+  private targetsFor(index: number): readonly SetTarget[] | null {
+    const t = this.items[index]?.setTargets;
+    return t && t.length > 0 ? t : null;
+  }
+
+  /** Number of prescribed sets for a structured row (0 when not structured). */
+  targetSetCount(index: number): number {
+    return this.targetsFor(index)?.length ?? 0;
+  }
+
+  /**
+   * The target for the next set to log on a structured row — `setTargets[k]`
+   * where k = sets logged so far. Null when not structured or all sets are in.
+   */
+  currentSetTarget(index: number): SetTarget | null {
+    const targets = this.targetsFor(index);
+    if (!targets) return null;
+    return targets[this.logged[index]?.length ?? 0] ?? null;
+  }
+
   /** Completion fraction in [0,1] for an item's progress bar. */
   fraction(index: number): number {
+    const targets = this.targetsFor(index);
+    if (targets) return Math.min(1, (this.logged[index]?.length ?? 0) / targets.length);
     const t = this.items[index]?.targetReps;
     if (t == null || t <= 0) return this.isDone(index) ? 1 : 0;
     return Math.min(1, this.loggedReps(index) / t);
   }
 
   isDone(index: number): boolean {
+    const targets = this.targetsFor(index);
+    if (targets) return (this.logged[index]?.length ?? 0) >= targets.length;
     const t = this.items[index]?.targetReps;
     if (t == null || t <= 0) return (this.logged[index]?.length ?? 0) > 0;
     return this.loggedReps(index) >= t;

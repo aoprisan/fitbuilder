@@ -1,6 +1,7 @@
 import { clear, h } from "../dom";
 import { loadProgress } from "../liveProgress";
 import { getSession, loadSessions } from "../logStorage";
+import { loadMode } from "../mode";
 import { allMovements } from "../movements";
 import { clearOneRm, loadOneRmMaxes, setOneRm } from "../oneRmStore";
 import { forceAppUpdate } from "../pwa";
@@ -263,15 +264,12 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
     h("p", { class: "build-stamp", text: `Build ${formatSessionDate(__BUILD_TIME__)}` }),
   ]);
 
-  root.appendChild(
-    h("div", { class: "view view-home" }, [
-      hero,
-      trainingLane,
-      renderRecoveryCard(),
-      claudeStartCard,
-      routinesLane,
-      renderOneRmCard(),
-      updateCard,
-    ]),
-  );
+  // Hard gate: Home shows only the active mode's lane. Student = train/track,
+  // recovery, personal records; Trainer = authoring (Claude draft + Routines).
+  const cards =
+    loadMode() === "trainer"
+      ? [hero, claudeStartCard, routinesLane, updateCard]
+      : [hero, trainingLane, renderRecoveryCard(), renderOneRmCard(), updateCard];
+
+  root.appendChild(h("div", { class: "view view-home" }, cards));
 }

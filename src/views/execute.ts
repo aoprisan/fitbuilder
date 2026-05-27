@@ -76,6 +76,10 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
   let auxStep = 2.5;
   // Last focused row — switching rows resets the per-set optional inputs.
   let lastSelected = -1;
+  // For structured rows: "row:setsLogged" of the last prefill, so each new set
+  // re-seeds the rep/weight inputs from its target (without clobbering edits
+  // mid-set). Empty until the first structured row is focused.
+  let lastPrefillKey = "";
   // Id of the session this run was saved into, so re-saving updates it in place.
   let savedSessionId: string | null = null;
 
@@ -242,12 +246,15 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
 
       const done = ctl.isDone(i);
       const target = ctl.targetReps(i);
+      const setCount = ctl.targetSetCount(i);
       const status =
-        target == null
-          ? done
-            ? "done"
-            : "—"
-          : `${ctl.loggedReps(i)}/${target}`;
+        setCount > 0
+          ? `${ctl.workSets(i).length}/${setCount}`
+          : target == null
+            ? done
+              ? "done"
+              : "—"
+            : `${ctl.loggedReps(i)}/${target}`;
 
       const miniFill = h("div", { class: "exec-mini-fill" });
       miniFill.style.width = `${Math.round(ctl.fraction(i) * 100)}%`;
@@ -451,6 +458,7 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
         showOptional = false;
         auxInput.value = "0";
         lastSelected = -1;
+        lastPrefillKey = "";
         update();
       },
     },
@@ -499,8 +507,27 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
     const i = ctl.selectedIndex();
     const item = exTotal > 0 ? ctl.items[i] : undefined;
     if (item && !allDone) {
-      // Switching rows clears the per-set optional inputs (weight/hold + RIR).
-      if (i !== lastSelected) {
+      const setCount = ctl.targetSetCount(i);
+      const structured = setCount > 0;
+      const loggedSets = ctl.workSets(i).length;
+
+      if (structured) {
+        // Re-seed reps/weight from each set's target as it comes up — but only
+        // when the row or the set index changes, so mid-set edits are kept.
+        const key = `${i}:${loggedSets}`;
+        if (key !== lastPrefillKey) {
+          lastPrefillKey = key;
+          const cur = ctl.currentSetTarget(i);
+          if (cur) {
+            repInput.value = String(cur.reps);
+            auxInput.value = cur.loadKg !== undefined ? String(cur.loadKg) : "0";
+            if (cur.loadKg !== undefined) showOptional = true; // surface the weight field
+          }
+          pendingRir = null;
+        }
+        lastSelected = i;
+      } else if (i !== lastSelected) {
+        // Switching rows clears the per-set optional inputs (weight/hold + RIR).
         lastSelected = i;
         auxInput.value = "0";
         pendingRir = null;
@@ -509,10 +536,24 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
       const target = item.targetReps;
       setText(eyebrow, item.routineTitle || "Current exercise");
       setText(nameEl, item.name || "Untitled exercise");
-      setText(stepEl, `EXERCISE ${i + 1} OF ${exTotal}`);
-      setText(presEl, item.prescription || "—");
-
       renderIdentity();
+
+      // Step + target lines: structured rows show the current set's target.
+      if (structured) {
+        const cur = ctl.currentSetTarget(i);
+        setText(stepEl, `EXERCISE ${i + 1} OF ${exTotal} · SET ${Math.min(loggedSets + 1, setCount)}/${setCount}`);
+        setText(
+          presEl,
+          cur
+            ? cur.loadKg !== undefined
+              ? `Target · ${cur.reps} reps @ ${cur.loadKg} kg`
+              : `Target · ${cur.reps} reps`
+            : "All sets logged",
+        );
+      } else {
+        setText(stepEl, `EXERCISE ${i + 1} OF ${exTotal}`);
+        setText(presEl, item.prescription || "—");
+      }
 
       const repItem = target != null && target > 0;
       // Rep logger vs. manual done toggle, depending on the prescription.
@@ -528,14 +569,25 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
         setText(tallyTarget, String(target));
         nowFill.style.width = `${Math.round(ctl.fraction(i) * 100)}%`;
         const sets = ctl.setReps(i);
-        const remaining = ctl.remainingReps(i);
-        setText(
-          setsEl,
-          sets.length === 0
-            ? "No sets yet — log your first set."
-            : `${sets.length} ${sets.length === 1 ? "set" : "sets"}: ${sets.join(" · ")}` +
-                (remaining > 0 ? ` — ${remaining} to go` : " — done"),
-        );
+        if (structured) {
+          const remainingSets = Math.max(0, setCount - sets.length);
+          setText(
+            setsEl,
+            sets.length === 0
+              ? "No sets yet — log your first set."
+              : `${sets.length}/${setCount} sets: ${sets.join(" · ")}` +
+                  (remainingSets > 0 ? ` — ${remainingSets} to go` : " — done"),
+          );
+        } else {
+          const remaining = ctl.remainingReps(i);
+          setText(
+            setsEl,
+            sets.length === 0
+              ? "No sets yet — log your first set."
+              : `${sets.length} ${sets.length === 1 ? "set" : "sets"}: ${sets.join(" · ")}` +
+                  (remaining > 0 ? ` — ${remaining} to go` : " — done"),
+          );
+        }
       } else {
         manualBtn.textContent = ctl.isDone(i) ? "Mark not done" : "Mark done";
       }

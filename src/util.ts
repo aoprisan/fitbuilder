@@ -10,6 +10,7 @@ import {
   type LoggedExercise,
   type RoutineSheet,
   type SessionArchive,
+  type SetTarget,
   type TrainingSession,
 } from "./types";
 
@@ -45,10 +46,45 @@ export function cloneSheet(sheet: RoutineSheet): RoutineSheet {
     routines: sheet.routines.map((r) => ({
       title: r.title,
       tags: [...r.tags],
-      exercises: r.exercises.map((e) => ({ name: e.name, prescription: e.prescription })),
+      exercises: r.exercises.map((e) => ({
+        name: e.name,
+        prescription: e.prescription,
+        ...(e.setTargets
+          ? {
+              setTargets: e.setTargets.map((t) => ({
+                reps: t.reps,
+                ...(t.loadKg !== undefined ? { loadKg: t.loadKg } : {}),
+              })),
+            }
+          : {}),
+      })),
     })),
     ...(sheet.updatedAt !== undefined ? { updatedAt: sheet.updatedAt } : {}),
   };
+}
+
+/**
+ * Render structured per-set targets as a compact human string for authoring
+ * previews and shared exports. Uniform schemes collapse to "3×10 @ 20kg";
+ * varying reps/loads list out as "12, 10, 8 @ 60/70/80kg". Bodyweight sets
+ * (no `loadKg`) omit the load. Returns "" for an empty list.
+ */
+export function formatSetTargets(targets: readonly SetTarget[]): string {
+  if (targets.length === 0) return "";
+
+  const reps = targets.map((t) => t.reps);
+  const loads = targets.map((t) => t.loadKg);
+  const uniformReps = reps.every((r) => r === reps[0]);
+  const hasLoad = loads.some((l) => l !== undefined);
+  const uniformLoad = loads.every((l) => l === loads[0]);
+
+  const repPart = uniformReps ? `${targets.length}×${reps[0]}` : reps.join(", ");
+
+  if (!hasLoad) return repPart;
+
+  const loadStr = (l: number | undefined): string => (l !== undefined ? String(l) : "—");
+  const loadPart = uniformLoad ? loadStr(loads[0]) : loads.map(loadStr).join("/");
+  return `${repPart} @ ${loadPart}kg`;
 }
 
 /** Pretty-print a routine sheet as interop JSON. */

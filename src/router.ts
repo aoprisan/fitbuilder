@@ -2,6 +2,7 @@ import type { RoutineSheet } from "./types";
 
 export type ViewName =
   | "home"
+  | "train"
   | "sheet"
   | "execute"
   | "live"

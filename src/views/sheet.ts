@@ -8,7 +8,7 @@ import { blankRoutine, blankRoutineExercise, blankSheet, singleRoutineSheet } fr
 import { deleteSheet, loadSheets, saveSheet } from "../sheetStorage";
 import { setSheetFlash, state, takeSheetFlash } from "../state";
 import { loadTrainer, saveTrainer } from "../trainer";
-import type { Routine, RoutineExercise, RoutineSheet } from "../types";
+import type { Routine, RoutineExercise, RoutineSheet, SetTarget } from "../types";
 import { cloneSheet, sheetToJson, slug } from "../util";
 
 type StatusKind = "ok" | "err" | "info";
@@ -75,8 +75,149 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
   const exerciseCount = (): number =>
     sheet.routines.reduce((sum, r) => sum + r.exercises.length, 0);
 
+  // ---- Per-set structured target editor -------------------------------------
+  // Optional: a trainer can prescribe sets/reps/load (e.g. "deadlift 3×10 @ 20kg",
+  // or a ramp "12,10,8 @ 60/70/80"). When present these drive the Execute runner;
+  // when absent the row stays pure free-text. Structure changes re-render; typing
+  // into a set's reps/kg mutates in place so focus is kept.
+  const numInput = (value: string, placeholder: string, label: string): HTMLInputElement =>
+    h("input", {
+      class: "rex-set-input",
+      type: "number",
+      inputmode: "decimal",
+      min: "0",
+      step: "1",
+      value,
+      placeholder,
+      aria: { label },
+    });
+
+  const renderStructured = (ex: RoutineExercise, exIndex: number): HTMLElement => {
+    const targets = ex.setTargets;
+
+    if (!targets || targets.length === 0) {
+      return h("div", { class: "rex-structured" }, [
+        h("button", {
+          class: "btn btn-small rex-sets-add",
+          type: "button",
+          text: "+ Sets · reps · load",
+          aria: { label: `add structured sets to exercise ${exIndex + 1}` },
+          on: {
+            click: () => {
+              ex.setTargets = [{ reps: 10 }];
+              renderRoutines();
+            },
+          },
+        }),
+      ]);
+    }
+
+    // Quick-fill: materialize N identical sets, which can then be tweaked per row.
+    const qfSets = numInput("", "sets", `quick-fill set count for exercise ${exIndex + 1}`);
+    const qfReps = numInput("", "reps", `quick-fill reps for exercise ${exIndex + 1}`);
+    const qfLoad = numInput("", "kg", `quick-fill load for exercise ${exIndex + 1}`);
+    qfSets.step = "1";
+    qfLoad.step = "2.5";
+    const applyQuickFill = (): void => {
+      const sets = Math.floor(parseFloat(qfSets.value));
+      const reps = Math.floor(parseFloat(qfReps.value));
+      const load = parseFloat(qfLoad.value);
+      if (!Number.isFinite(sets) || sets < 1 || !Number.isFinite(reps) || reps < 1) return;
+      const target: SetTarget = {
+        reps,
+        ...(Number.isFinite(load) && load > 0 ? { loadKg: load } : {}),
+      };
+      ex.setTargets = Array.from({ length: sets }, () => ({ ...target }));
+      renderRoutines();
+    };
+
+    const setRow = (t: SetTarget, i: number): HTMLElement => {
+      const reps = numInput(String(t.reps), "reps", `set ${i + 1} reps`);
+      reps.step = "1";
+      reps.addEventListener("input", () => {
+        const n = Math.floor(parseFloat(reps.value));
+        if (Number.isFinite(n) && n > 0) t.reps = n;
+      });
+      const load = numInput(t.loadKg !== undefined ? String(t.loadKg) : "", "BW", `set ${i + 1} load kg`);
+      load.step = "2.5";
+      load.addEventListener("input", () => {
+        const n = parseFloat(load.value);
+        if (Number.isFinite(n) && n > 0) t.loadKg = n;
+        else delete t.loadKg;
+      });
+      return h("div", { class: "rex-set-row" }, [
+        h("span", { class: "rex-set-no", text: `${i + 1}` }),
+        reps,
+        h("span", { class: "rex-set-x", text: "reps" }),
+        load,
+        h("span", { class: "rex-set-x", text: "kg" }),
+        h("button", {
+          class: "icon-btn danger rex-set-remove",
+          type: "button",
+          text: "✕",
+          aria: { label: `remove set ${i + 1}` },
+          on: {
+            click: () => {
+              targets.splice(i, 1);
+              if (targets.length === 0) delete ex.setTargets;
+              renderRoutines();
+            },
+          },
+        }),
+      ]);
+    };
+
+    return h("div", { class: "rex-structured" }, [
+      h("div", { class: "rex-sets-head" }, [
+        h("span", { class: "rex-sets-title", text: "Per-set targets" }),
+        h("button", {
+          class: "btn btn-tiny rex-sets-clear",
+          type: "button",
+          text: "Use free text",
+          aria: { label: `remove structured sets from exercise ${exIndex + 1}` },
+          on: {
+            click: () => {
+              delete ex.setTargets;
+              renderRoutines();
+            },
+          },
+        }),
+      ]),
+      h("div", { class: "rex-quickfill" }, [
+        qfSets,
+        h("span", { class: "rex-set-x", text: "×" }),
+        qfReps,
+        h("span", { class: "rex-set-x", text: "@" }),
+        qfLoad,
+        h("button", {
+          class: "btn btn-tiny",
+          type: "button",
+          text: "Fill",
+          aria: { label: `apply quick-fill to exercise ${exIndex + 1}` },
+          on: { click: applyQuickFill },
+        }),
+      ]),
+      h("div", { class: "rex-set-list" }, targets.map((t, i) => setRow(t, i))),
+      h("button", {
+        class: "btn btn-tiny rex-sets-add",
+        type: "button",
+        text: "+ set",
+        aria: { label: `add a set to exercise ${exIndex + 1}` },
+        on: {
+          click: () => {
+            const last = targets[targets.length - 1];
+            targets.push(last ? { ...last } : { reps: 10 });
+            renderRoutines();
+          },
+        },
+      }),
+    ]);
+  };
+
   // ---- Exercise row ---------------------------------------------------------
   const renderExerciseRow = (routine: Routine, ex: RoutineExercise, exIndex: number): HTMLElement => {
+    const structured = !!(ex.setTargets && ex.setTargets.length > 0);
+
     const nameInput = h("input", {
       class: "rex-name",
       type: "text",
@@ -92,14 +233,14 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
       class: "rex-pres",
       type: "text",
       value: ex.prescription,
-      placeholder: "e.g. 30-50 repetari",
+      placeholder: structured ? "Optional note" : "e.g. 30-50 repetari",
       aria: { label: `exercise ${exIndex + 1} prescription` },
     });
     presInput.addEventListener("input", () => {
       ex.prescription = presInput.value;
     });
 
-    return h("div", { class: "routine-ex-row" }, [
+    const row = h("div", { class: "routine-ex-row" }, [
       h("span", { class: "rex-index", text: String(exIndex + 1) }),
       nameInput,
       presInput,
@@ -118,6 +259,8 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
         },
       }),
     ]);
+
+    return h("div", { class: "routine-ex" }, [row, renderStructured(ex, exIndex)]);
   };
 
   // ---- Routine card ---------------------------------------------------------

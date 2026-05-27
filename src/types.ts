@@ -76,10 +76,28 @@ export function isBodyweight(equipment: Equipment): boolean {
    Sheets are built to be exported as PNG/PDF and shared (e.g. on WhatsApp).
    ========================================================================== */
 
+/**
+ * One prescribed working set in a structured routine — reps and (optionally) a
+ * target load. A list of these expresses uniform schemes (3×[10@20]) as well as
+ * ramps/pyramids ([12@60, 10@70, 8@80]). `loadKg` absent = bodyweight / no
+ * prescribed load (calisthenics).
+ */
+export interface SetTarget {
+  reps: number;
+  loadKg?: number;
+}
+
 export interface RoutineExercise {
   name: string;
   /** Free-text prescription, e.g. "30-50 repetari" or "1-2-3-...-3-2-1". */
   prescription: string;
+  /**
+   * Optional structured per-set targets. When present they drive the Execute
+   * runner (set-by-set, with target reps/load) and are shown on shared exports;
+   * `prescription` then acts as an optional human note. Absent on free-text and
+   * imported wall-chart routines, which keep behaving exactly as before.
+   */
+  setTargets?: SetTarget[];
 }
 
 export interface Routine {

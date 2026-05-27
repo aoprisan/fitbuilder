@@ -64,6 +64,14 @@ export function singleRoutineSheet(
         exercises: routine.exercises.map((e) => ({
           name: e.name,
           prescription: e.prescription,
+          ...(e.setTargets
+            ? {
+                setTargets: e.setTargets.map((t) => ({
+                  reps: t.reps,
+                  ...(t.loadKg !== undefined ? { loadKg: t.loadKg } : {}),
+                })),
+              }
+            : {}),
         })),
       },
     ],

@@ -4,6 +4,7 @@ import {
   type Routine,
   type RoutineExercise,
   type RoutineSheet,
+  type SetTarget,
 } from "./types";
 import { uuid } from "./util";
 
@@ -24,9 +25,29 @@ function asString(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+/** A single per-set target, or null if it can't be read as one (dropped). */
+function validateSetTarget(value: unknown): SetTarget | null {
+  if (!isRecord(value)) return null;
+  const reps = value["reps"];
+  if (typeof reps !== "number" || !Number.isFinite(reps) || reps <= 0) return null;
+  const loadKg = value["loadKg"];
+  return {
+    reps: Math.floor(reps),
+    ...(typeof loadKg === "number" && Number.isFinite(loadKg) && loadKg > 0 ? { loadKg } : {}),
+  };
+}
+
 function validateExercise(value: unknown): RoutineExercise {
   if (!isRecord(value)) fail("Each exercise must be an object.");
-  return { name: asString(value["name"]), prescription: asString(value["prescription"]) };
+  const rawTargets = value["setTargets"];
+  const setTargets = Array.isArray(rawTargets)
+    ? rawTargets.map(validateSetTarget).filter((t): t is SetTarget => t !== null)
+    : [];
+  return {
+    name: asString(value["name"]),
+    prescription: asString(value["prescription"]),
+    ...(setTargets.length > 0 ? { setTargets } : {}),
+  };
 }
 
 function validateRoutine(value: unknown): Routine {
