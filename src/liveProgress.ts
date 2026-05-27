@@ -35,6 +35,8 @@ export interface LiveProgress {
   /** In-flight reps/weight while logging a set. */
   setReps: number;
   setWeight: number;
+  /** In-flight reps-in-reserve for the set being logged; null when not chosen. */
+  setRir: number | null;
   /** Epoch ms when the running set started (sub === "running"); 0 otherwise. */
   setStartEpoch: number;
   /** Set duration captured at stop, in ms (sub === "logging"); 0 otherwise. */
@@ -107,6 +109,9 @@ export function loadProgress(): LiveProgress | null {
   const selectMode = SELECT_MODES.includes(raw["selectMode"] as SelectMode)
     ? (raw["selectMode"] as SelectMode)
     : "custom";
+  const rawRir = raw["setRir"];
+  const setRir =
+    typeof rawRir === "number" && Number.isFinite(rawRir) && rawRir >= 0 ? rawRir : null;
 
   return {
     sessionId,
@@ -119,6 +124,7 @@ export function loadProgress(): LiveProgress | null {
     hasCurrentEx: raw["hasCurrentEx"] === true,
     setReps: num(raw["setReps"]),
     setWeight: num(raw["setWeight"]),
+    setRir,
     setStartEpoch: num(raw["setStartEpoch"]),
     setElapsedMs: num(raw["setElapsedMs"]),
     restStartEpoch: num(raw["restStartEpoch"]),

@@ -75,9 +75,13 @@ export const LOAD_PROFILES: Record<Equipment, LoadProfile> = {
 };
 
 // Compound lifts (those that tax secondary muscles) demand more from the whole
-// system: more coordination and bracing for the CNS, more total tissue to
-// repair, and a stronger carry-over to maximal strength than isolation work.
-export const COMPOUND_CNS = 1.25;
+// system: more total tissue to repair, more coordination and bracing, and a
+// stronger carry-over to maximal strength than isolation work. The systemic
+// premium is kept modest — resistance training fatigue is mostly peripheral
+// (muscle damage / perceived effort), and the evidence for a large extra
+// *central* cost from compounds is weak (e.g. no reliable squat-vs-deadlift
+// difference in central fatigue), so the bigger premium sits on the muscle term.
+export const COMPOUND_CNS = 1.15;
 export const COMPOUND_MUSCLE = 1.15;
 export const COMPOUND_STRENGTH = 1.15;
 

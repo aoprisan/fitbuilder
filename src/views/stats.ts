@@ -89,6 +89,20 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
       }),
     );
 
+    if (sessions.length > 0) {
+      container.append(
+        h("div", { class: "btn-row" }, [
+          h("button", {
+            class: "btn btn-small",
+            type: "button",
+            text: "Weekly volume →",
+            aria: { label: "weekly training volume per muscle" },
+            on: { click: () => nav.go("weekly") },
+          }),
+        ]),
+      );
+    }
+
     const lifetime = lifetimeEffort(sessions);
     if (lifetime.sessions > 0) container.append(renderLifetime(lifetime));
 

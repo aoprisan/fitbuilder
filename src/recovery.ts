@@ -1,4 +1,4 @@
-import { setEffort } from "./effort";
+import { fatigueProximity, setEffort } from "./effort";
 import { cnsFactor, muscleDemandFactor } from "./loadProfile";
 import { SECONDARY_MUSCLE_SHARE } from "./movements";
 import type { LoggedExercise, MuscleGroup, TrainingSession } from "./types";
@@ -88,7 +88,9 @@ export function muscleRecovery(
       const compound = isCompound(ex);
       const demandFactor = muscleDemandFactor(ex.equipment, compound);
       for (const s of ex.sets) {
-        const demand = setEffort(s, ex.equipment) * demandFactor;
+        // Proximity to failure scales local damage: a set taken to failure
+        // demands more recovery than the same set stopped well short.
+        const demand = setEffort(s, ex.equipment) * demandFactor * fatigueProximity(s.rir);
         mark(ex.muscle, at, session.startedAt, demand);
         for (const sec of ex.secondaryMuscles ?? [])
           mark(sec, at, session.startedAt, demand * SECONDARY_MUSCLE_SHARE);
@@ -159,12 +161,15 @@ export function systemicNote(readiness: number, hoursRemaining: number): string 
 }
 
 /* =============================================================================
-   Systemic / nervous-system fatigue — a whole-body load that lingers after hard
-   sessions, kept separate from per-muscle recovery. Unlike the time-only muscle
-   clock this is intensity-aware: recent session effort (weighted up for heavy,
-   low-rep work, which taxes the CNS most) accumulates and decays over a multi-day
-   window, so back-to-back hard days stack up and a brutal day costs more rest
-   than a light one.
+   Systemic fatigue — a whole-body load that lingers after hard sessions, kept
+   separate from per-muscle recovery. It stands in for the fatigue that isn't
+   captured by a single muscle's clock: accumulated muscle damage, connective-
+   tissue and perceived/whole-body tiredness (plus a smaller nervous-system
+   share — resistance-training fatigue is mostly peripheral, not central). Unlike
+   the time-only muscle clock this is intensity-aware: recent session load —
+   weighted by proximity to failure, total volume, and a gentler nudge for heavy
+   low-rep work — accumulates and decays over a multi-day window, so back-to-back
+   hard days stack up and a brutal day costs more rest than a light one.
    ========================================================================== */
 
 // CNS load roughly halves every this-many hours; kept short so normal training-day
@@ -177,26 +182,34 @@ const CNS_SATURATION = 4.5;
 // Reference session load when there's no history to calibrate against.
 const CNS_FALLBACK_LOAD = 45;
 
-/** CNS demand of a set relative to its effort: heavy/low-rep work taxes the most. */
+/**
+ * Rep-range weighting of a set's systemic cost. Heavy, low-rep work taxes the
+ * system somewhat more, but the spread is deliberately gentle: resistance-training
+ * fatigue is mostly peripheral, and measured *central* fatigue is modest and
+ * fairly similar across loads — so this no longer treats heavy sets as a fatigue
+ * bomb. Proximity to failure (applied separately) does most of the differentiating.
+ */
 function repsIntensity(reps: number): number {
-  if (reps <= 5) return 1.6; // strength / heavy singles & triples
+  if (reps <= 5) return 1.2; // strength / heavy singles & triples
   if (reps <= 12) return 1; // hypertrophy
-  return 0.6; // high-rep / endurance
+  return 0.85; // high-rep / endurance
 }
 
 /**
- * Intensity-weighted CNS load of one session. On top of the rep-range weighting,
- * each set is scaled by its equipment/compound CNS factor: a heavy free-weight
- * compound taxes the nervous system far more than guided machine isolation at the
- * same effort. This layers on the effective-load discount already baked into
- * {@link setEffort} — fidelity captures lighter resistance, this captures lower
- * neural cost per unit of it.
+ * Intensity-weighted systemic load of one session. Each set's effort is scaled
+ * by three factors: how close to failure it was taken (the dominant driver),
+ * its rep-range weighting, and its equipment/compound factor (guided machine
+ * isolation costs less than a free-weight compound at the same effort). This
+ * layers on the effective-load discount already baked into {@link setEffort} —
+ * fidelity captures lighter resistance, these capture lower systemic cost per
+ * unit of it.
  */
 function sessionCnsLoad(session: TrainingSession): number {
   let load = 0;
   for (const ex of session.exercises) {
     const factor = cnsFactor(ex.equipment, isCompound(ex));
-    for (const s of ex.sets) load += setEffort(s, ex.equipment) * repsIntensity(s.reps) * factor;
+    for (const s of ex.sets)
+      load += setEffort(s, ex.equipment) * repsIntensity(s.reps) * factor * fatigueProximity(s.rir);
   }
   return load;
 }

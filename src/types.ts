@@ -19,6 +19,13 @@ export interface WorkSet {
   weightKg: number;
   /** Seconds the set took, recorded by the live stopwatch. */
   durationSec?: number;
+  /**
+   * Reps in reserve at the end of the set — proximity to failure (0 = trained to
+   * failure, higher = more reps left in the tank). Optional: when absent the set
+   * is treated as a typical hard working set and the intensity heuristics behave
+   * exactly as before. The strongest per-set driver of both stimulus and fatigue.
+   */
+  rir?: number;
 }
 
 export const EQUIPMENT: readonly Equipment[] = [

@@ -44,9 +44,13 @@ function coerceSet(value: unknown): WorkSet {
   const reps = coerceNonNegative(value["reps"]);
   const weightKg = coerceNonNegative(value["weightKg"]);
   const dur = value["durationSec"];
-  return typeof dur === "number" && Number.isFinite(dur) && dur >= 0
-    ? { reps, weightKg, durationSec: dur }
-    : { reps, weightKg };
+  const rir = value["rir"];
+  return {
+    reps,
+    weightKg,
+    ...(typeof dur === "number" && Number.isFinite(dur) && dur >= 0 ? { durationSec: dur } : {}),
+    ...(typeof rir === "number" && Number.isFinite(rir) && rir >= 0 ? { rir } : {}),
+  };
 }
 
 function coerceExercise(value: unknown): LoggedExercise {
