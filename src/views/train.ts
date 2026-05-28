@@ -1,8 +1,9 @@
+import { formatRelativeAgo, summarizeAdherence } from "../adherence";
 import { append, clear, h } from "../dom";
 import { loadProgress } from "../liveProgress";
-import { getSession } from "../logStorage";
+import { getSession, loadSessions } from "../logStorage";
 import type { Nav } from "../router";
-import { singleRoutineSheet } from "../sheet";
+import { singleRoutineSheet, singleRoutineSheetId } from "../sheet";
 import { deleteSheet, loadSheets, saveSheet } from "../sheetStorage";
 
 /**
@@ -53,14 +54,26 @@ export function mountTrain(root: HTMLElement, nav: Nav): void {
     ];
 
     const sheets = loadSheets();
+    const sessions = loadSessions();
     const rows: HTMLElement[] = [];
     sheets.forEach((sheet) => {
       sheet.routines.forEach((routine, i) => {
         const exCount = routine.exercises.filter(
-          (e) => e.name.trim() !== "" || e.prescription.trim() !== "",
+          (e) => e.name.trim() !== "" || (e.prescription ?? "").trim() !== "",
         ).length;
         if (exCount === 0) return;
         const title = routine.title || "Untitled routine";
+        const adherence = summarizeAdherence(singleRoutineSheetId(sheet, i), sessions);
+        const adherenceText =
+          adherence.runs === 0
+            ? "Not yet run"
+            : [
+                adherence.runs === 1 ? "1 run" : `${adherence.runs} runs`,
+                `last ${formatRelativeAgo(adherence.lastRunIso!)}`,
+                ...(adherence.avgCompletionPct !== undefined
+                  ? [`${adherence.avgCompletionPct}% on plan`]
+                  : []),
+              ].join(" · ");
         rows.push(
           h("div", { class: "train-plan-item" }, [
             h("button", {
@@ -74,6 +87,7 @@ export function mountTrain(root: HTMLElement, nav: Nav): void {
                 class: "train-plan-meta",
                 text: `${sheet.name} · ${exCount} ${exCount === 1 ? "exercise" : "exercises"}`,
               }),
+              h("span", { class: "train-plan-meta", text: adherenceText }),
             ]),
             h("button", {
               class: "icon-btn danger train-plan-delete",

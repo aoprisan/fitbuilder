@@ -1,3 +1,4 @@
+import { catalogIdentityFor } from "../sheet";
 import {
   SHEET_SCHEMA_ID,
   SHEET_SCHEMA_VERSION,
@@ -99,7 +100,11 @@ export function gridToRoutines(rows: GridRow[]): Routine[] {
       current = { title: "Routine", tags: [], exercises: [] };
       routines.push(current);
     }
-    current.exercises.push({ name: parsed.name, prescription: parsed.prescription });
+    current.exercises.push({
+      name: parsed.name,
+      ...(parsed.prescription !== "" ? { prescription: parsed.prescription } : {}),
+      ...catalogIdentityFor(parsed.name),
+    });
   }
 
   return routines.filter((r) => r.exercises.length > 0);

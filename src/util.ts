@@ -48,7 +48,7 @@ export function cloneSheet(sheet: RoutineSheet): RoutineSheet {
       tags: [...r.tags],
       exercises: r.exercises.map((e) => ({
         name: e.name,
-        prescription: e.prescription,
+        ...(e.prescription !== undefined ? { prescription: e.prescription } : {}),
         ...(e.setTargets
           ? {
               setTargets: e.setTargets.map((t) => ({
@@ -56,6 +56,12 @@ export function cloneSheet(sheet: RoutineSheet): RoutineSheet {
                 ...(t.loadKg !== undefined ? { loadKg: t.loadKg } : {}),
               })),
             }
+          : {}),
+        ...(e.exerciseId !== undefined ? { exerciseId: e.exerciseId } : {}),
+        ...(e.muscle !== undefined ? { muscle: e.muscle } : {}),
+        ...(e.equipment !== undefined ? { equipment: e.equipment } : {}),
+        ...(e.secondaryMuscles && e.secondaryMuscles.length > 0
+          ? { secondaryMuscles: [...e.secondaryMuscles] }
           : {}),
       })),
     })),

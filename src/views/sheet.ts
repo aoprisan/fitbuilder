@@ -4,7 +4,7 @@ import { ImportError, importRoutineFile } from "../import";
 import { renderRoutineQrCanvas } from "../qr";
 import { clearLogo, fileToLogoDataUrl, loadLogo, LogoError, saveLogo } from "../logo";
 import type { Cleanup, Nav } from "../router";
-import { blankRoutine, blankRoutineExercise, blankSheet, singleRoutineSheet } from "../sheet";
+import { blankRoutine, blankRoutineExercise, blankSheet, catalogIdentityFor, singleRoutineSheet } from "../sheet";
 import { deleteSheet, loadSheets, saveSheet } from "../sheetStorage";
 import { setSheetFlash, state, takeSheetFlash } from "../state";
 import { loadTrainer, saveTrainer } from "../trainer";
@@ -228,16 +228,28 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
     nameInput.addEventListener("input", () => {
       ex.name = nameInput.value;
     });
+    // On commit (blur / Enter), re-derive catalog identity from the name so the
+    // row picks up exerciseId/muscle/equipment when the trainer writes a curated
+    // movement name. Unknown names clear identity rather than stick stale.
+    nameInput.addEventListener("change", () => {
+      delete ex.exerciseId;
+      delete ex.muscle;
+      delete ex.equipment;
+      delete ex.secondaryMuscles;
+      Object.assign(ex, catalogIdentityFor(ex.name));
+    });
 
     const presInput = h("input", {
       class: "rex-pres",
       type: "text",
-      value: ex.prescription,
+      value: ex.prescription ?? "",
       placeholder: structured ? "Optional note" : "e.g. 30-50 repetari",
       aria: { label: `exercise ${exIndex + 1} prescription` },
     });
     presInput.addEventListener("input", () => {
-      ex.prescription = presInput.value;
+      const v = presInput.value;
+      if (v === "") delete ex.prescription;
+      else ex.prescription = v;
     });
 
     const row = h("div", { class: "routine-ex-row" }, [

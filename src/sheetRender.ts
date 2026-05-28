@@ -107,7 +107,7 @@ function drawRoutine(ctx: Ctx, routine: Routine, top: number, paint: boolean): n
     const pres =
       exercise.setTargets && exercise.setTargets.length > 0
         ? formatSetTargets(exercise.setTargets)
-        : exercise.prescription.trim();
+        : (exercise.prescription ?? "").trim();
 
     ctx.font = `600 ${NAME_SIZE}px ${MONO}`;
     const nameLines = wrap(ctx, name, nameColW);

@@ -1,3 +1,4 @@
+import { matchMovementByName } from "./movements";
 import {
   SHEET_SCHEMA_ID,
   SHEET_SCHEMA_VERSION,
@@ -7,9 +8,28 @@ import {
 } from "./types";
 import { uuid } from "./util";
 
+/**
+ * Catalog-identity fields ready to spread onto a RoutineExercise when the name
+ * matches a curated movement. Empty when there's no confident match (free-text
+ * Romanian rows, etc.) — the row keeps its name and consumers fall back to a
+ * runtime match in `flattenSheet`.
+ */
+export function catalogIdentityFor(name: string): Partial<RoutineExercise> {
+  const mv = matchMovementByName(name);
+  if (!mv) return {};
+  return {
+    exerciseId: mv.id,
+    muscle: mv.primaryMuscle,
+    equipment: mv.equipment,
+    ...(mv.secondaryMuscles.length > 0
+      ? { secondaryMuscles: [...mv.secondaryMuscles] }
+      : {}),
+  };
+}
+
 /** A blank prescription row used by the sheet builder's "add exercise" action. */
 export function blankRoutineExercise(): RoutineExercise {
-  return { name: "", prescription: "" };
+  return { name: "" };
 }
 
 /** A blank routine used by the sheet builder's "add routine" action. */
@@ -42,6 +62,15 @@ export function routineLabel(routine: Routine): string {
 }
 
 /**
+ * Composite id for a single routine extracted from a parent sheet. Stable so
+ * adherence views can match logged sessions (`fromSheetId`) back to the routine
+ * row they came from without recomputing the wrap.
+ */
+export function singleRoutineSheetId(parent: RoutineSheet, index: number): string {
+  return `${parent.id}:r${index}`;
+}
+
+/**
  * Wrap a single routine in its own sheet so it can be run, exported, or saved
  * independently of the rest of the sheet. The id is derived from the parent
  * sheet and the routine's slot, so re-saving the same routine updates its
@@ -55,7 +84,7 @@ export function singleRoutineSheet(
   return {
     schema: SHEET_SCHEMA_ID,
     version: SHEET_SCHEMA_VERSION,
-    id: `${parent.id}:r${index}`,
+    id: singleRoutineSheetId(parent, index),
     name: routineLabel(routine),
     routines: [
       {
@@ -63,7 +92,7 @@ export function singleRoutineSheet(
         tags: [...routine.tags],
         exercises: routine.exercises.map((e) => ({
           name: e.name,
-          prescription: e.prescription,
+          ...(e.prescription !== undefined ? { prescription: e.prescription } : {}),
           ...(e.setTargets
             ? {
                 setTargets: e.setTargets.map((t) => ({
@@ -71,6 +100,12 @@ export function singleRoutineSheet(
                   ...(t.loadKg !== undefined ? { loadKg: t.loadKg } : {}),
                 })),
               }
+            : {}),
+          ...(e.exerciseId !== undefined ? { exerciseId: e.exerciseId } : {}),
+          ...(e.muscle !== undefined ? { muscle: e.muscle } : {}),
+          ...(e.equipment !== undefined ? { equipment: e.equipment } : {}),
+          ...(e.secondaryMuscles && e.secondaryMuscles.length > 0
+            ? { secondaryMuscles: [...e.secondaryMuscles] }
             : {}),
         })),
       },

@@ -97,6 +97,7 @@ export function coerceSession(input: unknown): TrainingSession | null {
 
   const updatedAt = input["updatedAt"];
   const source = input["source"];
+  const fromSheetId = input["fromSheetId"];
 
   return {
     schema: LOG_SCHEMA_ID,
@@ -106,6 +107,7 @@ export function coerceSession(input: unknown): TrainingSession | null {
     startedAt,
     exercises,
     ...(source === "live" || source === "routine" ? { source } : {}),
+    ...(typeof fromSheetId === "string" && fromSheetId !== "" ? { fromSheetId } : {}),
     ...(typeof updatedAt === "string" ? { updatedAt } : {}),
   };
 }

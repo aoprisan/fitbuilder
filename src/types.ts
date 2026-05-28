@@ -89,8 +89,12 @@ export interface SetTarget {
 
 export interface RoutineExercise {
   name: string;
-  /** Free-text prescription, e.g. "30-50 repetari" or "1-2-3-...-3-2-1". */
-  prescription: string;
+  /**
+   * Free-text prescription, e.g. "30-50 repetari" or "1-2-3-...-3-2-1". Optional:
+   * structured routines (with `setTargets`) treat it as a human note and may omit
+   * it entirely; imported wall-chart routines always have one.
+   */
+  prescription?: string;
   /**
    * Optional structured per-set targets. When present they drive the Execute
    * runner (set-by-set, with target reps/load) and are shown on shared exports;
@@ -98,6 +102,16 @@ export interface RoutineExercise {
    * imported wall-chart routines, which keep behaving exactly as before.
    */
   setTargets?: SetTarget[];
+  /**
+   * Catalog identity carried from `movements.ts`, mirroring `LoggedExercise`.
+   * Populated when the builder/importer name matches a curated movement;
+   * absent on free-text or unmatched rows. Consumers (Execute, `sheetToSession`)
+   * prefer these when present, falling back to a runtime name-match.
+   */
+  exerciseId?: string;
+  muscle?: MuscleGroup;
+  equipment?: Equipment;
+  secondaryMuscles?: readonly MuscleGroup[];
 }
 
 export interface Routine {
@@ -209,6 +223,12 @@ export interface TrainingSession {
    * routine runs (often reps-only) start skewing the median.
    */
   source?: "live" | "routine";
+  /**
+   * Id of the RoutineSheet this session was started from (set by `sheetToSession`
+   * and Execute runs). Absent for freestyle Live sessions. Enables adherence and
+   * compare-to-plan analytics — filter sessions by their source routine.
+   */
+  fromSheetId?: string;
   /** ISO timestamp of last save. */
   updatedAt?: string;
 }

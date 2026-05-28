@@ -25,6 +25,16 @@ export interface RunItem {
    * `isDone` / `fraction` count *sets* rather than total reps.
    */
   setTargets?: SetTarget[];
+  /**
+   * Catalog identity, preferring the RoutineExercise's carried fields, falling
+   * back to a runtime `matchMovementByName(name)`. Absent only when the row
+   * has no carried identity and no name match — those rows still need the user
+   * to confirm muscle/gear at log time.
+   */
+  exerciseId?: string;
+  muscle?: MuscleGroup;
+  equipment?: Equipment;
+  secondaryMuscles?: readonly MuscleGroup[];
 }
 
 /** Read a trailing "x N" multiplier (e.g. " x 5", " x3"); defaults to 1. */
@@ -88,19 +98,44 @@ export function flattenSheet(sheet: RoutineSheet): RunItem[] {
   const items: RunItem[] = [];
   sheet.routines.forEach((routine, routineIndex) => {
     routine.exercises.forEach((ex, exerciseIndex) => {
-      if (ex.name.trim() === "" && ex.prescription.trim() === "") return;
+      const prescription = ex.prescription ?? "";
+      if (ex.name.trim() === "" && prescription.trim() === "") return;
       const structured = ex.setTargets && ex.setTargets.length > 0 ? ex.setTargets : undefined;
+      // Identity: prefer fields carried on the RoutineExercise; otherwise try
+      // a runtime name-match. Either source produces the same shape downstream.
+      const carried =
+        ex.exerciseId !== undefined && ex.muscle !== undefined && ex.equipment !== undefined;
+      const identity = carried
+        ? {
+            exerciseId: ex.exerciseId,
+            muscle: ex.muscle,
+            equipment: ex.equipment,
+            ...(ex.secondaryMuscles && ex.secondaryMuscles.length > 0
+              ? { secondaryMuscles: [...ex.secondaryMuscles] }
+              : {}),
+          }
+        : ((mv) =>
+            mv
+              ? {
+                  exerciseId: mv.id,
+                  muscle: mv.primaryMuscle,
+                  equipment: mv.equipment,
+                  ...(mv.secondaryMuscles.length > 0
+                    ? { secondaryMuscles: [...mv.secondaryMuscles] }
+                    : {}),
+                }
+              : {})(matchMovementByName(ex.name));
       items.push({
         routineIndex,
         routineTitle: routine.title,
         exerciseIndex,
         name: ex.name,
-        prescription: ex.prescription,
+        prescription,
         // Structured rows derive a rep total from their sets so the grand-total
         // tallies still read; otherwise fall back to parsing the free text.
         targetReps: structured
           ? structured.reduce((a, t) => a + t.reps, 0)
-          : parseTargetReps(ex.prescription),
+          : parseTargetReps(prescription),
         ...(structured
           ? {
               setTargets: structured.map((t) => ({
@@ -109,6 +144,7 @@ export function flattenSheet(sheet: RoutineSheet): RunItem[] {
               })),
             }
           : {}),
+        ...identity,
       });
     });
   });
@@ -173,12 +209,19 @@ export class ExecuteController {
   constructor(sheet: RoutineSheet) {
     this.items = flattenSheet(sheet);
     this.logged = this.items.map(() => []);
-    this.meta = this.items.map((it) => {
-      const mv = matchMovementByName(it.name);
-      return mv
-        ? mappedExercise(mv)
-        : { muscle: DEFAULT_MUSCLE, equipment: DEFAULT_EQUIPMENT, mapped: false };
-    });
+    this.meta = this.items.map((it) =>
+      it.exerciseId !== undefined && it.muscle !== undefined && it.equipment !== undefined
+        ? {
+            muscle: it.muscle,
+            equipment: it.equipment,
+            exerciseId: it.exerciseId,
+            ...(it.secondaryMuscles && it.secondaryMuscles.length > 0
+              ? { secondaryMuscles: [...it.secondaryMuscles] }
+              : {}),
+            mapped: true,
+          }
+        : { muscle: DEFAULT_MUSCLE, equipment: DEFAULT_EQUIPMENT, mapped: false },
+    );
     const first = this.firstIncompleteIndex();
     this.selected = first < 0 ? 0 : first;
   }

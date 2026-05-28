@@ -27,6 +27,14 @@ export interface Movement {
   secondaryMuscles: readonly MuscleGroup[];
   /** Load type — reused as the LoggedExercise equipment. */
   equipment: Equipment;
+  /**
+   * Additional names that should resolve to this movement via
+   * `matchMovementByName`. Used for plural/hyphen variants and Romanian
+   * synonyms in the bundled seed sheets (e.g. "Flotari" → push-up). Exact-
+   * match only — compound names like "Tractiuni Pronate Bara" need an explicit
+   * entry, not a token-level inference.
+   */
+  aliases?: readonly string[];
 }
 
 /** Share of a set's volume/time/effort credited to each secondary muscle. */
@@ -48,7 +56,9 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
   chest: [
     { id: "bench-press", name: "Bench Press", primaryMuscle: "chest", secondaryMuscles: ["triceps", "shoulders"], equipment: "barbell" },
     { id: "incline-bench-press", name: "Incline Bench Press", primaryMuscle: "chest", secondaryMuscles: ["shoulders", "triceps"], equipment: "barbell" },
-    { id: "dips", name: "Dips", primaryMuscle: "chest", secondaryMuscles: ["triceps"], equipment: "calisthenics" },
+    { id: "dips", name: "Dips", primaryMuscle: "chest", secondaryMuscles: ["triceps"], equipment: "calisthenics", aliases: ["Triceps Dips", "Straight Bar Dips"] },
+    { id: "push-up", name: "Push-Up", primaryMuscle: "chest", secondaryMuscles: ["triceps", "shoulders"], equipment: "calisthenics", aliases: ["Push-Ups", "Push Ups", "Pushup", "Pushups", "Flotari", "Flotari pe Sol", "Flotari Sol"] },
+    { id: "diamond-push-up", name: "Diamond Push-Up", primaryMuscle: "triceps", secondaryMuscles: ["chest", "shoulders"], equipment: "calisthenics", aliases: ["Diamond Push-Ups", "Diamond Push Ups", "Flotari Diamant"] },
     { id: "chest-press-machine", name: "Chest Press Machine", primaryMuscle: "chest", secondaryMuscles: ["triceps", "shoulders"], equipment: "machine" },
     { id: "incline-chest-press-machine", name: "Incline Chest Press Machine", primaryMuscle: "chest", secondaryMuscles: ["shoulders", "triceps"], equipment: "machine" },
     { id: "medium-incline-chest-press-machine", name: "Vertical Bench Press Machine", primaryMuscle: "chest", secondaryMuscles: ["shoulders", "triceps"], equipment: "machine" },
@@ -57,9 +67,33 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
     genericMovement("chest", "barbell"),
     genericMovement("chest", "cable"),
   ],
+  back: [
+    { id: "pull-up", name: "Pull-Up", primaryMuscle: "back", secondaryMuscles: ["biceps"], equipment: "calisthenics", aliases: ["Pull-Ups", "Pull Ups", "Tractiuni", "Tractiuni Pronate"] },
+    { id: "chin-up", name: "Chin-Up", primaryMuscle: "back", secondaryMuscles: ["biceps"], equipment: "calisthenics", aliases: ["Chin-Ups", "Chin Ups", "Tractiuni Supinate"] },
+    { id: "inverted-row", name: "Inverted Row", primaryMuscle: "back", secondaryMuscles: ["biceps"], equipment: "calisthenics", aliases: ["Australian Pull-Up", "Australian Pull-Ups", "Australiene", "Ramat", "Ramat Banda Elastica"] },
+    { id: "muscle-up", name: "Muscle-Up", primaryMuscle: "back", secondaryMuscles: ["chest", "triceps"], equipment: "calisthenics", aliases: ["Muscle-Ups", "Muscle Up", "Muscle Ups"] },
+    { id: "back-extension", name: "Back Extension", primaryMuscle: "back", secondaryMuscles: ["glutes"], equipment: "calisthenics", aliases: ["Hyperextension", "Superman", "Hiper Extensii", "Hiper Extensii Superman"] },
+    { id: "dead-hang", name: "Dead Hang", primaryMuscle: "forearms", secondaryMuscles: ["back"], equipment: "calisthenics", aliases: ["Dead Hangs"] },
+    genericMovement("back", "barbell"),
+    genericMovement("back", "dumbbell"),
+    genericMovement("back", "cable"),
+    genericMovement("back", "machine"),
+    genericMovement("back", "lat-pulldown"),
+  ],
+  shoulders: [
+    { id: "overhead-press", name: "Overhead Press", primaryMuscle: "shoulders", secondaryMuscles: ["triceps"], equipment: "barbell", aliases: ["Shoulder Press", "Presa Umeri"] },
+    { id: "pike-push-up", name: "Pike Push-Up", primaryMuscle: "shoulders", secondaryMuscles: ["triceps"], equipment: "calisthenics", aliases: ["Pike Push-Ups", "Pike Push Ups"] },
+    { id: "handstand-push-up", name: "Handstand Push-Up", primaryMuscle: "shoulders", secondaryMuscles: ["triceps"], equipment: "calisthenics", aliases: ["Handstand Push-Ups", "Handstand Push Ups"] },
+    genericMovement("shoulders", "dumbbell"),
+    genericMovement("shoulders", "barbell"),
+    genericMovement("shoulders", "cable"),
+    genericMovement("shoulders", "lateral-raise"),
+    genericMovement("shoulders", "rear-delt-fly"),
+  ],
   legs: [
     { id: "deadlift", name: "Deadlift", primaryMuscle: "legs", secondaryMuscles: ["glutes", "back"], equipment: "barbell" },
     { id: "romanian-deadlift", name: "Romanian Deadlift", primaryMuscle: "legs", secondaryMuscles: ["glutes", "back"], equipment: "barbell" },
+    { id: "bodyweight-squat", name: "Bodyweight Squat", primaryMuscle: "legs", secondaryMuscles: ["glutes"], equipment: "calisthenics", aliases: ["Squat", "Squats", "Genuflexiuni"] },
     { id: "leg-press", name: "Leg Press", primaryMuscle: "legs", secondaryMuscles: [], equipment: "machine" },
     { id: "leg-extension", name: "Leg Extension", primaryMuscle: "legs", secondaryMuscles: [], equipment: "machine" },
     { id: "prone-leg-curl", name: "Prone Leg Curl", primaryMuscle: "legs", secondaryMuscles: [], equipment: "machine" },
@@ -115,13 +149,22 @@ function normalizeName(name: string): string {
 
 // Curated lifts only (ids without "::"). Generic-gear movements are named just
 // "Dumbbell"/"Cable"/… and repeat across muscles, so matching them by name would
-// be ambiguous and let an equipment word masquerade as a movement.
+// be ambiguous and let an equipment word masquerade as a movement. Aliases are
+// indexed alongside the canonical name; first-write wins, so canonical names go
+// in before aliases by iterating once for each pass.
 const BY_NAME: ReadonlyMap<string, Movement> = (() => {
   const map = new Map<string, Movement>();
   for (const mv of REGISTRY.values()) {
     if (mv.id.includes("::")) continue;
     const key = normalizeName(mv.name);
-    if (!map.has(key)) map.set(key, mv);
+    if (key !== "" && !map.has(key)) map.set(key, mv);
+  }
+  for (const mv of REGISTRY.values()) {
+    if (mv.id.includes("::")) continue;
+    for (const alias of mv.aliases ?? []) {
+      const key = normalizeName(alias);
+      if (key !== "" && !map.has(key)) map.set(key, mv);
+    }
   }
   return map;
 })();

@@ -437,7 +437,7 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
   saveBtn.addEventListener("click", saveRun);
 
   function saveRun(): void {
-    const session = executeRunToSession(ctl, sheet.name);
+    const session = executeRunToSession(ctl, sheet.name, { fromSheetId: sheet.id });
     if (session.exercises.length === 0) return;
     if (savedSessionId) session.id = savedSessionId; // update the same logged session
     const stored = saveSession(session);
@@ -617,7 +617,7 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
     const loggedSets = ctl.loggedSetCount();
     saveCard.hidden = empty || loggedSets === 0;
     if (!saveCard.hidden) {
-      const session = executeRunToSession(ctl, sheet.name);
+      const session = executeRunToSession(ctl, sheet.name, { fromSheetId: sheet.id });
       const effort = readEffort(session, loadSessions());
       const vs = effort.vsTypicalPct !== null ? ` · ${effort.vsTypicalPct}% of your usual` : "";
       setText(

@@ -78,15 +78,27 @@ export function sheetToSession(sheet: RoutineSheet): TrainingSession {
   return {
     ...base,
     name: sheet.name || base.name,
-    exercises: flattenSheet(sheet).map((item) => ({
-      name:
-        item.name ||
-        `${MUSCLE_LABELS[ROUTINE_DEFAULT_MUSCLE]} · ${EQUIPMENT_LABELS[ROUTINE_DEFAULT_EQUIPMENT]}`,
-      muscle: ROUTINE_DEFAULT_MUSCLE,
-      equipment: ROUTINE_DEFAULT_EQUIPMENT,
-      ...(item.prescription.trim() !== "" ? { prescription: item.prescription } : {}),
-      sets: [],
-    })),
+    ...(sheet.id !== "" ? { fromSheetId: sheet.id } : {}),
+    exercises: flattenSheet(sheet).map((item) => {
+      // Prefer the carried catalog identity (set by the builder/importer or by
+      // flattenSheet's name-match); fall back to bodyweight placeholders the
+      // user confirms on the live "select" screen.
+      const muscle = item.muscle ?? ROUTINE_DEFAULT_MUSCLE;
+      const equipment = item.equipment ?? ROUTINE_DEFAULT_EQUIPMENT;
+      return {
+        name:
+          item.name ||
+          `${MUSCLE_LABELS[muscle]} · ${EQUIPMENT_LABELS[equipment]}`,
+        muscle,
+        equipment,
+        ...(item.exerciseId !== undefined ? { exerciseId: item.exerciseId } : {}),
+        ...(item.secondaryMuscles && item.secondaryMuscles.length > 0
+          ? { secondaryMuscles: [...item.secondaryMuscles] }
+          : {}),
+        ...(item.prescription.trim() !== "" ? { prescription: item.prescription } : {}),
+        sets: [],
+      };
+    }),
   };
 }
 
@@ -98,7 +110,11 @@ export function sheetToSession(sheet: RoutineSheet): TrainingSession {
  * prescription and the muscle / load identity the run resolved for it. Stamped
  * `source: "routine"` to set it apart from a live log.
  */
-export function executeRunToSession(ctl: ExecuteController, name: string): TrainingSession {
+export function executeRunToSession(
+  ctl: ExecuteController,
+  name: string,
+  opts?: { fromSheetId?: string },
+): TrainingSession {
   const base = newTrainingSession();
   const exercises: LoggedExercise[] = [];
   ctl.items.forEach((item, i) => {
@@ -119,5 +135,12 @@ export function executeRunToSession(ctl: ExecuteController, name: string): Train
       sets: sets.map((s) => ({ ...s })),
     });
   });
-  return { ...base, name: name.trim() || base.name, source: "routine", exercises };
+  const fromSheetId = opts?.fromSheetId;
+  return {
+    ...base,
+    name: name.trim() || base.name,
+    source: "routine",
+    ...(typeof fromSheetId === "string" && fromSheetId !== "" ? { fromSheetId } : {}),
+    exercises,
+  };
 }

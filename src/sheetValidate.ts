@@ -1,6 +1,10 @@
 import {
+  EQUIPMENT,
+  MUSCLE_GROUPS,
   SHEET_SCHEMA_ID,
   SHEET_SCHEMA_VERSION,
+  type Equipment,
+  type MuscleGroup,
   type Routine,
   type RoutineExercise,
   type RoutineSheet,
@@ -37,16 +41,45 @@ function validateSetTarget(value: unknown): SetTarget | null {
   };
 }
 
+function asMuscle(value: unknown): MuscleGroup | undefined {
+  return typeof value === "string" && (MUSCLE_GROUPS as readonly string[]).includes(value)
+    ? (value as MuscleGroup)
+    : undefined;
+}
+
+function asEquipment(value: unknown): Equipment | undefined {
+  return typeof value === "string" && (EQUIPMENT as readonly string[]).includes(value)
+    ? (value as Equipment)
+    : undefined;
+}
+
+function asSecondaryMuscles(value: unknown): readonly MuscleGroup[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (m): m is MuscleGroup =>
+      typeof m === "string" && (MUSCLE_GROUPS as readonly string[]).includes(m),
+  );
+}
+
 function validateExercise(value: unknown): RoutineExercise {
   if (!isRecord(value)) fail("Each exercise must be an object.");
   const rawTargets = value["setTargets"];
   const setTargets = Array.isArray(rawTargets)
     ? rawTargets.map(validateSetTarget).filter((t): t is SetTarget => t !== null)
     : [];
+  const prescription = asString(value["prescription"]);
+  const exerciseId = value["exerciseId"];
+  const muscle = asMuscle(value["muscle"]);
+  const equipment = asEquipment(value["equipment"]);
+  const secondary = asSecondaryMuscles(value["secondaryMuscles"]);
   return {
     name: asString(value["name"]),
-    prescription: asString(value["prescription"]),
+    ...(prescription !== "" ? { prescription } : {}),
     ...(setTargets.length > 0 ? { setTargets } : {}),
+    ...(typeof exerciseId === "string" && exerciseId !== "" ? { exerciseId } : {}),
+    ...(muscle !== undefined ? { muscle } : {}),
+    ...(equipment !== undefined ? { equipment } : {}),
+    ...(secondary.length > 0 ? { secondaryMuscles: secondary } : {}),
   };
 }
 
