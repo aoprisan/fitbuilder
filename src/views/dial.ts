@@ -1,5 +1,11 @@
 import { h } from "../dom";
+import { registerTranslations, t } from "../i18n";
 import { round2 } from "../util";
+
+registerTranslations({
+  "decrease {0}": "micșorează {0}",
+  "increase {0}": "mărește {0}",
+});
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 // Tucked in to make room for the chunkier ring stroke without colliding with
@@ -234,14 +240,14 @@ export function dialField(opts: DialFieldOpts): HTMLElement {
     class: "stepper",
     type: "button",
     text: "−",
-    aria: { label: `decrease ${label}` },
+    aria: { label: t("decrease {0}").replace("{0}", label) },
     on: { click: () => setValue(current - step, true) },
   });
   const inc = h("button", {
     class: "stepper",
     type: "button",
     text: "+",
-    aria: { label: `increase ${label}` },
+    aria: { label: t("increase {0}").replace("{0}", label) },
     on: { click: () => setValue(current + step, true) },
   });
 
