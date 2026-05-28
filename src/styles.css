@@ -3252,6 +3252,223 @@ textarea:focus-visible {
   }
 }
 
+/* Tablet / small laptop — widen the ledger so the column doesn't choke,
+   but keep the header stacked on top. */
+@media (min-width: 768px) {
+  :root {
+    --app-max: 880px;
+  }
+
+  .view-title {
+    font-size: clamp(44px, 7.4vw, 64px);
+  }
+
+  .view {
+    gap: 20px;
+  }
+}
+
+/* ─────────── LAPTOP & UP · TWO-PAGE LEDGER SPREAD ───────────
+   The masthead becomes a sticky left sidebar (a card-file tab index
+   on the gutter of an open ledger); the view gets the right page.
+   Brand stamp · Student/Trainer toggle · vertical nav rail. */
+@media (min-width: 1024px) {
+  :root {
+    --app-max: 1240px;
+  }
+
+  #app {
+    padding-top: max(env(safe-area-inset-top), 32px);
+    padding-bottom: max(env(safe-area-inset-bottom), 40px);
+    padding-inline: clamp(24px, 4vw, 56px);
+    display: grid;
+    grid-template-columns: 264px minmax(0, 1fr);
+    column-gap: clamp(32px, 4.4vw, 64px);
+    align-items: start;
+    gap: 0;
+  }
+
+  /* Sidebar — a printed gutter strip with a heavy ink rule down its right edge,
+     anchored sticky so brand + nav stay with you as the page scrolls. */
+  .app-header {
+    grid-column: 1;
+    grid-row: 1;
+    position: sticky;
+    top: max(env(safe-area-inset-top), 32px);
+    align-self: start;
+    gap: 22px;
+    padding: 4px 26px 24px 0;
+    border-right: var(--rule);
+    /* A faint diagonal-hatch wash bleeds into the gutter — same printer's
+       mark, rotated 90° from the mobile masthead bar. */
+    background:
+      repeating-linear-gradient(
+        -45deg,
+        transparent 0 7px,
+        rgba(27, 22, 16, 0.045) 7px 8px
+      );
+    background-repeat: no-repeat;
+    background-size: 14px 100%;
+    background-position: right 14px top;
+  }
+
+  /* Kill the horizontal hatched bar — the vertical rule replaces it. */
+  .app-header::after {
+    display: none;
+  }
+
+  /* Brand stamp — slightly tighter so it fits the gutter, sublabel stays askew. */
+  .brand {
+    font-size: clamp(46px, 4vw, 56px);
+    align-self: flex-start;
+  }
+
+  .brand::after {
+    font-size: 9px;
+    letter-spacing: 0.22em;
+    margin-top: 13px;
+  }
+
+  /* Mode toggle spans the sidebar — like a labeled tab divider. */
+  .mode-toggle {
+    align-self: stretch;
+  }
+
+  .mode-toggle-btn {
+    flex: 1;
+    padding: 10px 12px 8px;
+    font-size: 10.5px;
+  }
+
+  /* Nav rail — vertical, icons left, label right, ledger-row separators. */
+  .nav {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    box-shadow: 5px 5px 0 0 var(--ink);
+  }
+
+  .nav-btn {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 14px;
+    padding: 14px 16px 12px;
+    border-left: none;
+    border-top: 1.5px solid var(--ink-ghost);
+    text-align: left;
+  }
+
+  .nav-btn:first-child {
+    border-top: none;
+  }
+
+  .nav-icon {
+    width: 22px;
+    height: 22px;
+    flex: 0 0 22px;
+  }
+
+  .nav-label {
+    font-size: 12px;
+    letter-spacing: 0.08em;
+  }
+
+  /* Active tab gets a signal-red marker stripe down the left edge —
+     so the eye finds it even from across the sidebar. */
+  .nav-btn.active {
+    box-shadow: inset 5px 0 0 0 var(--signal);
+    padding-left: 21px;
+  }
+
+  /* The right page — main content area, scrollable on its own column. */
+  .view-host {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  /* Bigger display type on the open spread — there's room for the wood-type. */
+  .view-title {
+    font-size: clamp(60px, 6.4vw, 84px);
+    padding-bottom: 16px;
+  }
+
+  .view-title::after {
+    width: 112px;
+    height: 7px;
+  }
+
+  .display {
+    font-size: clamp(60px, 7vw, 92px);
+  }
+
+  .lede {
+    font-size: 15px;
+    max-width: 60ch;
+  }
+
+  .view {
+    gap: 24px;
+  }
+
+  /* HOME · ledger spread — hero at full width, then cards flow as a 2-up grid.
+     A trainer's two cards still sit side-by-side; a student's five fill rows
+     left-to-right with the last orphan spanning both columns. */
+  .view-home {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 22px 26px;
+    align-items: start;
+  }
+
+  .view-home > .view-title,
+  .view-home > .hero {
+    grid-column: 1 / -1;
+  }
+
+  /* Last card stretches across when it's the lone orphan on its row. */
+  .view-home > .card:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  /* STATS · let the chart card breathe wider; the others stay full width
+     too since the chart benefits most from the extra horizontal room. */
+  .view-stats {
+    max-width: 920px;
+  }
+
+  /* SHEET / EXECUTE · author + run views stay readable at a single
+     comfortable measure rather than stretching to the full page width. */
+  .view-sheet,
+  .view-execute,
+  .view-claude-start,
+  .view-recovery,
+  .view-weekly {
+    max-width: 880px;
+  }
+
+  /* LIVE · the dial + stopwatch flow is intentionally single-column so
+     the rotary input stays centered and tappable; cap its width too. */
+  .view-live {
+    max-width: 720px;
+  }
+}
+
+/* Wide desktop — broader sidebar, more generous spread. */
+@media (min-width: 1440px) {
+  :root {
+    --app-max: 1360px;
+  }
+
+  #app {
+    grid-template-columns: 300px minmax(0, 1fr);
+  }
+
+  .view-home {
+    gap: 26px 32px;
+  }
+}
+
 /* ─────────────────────────── MOTION ─────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
