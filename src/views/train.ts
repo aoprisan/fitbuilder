@@ -77,8 +77,16 @@ export function mountTrain(root: HTMLElement, nav: Nav): void {
     planBody.push(
       h("p", {
         class: "empty",
-        text: "No routines yet — open a routine you were sent, or switch to Trainer mode to build one.",
+        text: "No routines yet — open one you were sent, or get a starting plan from Claude.",
       }),
+      h("div", { class: "btn-row" }, [
+        h("button", {
+          class: "btn",
+          type: "button",
+          text: "Get a plan from Claude",
+          on: { click: () => nav.go("claudeStart") },
+        }),
+      ]),
     );
   } else {
     planBody.push(

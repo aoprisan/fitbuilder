@@ -38,15 +38,15 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
   // ── Getting started — let Claude draft a first routine ────────────────────
   const claudeStartCard = h("section", { class: "card" }, [
     h("p", { class: "eyebrow", text: "New here?" }),
-    h("h2", { class: "section-title", text: "Build a plan with Claude" }),
+    h("h2", { class: "section-title", text: "Get a plan from Claude" }),
     h("p", {
       class: "plan-meta",
-      text: "Answer three quick questions and let Claude draft a starting routine you can edit, run, and share.",
+      text: "No coach yet? Answer three quick questions and let Claude draft a starting routine you can follow set-by-set.",
     }),
     h("div", { class: "btn-row" }, [
       h("button", {
         class: "btn btn-primary",
-        text: "Build a plan with Claude",
+        text: "Get a plan from Claude",
         on: { click: () => nav.go("claudeStart") },
       }),
     ]),
@@ -265,11 +265,12 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
   ]);
 
   // Hard gate: Home shows only the active mode's lane. Student = train/track,
-  // recovery, personal records; Trainer = authoring (Claude draft + Routines).
+  // recovery, personal records, and the Claude getting-started draft (so a
+  // student without a coach can still get a starting plan); Trainer = authoring.
   const cards =
     loadMode() === "trainer"
-      ? [hero, claudeStartCard, routinesLane, updateCard]
-      : [hero, trainingLane, renderRecoveryCard(), renderOneRmCard(), updateCard];
+      ? [hero, routinesLane, updateCard]
+      : [hero, trainingLane, claudeStartCard, renderRecoveryCard(), renderOneRmCard(), updateCard];
 
   root.appendChild(h("div", { class: "view view-home" }, cards));
 }

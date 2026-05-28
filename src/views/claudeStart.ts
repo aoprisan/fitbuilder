@@ -1,9 +1,10 @@
 import { buildPlanPrompt, parsePlanFromText, type Goal, type Level, type PlanInputs } from "../claudePlan";
 import { h } from "../dom";
 import { copyPlanPrompt, startPlanInClaude } from "../exporters";
+import { loadMode } from "../mode";
 import type { Cleanup, Nav } from "../router";
 import { saveSheet } from "../sheetStorage";
-import { setSheetFlash } from "../state";
+import { setEditingSheet, setSheetFlash } from "../state";
 import { cloneSheet } from "../util";
 
 type StatusKind = "ok" | "err" | "info";
@@ -111,9 +112,17 @@ export function mountClaudeStart(root: HTMLElement, nav: Nav): Cleanup {
     }
     try {
       const stored = saveSheet(parsePlanFromText(pasteArea.value));
-      // Opening remounts the sheet view, so hand the confirmation to its next mount.
-      setSheetFlash(`Added "${stored.name}" from Claude. Edit it here.`, "ok");
-      nav.editSheet(cloneSheet(stored));
+      if (loadMode() === "trainer") {
+        // Trainer authors plans: open it in the Routines builder to refine.
+        setSheetFlash(`Added "${stored.name}" from Claude. Edit it here.`, "ok");
+        nav.editSheet(cloneSheet(stored));
+      } else {
+        // Student follows plans: drop into Train so they can run the new one.
+        // Stage it as the working copy in case they switch to Trainer to edit.
+        setEditingSheet(cloneSheet(stored));
+        setStatus(`Saved "${stored.name}". Open Train to follow it.`, "ok");
+        nav.go("train");
+      }
     } catch (err) {
       setStatus(
         err instanceof Error
@@ -128,10 +137,10 @@ export function mountClaudeStart(root: HTMLElement, nav: Nav): Cleanup {
     h("div", { class: "view view-claude-start" }, [
       h("section", { class: "hero" }, [
         h("p", { class: "eyebrow", text: "Getting started" }),
-        h("h1", { class: "display", text: "Build a plan with Claude" }),
+        h("h1", { class: "display", text: "Get a plan from Claude" }),
         h("p", {
           class: "lede",
-          text: "Tell Claude your goal and it drafts a starting routine. Hand off the prompt, then paste the plan back to save it as an editable routine sheet.",
+          text: "No coach yet? Tell Claude your goal and it drafts a starting routine. Hand off the prompt, then paste the plan back to save it and follow it from Train.",
         }),
       ]),
       h("section", { class: "card" }, [
