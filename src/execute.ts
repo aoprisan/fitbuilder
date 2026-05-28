@@ -118,17 +118,17 @@ export function prescriptionToTarget(prescription: string): {
 }
 
 /**
- * Flatten a sheet into an ordered list of runnable items. Completely blank
- * rows (no name, no target, no note) are dropped so empty builder rows don't
- * inflate the run.
+ * Flatten a sheet into an ordered list of runnable items. Unnamed rows are
+ * dropped — every added builder/routine row carries a default target, so a row
+ * is only "real" once it has a name; an unnamed row would otherwise show as a
+ * phantom "—" exercise in the run and exports.
  */
 export function flattenSheet(sheet: RoutineSheet): RunItem[] {
   const items: RunItem[] = [];
   sheet.routines.forEach((routine, routineIndex) => {
     routine.exercises.forEach((ex, exerciseIndex) => {
       const target = ex.target;
-      const note = (ex.note ?? "").trim();
-      if (ex.name.trim() === "" && !target && note === "") return;
+      if (ex.name.trim() === "") return;
       // A per-set scheme drives the row set-by-set; a volume target gives a rep
       // total to count down; a note-only row has no countable target (manual done).
       const setTargets =

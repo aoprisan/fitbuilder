@@ -97,21 +97,21 @@ function validateExercise(value: unknown): RoutineExercise {
   if (!isRecord(value)) fail("Each exercise must be an object.");
 
   // Prefer the structured `target`. Fall back to migrating legacy pre-structured
-  // sheets: explicit `setTargets` → a per-set scheme; a free-text `prescription`
-  // → a rep volume when it parses, otherwise a carried-over note.
+  // sheets: explicit `setTargets` → a per-set scheme (the free-text `prescription`
+  // then acted as a human note, so carry it as the note); otherwise a bare
+  // `prescription` → a rep volume when it parses, else a carried-over note.
   let target = validateTarget(value["target"]);
   let note: string | undefined;
   if (!target) {
     const legacySets = validateSetList(value["setTargets"]);
+    const pres = asString(value["prescription"]).trim();
     if (legacySets.length > 0) {
       target = { kind: "sets", sets: legacySets };
-    } else {
-      const pres = asString(value["prescription"]).trim();
-      if (pres !== "") {
-        const migrated = prescriptionToTarget(pres);
-        target = migrated.target;
-        note = migrated.note;
-      }
+      if (pres !== "") note = pres;
+    } else if (pres !== "") {
+      const migrated = prescriptionToTarget(pres);
+      target = migrated.target;
+      note = migrated.note;
     }
   }
   // An explicit `note` (new shape) wins over any migrated note.

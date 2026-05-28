@@ -58,9 +58,7 @@ export function mountTrain(root: HTMLElement, nav: Nav): void {
     const rows: HTMLElement[] = [];
     sheets.forEach((sheet) => {
       sheet.routines.forEach((routine, i) => {
-        const exCount = routine.exercises.filter(
-          (e) => e.name.trim() !== "" || e.target !== undefined || (e.note ?? "").trim() !== "",
-        ).length;
+        const exCount = routine.exercises.filter((e) => e.name.trim() !== "").length;
         if (exCount === 0) return;
         const title = routine.title || "Untitled routine";
         const adherence = summarizeAdherence(singleRoutineSheetId(sheet, i), sessions);
