@@ -36,7 +36,13 @@ export function loadSheets(): RoutineSheet[] {
 }
 
 function writeAll(sheets: RoutineSheet[]): void {
-  localStorage.setItem(KEY, JSON.stringify(sheets));
+  try {
+    localStorage.setItem(KEY, JSON.stringify(sheets));
+  } catch (err) {
+    // Quota or privacy-mode failure: keep the in-memory copy working this
+    // session rather than crashing (e.g. first-run seeding at module load).
+    console.warn("[gymlog] could not persist sheets", err);
+  }
 }
 
 /** Insert or update a sheet by id, stamping updatedAt. Returns the stored copy. */

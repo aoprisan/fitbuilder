@@ -50,6 +50,7 @@ function trailingMultiplier(rest: string): number {
  *
  * Rules (first match wins), after stripping parenthetical tempo notes:
  *  - "5+5+5 x 5"  → sum of the plus-group × trailing multiplier        → 75
+ *  - "3×10-12"    → sets × top-of-range                                → 36
  *  - "1-2-3-2-1"  → pyramid (3+ dash-separated numbers): sum × mult    → 9
  *  - "30-50 …"    → range (exactly 2 dash-separated numbers): the top  → 50
  *  - timed / round-only with no "repet…" keyword                       → null
@@ -69,6 +70,11 @@ export function parseTargetReps(prescription: string): number | null {
     const sum = plus[0].split("+").reduce((a, t) => a + Number(t.trim()), 0);
     return sum * trailingMultiplier(s.slice(plus.index! + plus[0].length));
   }
+
+  // "3×10-12" — sets × a per-set rep range. Checked before the bare dash run so
+  // the range isn't mistaken for a 2-number range; uses the top of the range.
+  const setRange = s.match(/(\d+)\s*[x×]\s*(\d+)\s*-\s*(\d+)/i);
+  if (setRange) return Number(setRange[1]) * Math.max(Number(setRange[2]), Number(setRange[3]));
 
   // Dash runs: a pyramid (3+ numbers) sums; a 2-number range takes its top.
   const dash = s.match(/\d+(?:\s*-\s*\d+)+/);

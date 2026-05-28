@@ -1,5 +1,4 @@
 import {
-  EQUIPMENT,
   EQUIPMENT_LABELS,
   MUSCLE_GROUPS,
   type Equipment,
@@ -39,6 +38,22 @@ export interface Movement {
 
 /** Share of a set's volume/time/effort credited to each secondary muscle. */
 export const SECONDARY_MUSCLE_SHARE = 0.5;
+
+/**
+ * The general-purpose load types offered as fallback gear for any muscle without
+ * a curated movement list. Excludes the specific guided-machine classes in
+ * `EQUIPMENT` (bench-press, lat-pulldown, …) — those back named curated lifts and
+ * read as nonsense generic gear (e.g. "Biceps · Lateral Abs Machine").
+ */
+const GENERIC_EQUIPMENT: readonly Equipment[] = [
+  "cable",
+  "dumbbell",
+  "barbell",
+  "kettlebell",
+  "trx",
+  "calisthenics",
+  "machine",
+];
 
 /** A generic-gear movement: just "this muscle, loaded with this gear". */
 function genericMovement(muscle: MuscleGroup, equipment: Equipment): Movement {
@@ -120,7 +135,7 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
  * the rest get the full generic-gear list — exactly the toggle shown today.
  */
 export function movementsForMuscle(muscle: MuscleGroup): readonly Movement[] {
-  return CURATED[muscle] ?? EQUIPMENT.map((eq) => genericMovement(muscle, eq));
+  return CURATED[muscle] ?? GENERIC_EQUIPMENT.map((eq) => genericMovement(muscle, eq));
 }
 
 const REGISTRY: ReadonlyMap<string, Movement> = new Map(

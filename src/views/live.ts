@@ -22,7 +22,13 @@ import {
 } from "../exporters";
 import { newLoggedExercise, newTrainingSession, repeatSession } from "../log";
 import { clearProgress, loadProgress, saveProgress, type SelectMode } from "../liveProgress";
-import { deleteSession, getSession, loadSessions, saveSession } from "../logStorage";
+import {
+  deleteEmptySessions,
+  deleteSession,
+  getSession,
+  loadSessions,
+  saveSession,
+} from "../logStorage";
 import {
   compoundMovements,
   findMovement,
@@ -595,6 +601,10 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   // ───────────────────────────── List screen ──────────────────────────────────
 
   function renderList(): void {
+    // Clear out sessions that were started but never logged (abandoned via a
+    // tab switch). We're on the list screen, so nothing is in flight; spare any
+    // still-resumable session just in case a snapshot points at an empty one.
+    deleteEmptySessions(loadProgress()?.sessionId);
     const sessions = loadSessions().sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 
     const listHost = h("div", { class: "saved-list" });
@@ -1038,40 +1048,50 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     return host;
   }
 
-  /** Optional reps-in-reserve selector for the set being logged; tapping the active chip clears it. */
+  /**
+   * Optional reps-in-reserve selector for the set being logged; tapping the
+   * active chip clears it. Repaints in place (not a full `render()`) so picking a
+   * chip doesn't bounce the page back to the top mid-set.
+   */
   function renderRirField(): HTMLElement {
-    const hint =
-      pendingRir === null
-        ? "Tap how many reps you had left — skip to leave intensity unweighted."
-        : pendingRir === 0
-          ? "To failure — counted as maximum intensity."
-          : `${pendingRir} ${pendingRir === 1 ? "rep" : "reps"} left in the tank.`;
-    return h("div", { class: "field rir-field" }, [
-      h("span", { class: "field-label", text: "Reps in reserve (optional)" }),
-      h(
-        "div",
-        { class: "toggle rir-toggle", role: "group", aria: { label: "Reps in reserve" } },
-        RIR_OPTIONS.map((o) =>
-          h("button", {
-            class: pendingRir === o.value ? "toggle-btn active" : "toggle-btn",
-            type: "button",
-            text: o.label,
-            aria: {
-              pressed: String(pendingRir === o.value),
-              label: o.value === 0 ? "trained to failure" : `${o.label} reps in reserve`,
-            },
-            on: {
-              click: () => {
-                pendingRir = pendingRir === o.value ? null : o.value;
-                snapshot();
-                render();
+    const field = h("div", { class: "field rir-field" });
+    const paint = (): void => {
+      const hint =
+        pendingRir === null
+          ? "Tap how many reps you had left — skip to leave intensity unweighted."
+          : pendingRir === 0
+            ? "To failure — counted as maximum intensity."
+            : `${pendingRir} ${pendingRir === 1 ? "rep" : "reps"} left in the tank.`;
+      clear(field);
+      field.append(
+        h("span", { class: "field-label", text: "Reps in reserve (optional)" }),
+        h(
+          "div",
+          { class: "toggle rir-toggle", role: "group", aria: { label: "Reps in reserve" } },
+          RIR_OPTIONS.map((o) =>
+            h("button", {
+              class: pendingRir === o.value ? "toggle-btn active" : "toggle-btn",
+              type: "button",
+              text: o.label,
+              aria: {
+                pressed: String(pendingRir === o.value),
+                label: o.value === 0 ? "trained to failure" : `${o.label} reps in reserve`,
               },
-            },
-          }),
+              on: {
+                click: () => {
+                  pendingRir = pendingRir === o.value ? null : o.value;
+                  snapshot();
+                  paint();
+                },
+              },
+            }),
+          ),
         ),
-      ),
-      h("p", { class: "rir-hint", text: hint }),
-    ]);
+        h("p", { class: "rir-hint", text: hint }),
+      );
+    };
+    paint();
+    return field;
   }
 
   function renderExercise(): void {

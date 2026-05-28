@@ -82,6 +82,9 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
   let lastPrefillKey = "";
   // Id of the session this run was saved into, so re-saving updates it in place.
   let savedSessionId: string | null = null;
+  // Start time captured on the first save, so an "Update log" keeps the run's
+  // original timestamp instead of drifting it forward each time.
+  let savedStartedAt: string | null = null;
 
   // ---- Focused "now" card ---------------------------------------------------
   const eyebrow = h("p", { class: "now-eyebrow" });
@@ -439,9 +442,14 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
   function saveRun(): void {
     const session = executeRunToSession(ctl, sheet.name, { fromSheetId: sheet.id });
     if (session.exercises.length === 0) return;
-    if (savedSessionId) session.id = savedSessionId; // update the same logged session
+    if (savedSessionId) {
+      // Update the same logged session, keeping its original start time.
+      session.id = savedSessionId;
+      if (savedStartedAt) session.startedAt = savedStartedAt;
+    }
     const stored = saveSession(session);
     savedSessionId = stored.id;
+    savedStartedAt = stored.startedAt;
     update();
   }
 
@@ -454,6 +462,7 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
       click: () => {
         ctl.reset();
         savedSessionId = null;
+        savedStartedAt = null;
         pendingRir = null;
         showOptional = false;
         auxInput.value = "0";

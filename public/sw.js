@@ -9,8 +9,8 @@
        background. Navigation requests fall back to the cached index when no
        network is available.
 
-     - Google Fonts (the Anton + Martian Mono webfonts): cache-first. They
-       don't change, so once cached keep using the cached copy.
+     - Google Fonts (the Alfa Slab One / Bungee / IBM Plex Mono webfonts):
+       cache-first. They don't change, so once cached keep using the cached copy.
 
    Cache versioning: bump CACHE_VERSION when the SW or strategies change.
    Old caches are evicted on `activate`. */

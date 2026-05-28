@@ -31,7 +31,13 @@ export function loadSessions(): TrainingSession[] {
 }
 
 function writeAll(sessions: TrainingSession[]): void {
-  localStorage.setItem(KEY, JSON.stringify(sessions));
+  try {
+    localStorage.setItem(KEY, JSON.stringify(sessions));
+  } catch (err) {
+    // Quota or privacy-mode failure: don't crash mid-workout — the session
+    // stays usable in memory, it just won't survive a reload.
+    console.warn("[gymlog] could not persist sessions", err);
+  }
 }
 
 /** Insert or update a session by id, stamping updatedAt. Returns the stored copy. */
@@ -48,6 +54,20 @@ export function saveSession(session: TrainingSession): TrainingSession & { updat
 /** Remove a session by id. */
 export function deleteSession(id: string): void {
   writeAll(loadSessions().filter((s) => s.id !== id));
+}
+
+/**
+ * Drop sessions that have no logged sets — the residue of a session that was
+ * started (and persisted immediately) but abandoned via navigation instead of
+ * ended. `keepId` spares a still-resumable session so an in-flight workout is
+ * never deleted out from under the user.
+ */
+export function deleteEmptySessions(keepId?: string): void {
+  const sessions = loadSessions();
+  const kept = sessions.filter(
+    (s) => s.id === keepId || s.exercises.some((ex) => ex.sets.length > 0),
+  );
+  if (kept.length !== sessions.length) writeAll(kept);
 }
 
 /** Look up a single session by id. */

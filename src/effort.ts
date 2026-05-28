@@ -1,7 +1,7 @@
 import { effectiveLoadKg } from "./loadProfile";
 import { SECONDARY_MUSCLE_SHARE } from "./movements";
 import type { Equipment, MuscleGroup, TrainingSession, WorkSet } from "./types";
-import { clamp } from "./util";
+import { clamp, round2 } from "./util";
 
 /**
  * Live-session effort and hydration heuristics.
@@ -196,6 +196,7 @@ export interface MuscleWork {
   volume: number;
   /** Σ set duration, seconds. */
   timeSec: number;
+  /** Effective sets — a compound's secondary muscles count fractionally (their share). */
   sets: number;
   /** Σ effort points contributed by this muscle's sets. */
   effort: number;
@@ -214,7 +215,7 @@ function accumulateMuscleWork(sessions: Iterable<TrainingSession>): MuscleWork[]
       byMuscle.get(muscle) ?? { muscle, volume: 0, timeSec: 0, sets: 0, effort: 0 };
     entry.volume += set.reps * Math.max(0, set.weightKg) * share;
     entry.timeSec += (set.durationSec ?? 0) * share;
-    entry.sets += 1;
+    entry.sets += share;
     entry.effort += setEffort(set, equipment) * share;
     byMuscle.set(muscle, entry);
   };
@@ -234,6 +235,7 @@ function accumulateMuscleWork(sessions: Iterable<TrainingSession>): MuscleWork[]
       ...m,
       volume: Math.round(m.volume),
       timeSec: Math.round(m.timeSec),
+      sets: round2(m.sets),
       effort: Math.round(m.effort * 10) / 10,
     }))
     .sort((a, b) => b.volume - a.volume || b.timeSec - a.timeSec);
