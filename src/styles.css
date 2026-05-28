@@ -3054,6 +3054,60 @@ textarea {
   margin-left: auto;
 }
 
+/* Per-row target mode switch (Per-set / Total reps). */
+.rex-mode {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rex-mode-btn.active {
+  background: var(--brick-fill);
+  color: var(--on-press);
+  border-color: var(--brick);
+}
+
+/* Per-set scheme list wrapper. */
+.rex-sets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Total-rep volume editor row. */
+.rex-volume {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rex-volume-hint,
+.rex-note-hint {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-soft);
+}
+
+/* Carried import note + its clear button. */
+.rex-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rex-note__text {
+  flex: 1 1 auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-soft);
+}
+
+.rex-note__clear {
+  flex: 0 0 auto;
+}
+
 /* Train ▸ "Run a routine" list — each routine is a stacked, left-aligned row. */
 .train-plan-list {
   display: flex;

@@ -34,9 +34,23 @@ const EXAMPLE_SHEET = {
       title: "Push Day",
       tags: ["Chest · Shoulders · Triceps", "Intermediate"],
       exercises: [
-        { name: "Bench Press", prescription: "4 x 6-8" },
-        { name: "Overhead Press", prescription: "3 x 8-10" },
-        { name: "Triceps Pushdown", prescription: "3 x 12-15" },
+        {
+          name: "Bench Press",
+          target: {
+            kind: "sets",
+            sets: [
+              { reps: 8, loadKg: 60 },
+              { reps: 8, loadKg: 60 },
+              { reps: 6, loadKg: 65 },
+              { reps: 6, loadKg: 65 },
+            ],
+          },
+        },
+        {
+          name: "Overhead Press",
+          target: { kind: "sets", sets: [{ reps: 10 }, { reps: 10 }, { reps: 10 }] },
+        },
+        { name: "Push-Ups", target: { kind: "volume", totalReps: 50 } },
       ],
     },
   ],
@@ -65,7 +79,7 @@ export function buildPlanPrompt(inputs: PlanInputs): string {
     `- "schema" must be exactly "${SHEET_SCHEMA_ID}" and "version" must be ${SHEET_SCHEMA_VERSION}.`,
     '- "name": a short title for the whole plan.',
     '- "routines": one entry per training day. Each has a "title", a few short "tags" (focus or level labels), and "exercises".',
-    '- Each exercise has a "name" and a free-text "prescription" (e.g. "3 x 8-12", "30-50 reps", "3 sets x 45 sec"). Keep prescriptions short.',
+    '- Each exercise has a "name" and a structured "target". Use { "kind": "sets", "sets": [{ "reps": 8, "loadKg": 60 }, ...] } for a fixed per-set scheme (omit "loadKg" for bodyweight), or { "kind": "volume", "totalReps": 50 } for a self-paced total-rep goal. You may add a short "note" for a cue.',
     `- Make exactly ${days} ${routineWord}, one per training day, matched to my goal and level.`,
     "",
     "Reply with ONLY one ```json code block containing the plan, and no other text.",

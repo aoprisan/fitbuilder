@@ -1,3 +1,4 @@
+import { prescriptionToTarget } from "./execute";
 import { matchMovementByName } from "./movements";
 import {
   SHEET_SCHEMA_ID,
@@ -6,7 +7,7 @@ import {
   type RoutineExercise,
   type RoutineSheet,
 } from "./types";
-import { uuid } from "./util";
+import { cloneRoutineExercise, uuid } from "./util";
 
 /**
  * Catalog-identity fields ready to spread onto a RoutineExercise when the name
@@ -27,9 +28,13 @@ export function catalogIdentityFor(name: string): Partial<RoutineExercise> {
   };
 }
 
-/** A blank prescription row used by the sheet builder's "add exercise" action. */
+/**
+ * A blank exercise row for the builder's "add exercise" action. Opens in the
+ * per-set mode (the "standard" scheme) with a single 10-rep set; the trainer can
+ * tweak it or switch the row to a self-paced rep volume.
+ */
 export function blankRoutineExercise(): RoutineExercise {
-  return { name: "" };
+  return { name: "", target: { kind: "sets", sets: [{ reps: 10 }] } };
 }
 
 /** A blank routine used by the sheet builder's "add routine" action. */
@@ -49,8 +54,11 @@ export function blankSheet(): RoutineSheet {
   };
 }
 
+// Seed helper: transcribe a wall-chart row's free-text prescription into a
+// structured target (a rep volume when it parses; a note when it can't).
 function ex(name: string, prescription: string): RoutineExercise {
-  return { name, prescription };
+  const { target, note } = prescriptionToTarget(prescription);
+  return { name, ...(target ? { target } : {}), ...(note ? { note } : {}) };
 }
 
 /** A human label for a single routine, e.g. "RUTINA IMPINS — INCEPATOR".
@@ -90,24 +98,7 @@ export function singleRoutineSheet(
       {
         title: routine.title,
         tags: [...routine.tags],
-        exercises: routine.exercises.map((e) => ({
-          name: e.name,
-          ...(e.prescription !== undefined ? { prescription: e.prescription } : {}),
-          ...(e.setTargets
-            ? {
-                setTargets: e.setTargets.map((t) => ({
-                  reps: t.reps,
-                  ...(t.loadKg !== undefined ? { loadKg: t.loadKg } : {}),
-                })),
-              }
-            : {}),
-          ...(e.exerciseId !== undefined ? { exerciseId: e.exerciseId } : {}),
-          ...(e.muscle !== undefined ? { muscle: e.muscle } : {}),
-          ...(e.equipment !== undefined ? { equipment: e.equipment } : {}),
-          ...(e.secondaryMuscles && e.secondaryMuscles.length > 0
-            ? { secondaryMuscles: [...e.secondaryMuscles] }
-            : {}),
-        })),
+        exercises: routine.exercises.map(cloneRoutineExercise),
       },
     ],
     updatedAt: new Date().toISOString(),

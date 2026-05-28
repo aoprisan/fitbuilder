@@ -8,7 +8,15 @@ import { blankRoutine, blankRoutineExercise, blankSheet, catalogIdentityFor, sin
 import { deleteSheet, loadSheets, saveSheet } from "../sheetStorage";
 import { setSheetFlash, state, takeSheetFlash } from "../state";
 import { loadTrainer, saveTrainer } from "../trainer";
-import type { Routine, RoutineExercise, RoutineSheet, SetTarget } from "../types";
+import type {
+  ExerciseTarget,
+  PerSetTarget,
+  Routine,
+  RoutineExercise,
+  RoutineSheet,
+  SetTarget,
+  VolumeTarget,
+} from "../types";
 import { cloneSheet, sheetToJson, slug } from "../util";
 
 type StatusKind = "ok" | "err" | "info";
@@ -75,11 +83,12 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
   const exerciseCount = (): number =>
     sheet.routines.reduce((sum, r) => sum + r.exercises.length, 0);
 
-  // ---- Per-set structured target editor -------------------------------------
-  // Optional: a trainer can prescribe sets/reps/load (e.g. "deadlift 3×10 @ 20kg",
-  // or a ramp "12,10,8 @ 60/70/80"). When present these drive the Execute runner;
-  // when absent the row stays pure free-text. Structure changes re-render; typing
-  // into a set's reps/kg mutates in place so focus is kept.
+  // ---- Structured target editor ---------------------------------------------
+  // Every exercise carries a structured target in one of two modes, toggled per
+  // row: a fixed per-set scheme (sets · reps · load, e.g. "3×10 @ 20kg" or a ramp)
+  // or a self-paced rep volume ("50 reps", broken up however the trainee likes).
+  // Mode/structure changes re-render; typing into a field mutates in place so
+  // focus is kept.
   const numInput = (value: string, placeholder: string, label: string): HTMLInputElement =>
     h("input", {
       class: "rex-set-input",
@@ -92,42 +101,44 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
       aria: { label },
     });
 
-  const renderStructured = (ex: RoutineExercise, exIndex: number): HTMLElement => {
-    const targets = ex.setTargets;
-
-    if (!targets || targets.length === 0) {
-      return h("div", { class: "rex-structured" }, [
-        h("button", {
-          class: "btn btn-small rex-sets-add",
-          type: "button",
-          text: "+ Sets · reps · load",
-          aria: { label: `add structured sets to exercise ${exIndex + 1}` },
-          on: {
-            click: () => {
-              ex.setTargets = [{ reps: 10 }];
-              renderRoutines();
-            },
-          },
-        }),
-      ]);
+  // Switch a row's target to per-set, preserving the rep total / load when coming
+  // from a volume target so nothing is silently lost.
+  const toPerSet = (cur: ExerciseTarget | undefined): PerSetTarget => {
+    if (cur?.kind === "sets") return cur;
+    if (cur?.kind === "volume") {
+      return {
+        kind: "sets",
+        sets: [{ reps: cur.totalReps, ...(cur.loadKg !== undefined ? { loadKg: cur.loadKg } : {}) }],
+      };
     }
+    return { kind: "sets", sets: [{ reps: 10 }] };
+  };
 
-    // Quick-fill: materialize N identical sets, which can then be tweaked per row.
+  // Switch a row's target to a rep volume, summing an existing per-set scheme.
+  const toVolume = (cur: ExerciseTarget | undefined): VolumeTarget => {
+    if (cur?.kind === "volume") return cur;
+    if (cur?.kind === "sets") {
+      const totalReps = cur.sets.reduce((a, t) => a + t.reps, 0) || 10;
+      const loadKg = cur.sets.find((t) => t.loadKg !== undefined)?.loadKg;
+      return { kind: "volume", totalReps, ...(loadKg !== undefined ? { loadKg } : {}) };
+    }
+    return { kind: "volume", totalReps: 50 };
+  };
+
+  // The per-set sub-editor: quick-fill + one editable row per set.
+  const renderPerSet = (ex: RoutineExercise, exIndex: number, sets: SetTarget[]): HTMLElement => {
     const qfSets = numInput("", "sets", `quick-fill set count for exercise ${exIndex + 1}`);
     const qfReps = numInput("", "reps", `quick-fill reps for exercise ${exIndex + 1}`);
     const qfLoad = numInput("", "kg", `quick-fill load for exercise ${exIndex + 1}`);
     qfSets.step = "1";
     qfLoad.step = "2.5";
     const applyQuickFill = (): void => {
-      const sets = Math.floor(parseFloat(qfSets.value));
+      const n = Math.floor(parseFloat(qfSets.value));
       const reps = Math.floor(parseFloat(qfReps.value));
       const load = parseFloat(qfLoad.value);
-      if (!Number.isFinite(sets) || sets < 1 || !Number.isFinite(reps) || reps < 1) return;
-      const target: SetTarget = {
-        reps,
-        ...(Number.isFinite(load) && load > 0 ? { loadKg: load } : {}),
-      };
-      ex.setTargets = Array.from({ length: sets }, () => ({ ...target }));
+      if (!Number.isFinite(n) || n < 1 || !Number.isFinite(reps) || reps < 1) return;
+      const t: SetTarget = { reps, ...(Number.isFinite(load) && load > 0 ? { loadKg: load } : {}) };
+      ex.target = { kind: "sets", sets: Array.from({ length: n }, () => ({ ...t })) };
       renderRoutines();
     };
 
@@ -138,7 +149,11 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
         const n = Math.floor(parseFloat(reps.value));
         if (Number.isFinite(n) && n > 0) t.reps = n;
       });
-      const load = numInput(t.loadKg !== undefined ? String(t.loadKg) : "", "BW", `set ${i + 1} load kg`);
+      const load = numInput(
+        t.loadKg !== undefined ? String(t.loadKg) : "",
+        "BW",
+        `set ${i + 1} load kg`,
+      );
       load.step = "2.5";
       load.addEventListener("input", () => {
         const n = parseFloat(load.value);
@@ -156,10 +171,11 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
           type: "button",
           text: "✕",
           aria: { label: `remove set ${i + 1}` },
+          disabled: sets.length <= 1,
           on: {
             click: () => {
-              targets.splice(i, 1);
-              if (targets.length === 0) delete ex.setTargets;
+              if (sets.length <= 1) return;
+              sets.splice(i, 1);
               renderRoutines();
             },
           },
@@ -167,22 +183,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
       ]);
     };
 
-    return h("div", { class: "rex-structured" }, [
-      h("div", { class: "rex-sets-head" }, [
-        h("span", { class: "rex-sets-title", text: "Per-set targets" }),
-        h("button", {
-          class: "btn btn-tiny rex-sets-clear",
-          type: "button",
-          text: "Use free text",
-          aria: { label: `remove structured sets from exercise ${exIndex + 1}` },
-          on: {
-            click: () => {
-              delete ex.setTargets;
-              renderRoutines();
-            },
-          },
-        }),
-      ]),
+    return h("div", { class: "rex-sets" }, [
       h("div", { class: "rex-quickfill" }, [
         qfSets,
         h("span", { class: "rex-set-x", text: "×" }),
@@ -197,7 +198,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
           on: { click: applyQuickFill },
         }),
       ]),
-      h("div", { class: "rex-set-list" }, targets.map((t, i) => setRow(t, i))),
+      h("div", { class: "rex-set-list" }, sets.map((t, i) => setRow(t, i))),
       h("button", {
         class: "btn btn-tiny rex-sets-add",
         type: "button",
@@ -205,8 +206,8 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
         aria: { label: `add a set to exercise ${exIndex + 1}` },
         on: {
           click: () => {
-            const last = targets[targets.length - 1];
-            targets.push(last ? { ...last } : { reps: 10 });
+            const last = sets[sets.length - 1];
+            sets.push(last ? { ...last } : { reps: 10 });
             renderRoutines();
           },
         },
@@ -214,10 +215,91 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
     ]);
   };
 
+  // The volume sub-editor: a total-rep goal plus an optional added/external load.
+  const renderVolume = (exIndex: number, target: VolumeTarget): HTMLElement => {
+    const reps = numInput(String(target.totalReps), "reps", `total reps for exercise ${exIndex + 1}`);
+    reps.step = "1";
+    reps.addEventListener("input", () => {
+      const n = Math.floor(parseFloat(reps.value));
+      if (Number.isFinite(n) && n > 0) target.totalReps = n;
+    });
+    const load = numInput(
+      target.loadKg !== undefined ? String(target.loadKg) : "",
+      "BW",
+      `added load kg for exercise ${exIndex + 1}`,
+    );
+    load.step = "2.5";
+    load.addEventListener("input", () => {
+      const n = parseFloat(load.value);
+      if (Number.isFinite(n) && n > 0) target.loadKg = n;
+      else delete target.loadKg;
+    });
+    return h("div", { class: "rex-volume" }, [
+      h("span", { class: "rex-set-x", text: "Total" }),
+      reps,
+      h("span", { class: "rex-set-x", text: "reps @" }),
+      load,
+      h("span", { class: "rex-set-x", text: "kg" }),
+      h("span", { class: "rex-volume-hint", text: "self-paced — any number of sets" }),
+    ]);
+  };
+
+  // Mode toggle (Per-set / Total reps) + the matching sub-editor, plus a carried
+  // note (e.g. an imported row we couldn't parse) when present.
+  const renderEditor = (ex: RoutineExercise, exIndex: number): HTMLElement => {
+    const kind = ex.target?.kind;
+    const modeBtn = (label: string, active: boolean, onPick: () => void): HTMLElement =>
+      h("button", {
+        class: `btn btn-tiny rex-mode-btn${active ? " active" : ""}`,
+        type: "button",
+        text: label,
+        aria: { pressed: active ? "true" : "false", label: `${label} target for exercise ${exIndex + 1}` },
+        on: { click: onPick },
+      });
+    const toggle = h("div", { class: "rex-mode" }, [
+      h("span", { class: "rex-sets-title", text: "Target" }),
+      modeBtn("Per-set", kind === "sets", () => {
+        ex.target = toPerSet(ex.target);
+        renderRoutines();
+      }),
+      modeBtn("Total reps", kind === "volume", () => {
+        ex.target = toVolume(ex.target);
+        renderRoutines();
+      }),
+    ]);
+
+    const body =
+      ex.target?.kind === "sets"
+        ? renderPerSet(ex, exIndex, ex.target.sets)
+        : ex.target?.kind === "volume"
+          ? renderVolume(exIndex, ex.target)
+          : h("p", { class: "rex-note-hint", text: "Pick a target mode to make this exercise runnable." });
+
+    const note = (ex.note ?? "").trim();
+    const noteLine =
+      note !== ""
+        ? h("div", { class: "rex-note" }, [
+            h("span", { class: "rex-note__text", text: `Note: ${note}` }),
+            h("button", {
+              class: "btn btn-tiny rex-note__clear",
+              type: "button",
+              text: "✕",
+              aria: { label: `clear note on exercise ${exIndex + 1}` },
+              on: {
+                click: () => {
+                  delete ex.note;
+                  renderRoutines();
+                },
+              },
+            }),
+          ])
+        : null;
+
+    return h("div", { class: "rex-structured" }, noteLine ? [toggle, body, noteLine] : [toggle, body]);
+  };
+
   // ---- Exercise row ---------------------------------------------------------
   const renderExerciseRow = (routine: Routine, ex: RoutineExercise, exIndex: number): HTMLElement => {
-    const structured = !!(ex.setTargets && ex.setTargets.length > 0);
-
     const nameInput = h("input", {
       class: "rex-name",
       type: "text",
@@ -239,23 +321,9 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
       Object.assign(ex, catalogIdentityFor(ex.name));
     });
 
-    const presInput = h("input", {
-      class: "rex-pres",
-      type: "text",
-      value: ex.prescription ?? "",
-      placeholder: structured ? "Optional note" : "e.g. 30-50 repetari",
-      aria: { label: `exercise ${exIndex + 1} prescription` },
-    });
-    presInput.addEventListener("input", () => {
-      const v = presInput.value;
-      if (v === "") delete ex.prescription;
-      else ex.prescription = v;
-    });
-
     const row = h("div", { class: "routine-ex-row" }, [
       h("span", { class: "rex-index", text: String(exIndex + 1) }),
       nameInput,
-      presInput,
       h("button", {
         class: "icon-btn danger rex-remove",
         type: "button",
@@ -272,7 +340,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
       }),
     ]);
 
-    return h("div", { class: "routine-ex" }, [row, renderStructured(ex, exIndex)]);
+    return h("div", { class: "routine-ex" }, [row, renderEditor(ex, exIndex)]);
   };
 
   // ---- Routine card ---------------------------------------------------------
@@ -325,7 +393,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
       ]),
       h("div", { class: "routine-cols" }, [
         h("span", { class: "rex-col-label rex-col-name", text: "Exercise" }),
-        h("span", { class: "rex-col-label rex-col-pres", text: "Prescription" }),
+        h("span", { class: "rex-col-label rex-col-pres", text: "Target" }),
       ]),
       h(
         "div",
