@@ -340,11 +340,11 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
         h("button", {
           class: "btn btn-small btn-accent",
           type: "button",
-          text: "Analyze in Claude ▸",
-          aria: { label: "analyse recent logged sessions in Claude" },
+          text: "Ask Claude ▸",
+          aria: { label: "ask Claude about recent logged sessions" },
           on: {
             click: () =>
-              runExport("Analyze in Claude", async () => {
+              runExport("Ask Claude", async () => {
                 setStatus(analyzeMsg(await analyzeSessionsInClaude(lookback.pick(chronological))), "ok");
               }),
           },
