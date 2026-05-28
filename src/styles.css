@@ -3061,12 +3061,24 @@ textarea {
   gap: 8px;
 }
 
+.train-plan-item {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
 .train-plan-row {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   align-items: flex-start;
   gap: 3px;
   text-align: left;
+}
+
+.train-plan-delete {
+  flex: 0 0 auto;
+  align-self: stretch;
 }
 
 .train-plan-title {
