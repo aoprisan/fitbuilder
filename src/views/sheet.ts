@@ -153,6 +153,7 @@ registerTranslations({
   Edit: "Editează",
   Library: "Bibliotecă",
   Brand: "Marcă",
+  Routines: "Rutine",
   "Routines sections": "Secțiuni rutine",
 });
 
@@ -989,18 +990,18 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
   }
 
   const dataSection = h("section", { class: "card data" }, [
-    h("h2", { class: "section-title", text: "Save · Library" }),
+    h("h2", { class: "section-title", text: t("Save · Library") }),
     h("div", { class: "btn-row" }, [
       ...(SHOW_SHEET_ACTIONS
         ? [
             h("button", {
               class: "btn btn-primary",
               type: "button",
-              text: "Save",
+              text: t("Save"),
               on: {
                 click: () => {
                   sheet.updatedAt = saveSheet(sheet).updatedAt;
-                  setStatus(`Saved "${sheet.name}" to this browser.`, "ok");
+                  setStatus(t("Saved \"{0}\" to this browser.").replace("{0}", String(sheet.name)), "ok");
                   renderSaved();
                 },
               },
@@ -1008,7 +1009,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
             h("button", {
               class: "btn",
               type: "button",
-              text: "Download JSON",
+              text: t("Download JSON"),
               on: {
                 click: () => {
                   const blob = new Blob([sheetToJson(sheet)], { type: "application/json" });
@@ -1018,7 +1019,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
                   a.click();
                   a.remove();
                   URL.revokeObjectURL(url);
-                  setStatus("Downloaded JSON file.", "ok");
+                  setStatus(t("Downloaded JSON file."), "ok");
                 },
               },
             }),
@@ -1027,7 +1028,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
       h("button", {
         class: "btn",
         type: "button",
-        text: "New sheet",
+        text: t("New sheet"),
         on: { click: () => nav.editSheet(blankSheet()) },
       }),
     ]),
@@ -1045,7 +1046,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
     h("button", {
       class: "btn btn-small",
       type: "button",
-      text: "+ Add routine",
+      text: t("+ Add routine"),
       on: {
         click: () => {
           sheet.routines.push(blankRoutine());
@@ -1058,7 +1059,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
           h("button", {
             class: "btn btn-small btn-accent",
             type: "button",
-            text: "Run ▸",
+            text: t("Run ▸"),
             on: { click: () => nav.runSheet(cloneSheet(sheet)) },
           }),
         ]
@@ -1099,27 +1100,27 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
 
   const tabsBar = h(
     "div",
-    { class: "ledger-tabs", role: "tablist", aria: { label: "Routines sections" } },
-    tabs.map((t) => {
+    { class: "ledger-tabs", role: "tablist", aria: { label: t("Routines sections") } },
+    tabs.map((tab) => {
       const btn = h("button", {
         class: "ledger-tab",
         type: "button",
         role: "tab",
-        aria: { label: t.label },
-        on: { click: () => setTab(t.id) },
+        aria: { label: t(tab.label) },
+        on: { click: () => setTab(tab.id) },
       }, [
-        h("span", { class: "ledger-tab__no", text: t.no }),
-        h("span", { class: "ledger-tab__label", text: t.label }),
-        ...(t.badge ? [t.badge] : []),
+        h("span", { class: "ledger-tab__no", text: tab.no }),
+        h("span", { class: "ledger-tab__label", text: t(tab.label) }),
+        ...(tab.badge ? [tab.badge] : []),
       ]);
-      tabButtons.set(t.id, btn);
+      tabButtons.set(tab.id, btn);
       return btn;
     }),
   );
 
   // ---- Assemble -------------------------------------------------------------
   const container = h("div", { class: "view view-sheet" }, [
-    h("h1", { class: "view-title", text: "Routines" }),
+    h("h1", { class: "view-title", text: t("Routines") }),
     tabsBar,
     statusEl,
     panelEdit,
