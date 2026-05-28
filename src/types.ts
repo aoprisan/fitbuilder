@@ -69,15 +69,15 @@ export function isBodyweight(equipment: Equipment): boolean {
 }
 
 /* =============================================================================
-   Routine sheets — free-text, shareable training documents.
-   A sheet stacks several routines (like the printed gym wall-charts); each
-   exercise carries a free-text prescription ("30-50 repetari", a rep pyramid,
-   "20 sec x 4/6 runde") that the structured ExercisePlan model can't express.
-   Sheets are built to be exported as PNG/PDF and shared (e.g. on WhatsApp).
+   Routine sheets — shareable training documents.
+   A sheet stacks several routines (like the printed gym wall-charts). Every
+   exercise carries a *structured* target: either an explicit per-set scheme
+   (3×[10@20], ramps, pyramids) or a self-paced total-rep volume ("50 reps, broken
+   up however you like"). Sheets are built to be exported as PNG/PDF and shared.
    ========================================================================== */
 
 /**
- * One prescribed working set in a structured routine — reps and (optionally) a
+ * One prescribed working set in a per-set scheme — reps and (optionally) a
  * target load. A list of these expresses uniform schemes (3×[10@20]) as well as
  * ramps/pyramids ([12@60, 10@70, 8@80]). `loadKg` absent = bodyweight / no
  * prescribed load (calisthenics).
@@ -87,26 +87,53 @@ export interface SetTarget {
   loadKg?: number;
 }
 
+/**
+ * A fixed per-set scheme: the trainer prescribes each set explicitly. Drives the
+ * Execute runner set-by-set against `sets[k]` (reps + optional load).
+ */
+export interface PerSetTarget {
+  kind: "sets";
+  sets: SetTarget[];
+}
+
+/**
+ * A self-paced total-rep goal: the trainee fulfils `totalReps` across as many
+ * sets as they like (e.g. "pull-ups, 50 reps" done 15/15/…). `loadKg` absent =
+ * bodyweight. Execute counts reps toward the total rather than counting sets.
+ */
+export interface VolumeTarget {
+  kind: "volume";
+  totalReps: number;
+  loadKg?: number;
+}
+
+/**
+ * The two ways a trainer defines an exercise's work: a fixed per-set scheme
+ * (`kind: "sets"`) or a self-paced rep volume (`kind: "volume"`). The `kind`
+ * discriminator is what the builder's mode switch toggles.
+ */
+export type ExerciseTarget = PerSetTarget | VolumeTarget;
+
 export interface RoutineExercise {
   name: string;
   /**
-   * Free-text prescription, e.g. "30-50 repetari" or "1-2-3-...-3-2-1". Optional:
-   * structured routines (with `setTargets`) treat it as a human note and may omit
-   * it entirely; imported wall-chart routines always have one.
+   * The structured work for this exercise — a per-set scheme or a rep volume.
+   * Absent only for note-only rows (timed holds, round-based work, or an import
+   * whose text couldn't be parsed into reps); Execute completes those with a
+   * manual done toggle.
    */
-  prescription?: string;
+  target?: ExerciseTarget;
   /**
-   * Optional structured per-set targets. When present they drive the Execute
-   * runner (set-by-set, with target reps/load) and are shown on shared exports;
-   * `prescription` then acts as an optional human note. Absent on free-text and
-   * imported wall-chart routines, which keep behaving exactly as before.
+   * Optional short human note — a coaching cue, or the original text carried over
+   * when an imported wall-chart row couldn't be parsed into a structured target.
+   * Never drives the runner; it's display-only.
    */
-  setTargets?: SetTarget[];
+  note?: string;
   /**
    * Catalog identity carried from `movements.ts`, mirroring `LoggedExercise`.
    * Populated when the builder/importer name matches a curated movement;
-   * absent on free-text or unmatched rows. Consumers (Execute, `sheetToSession`)
-   * prefer these when present, falling back to a runtime name-match.
+   * absent on unmatched rows. Consumers (Execute, `sheetToSession`) prefer these
+   * when present, falling back to a runtime name-match.
    */
   exerciseId?: string;
   muscle?: MuscleGroup;

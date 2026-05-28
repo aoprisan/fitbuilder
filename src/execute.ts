@@ -1,5 +1,6 @@
 import { findMovement, matchMovementByName, type Movement, movementsForMuscle } from "./movements";
-import type { Equipment, MuscleGroup, RoutineSheet, SetTarget, WorkSet } from "./types";
+import type { Equipment, ExerciseTarget, MuscleGroup, RoutineSheet, SetTarget, WorkSet } from "./types";
+import { formatTarget } from "./util";
 
 /** One runnable line in an execute run — a single exercise within a routine. */
 export interface RunItem {
@@ -10,19 +11,18 @@ export interface RunItem {
   /** 0-based position of this exercise within its routine. */
   exerciseIndex: number;
   name: string;
-  /** Free-text prescription, e.g. "30-50 repetari". */
+  /** Human display label derived from the exercise's target (e.g. "3×10 @ 20kg", "50 reps") or its note. */
   prescription: string;
   /**
-   * Total rep volume to fulfil, parsed from the prescription (or summed from
-   * `setTargets` when structured), or null when the work is timed / hold /
-   * round-based and has no countable rep target (those rows are completed by a
-   * manual "done" tap instead).
+   * Total rep volume to fulfil — `totalReps` for a volume target, the summed reps
+   * for a per-set target, or null for a note-only row (timed / hold / round-based,
+   * completed by a manual "done" tap instead).
    */
   targetReps: number | null;
   /**
-   * Structured per-set targets carried from the routine exercise. When present
-   * the row is driven set-by-set against these (reps + optional load), and
-   * `isDone` / `fraction` count *sets* rather than total reps.
+   * Per-set targets carried from a `kind: "sets"` exercise. When present the row
+   * is driven set-by-set against these (reps + optional load), and `isDone` /
+   * `fraction` count *sets* rather than total reps.
    */
   setTargets?: SetTarget[];
   /**
@@ -37,9 +37,9 @@ export interface RunItem {
   secondaryMuscles?: readonly MuscleGroup[];
 }
 
-/** Read a trailing "x N" multiplier (e.g. " x 5", " x3"); defaults to 1. */
+/** Read a trailing "x N" multiplier (e.g. " x 5", " x3", " ×3"); defaults to 1. */
 function trailingMultiplier(rest: string): number {
-  const m = rest.match(/x\s*(\d+)/i);
+  const m = rest.match(/[x×]\s*(\d+)/i);
   return m ? Number(m[1]) : 1;
 }
 
@@ -53,6 +53,8 @@ function trailingMultiplier(rest: string): number {
  *  - "1-2-3-2-1"  → pyramid (3+ dash-separated numbers): sum × mult    → 9
  *  - "30-50 …"    → range (exactly 2 dash-separated numbers): the top  → 50
  *  - timed / round-only with no "repet…" keyword                       → null
+ *  - "3×10" / "4 x 12" → sets × reps                                   → 30 / 48
+ *  - "12, 10, 8"  → comma list of per-set reps: their sum             → 30
  *  - otherwise the first integer is the rep count ("70 repetari" → 70)
  */
 export function parseTargetReps(prescription: string): number | null {
@@ -85,22 +87,58 @@ export function parseTargetReps(prescription: string): number | null {
   const leadingRounds = /^x\s*\d/i.test(s);
   if ((timed || rounds || leadingRounds) && !hasReps) return null;
 
+  // "3×10" / "4 x 12" — sets × reps (also how a uniform per-set scheme prints).
+  const mult = s.match(/(\d+)\s*[x×]\s*(\d+)/i);
+  if (mult) return Number(mult[1]) * Number(mult[2]);
+
+  // "12, 10, 8" — a comma list of per-set reps (a varying scheme prints this way).
+  const list = s.match(/\d+(?:\s*,\s*\d+)+/);
+  if (list) return list[0].split(",").reduce((a, t) => a + Number(t.trim()), 0);
+
   const nums = s.match(/\d+/g);
   return nums ? Number(nums[0]) : null;
 }
 
 /**
+ * Convert a legacy free-text prescription into a structured target. Parses to a
+ * self-paced rep `volume` when a countable rep total can be read; otherwise keeps
+ * the text as a display-only `note` (timed holds, round-based work, unparseable
+ * imports). Shared by the importer, the seeded defaults, and the on-load migration
+ * of pre-structured sheets.
+ */
+export function prescriptionToTarget(prescription: string): {
+  target?: ExerciseTarget;
+  note?: string;
+} {
+  const text = prescription.trim();
+  if (text === "") return {};
+  const reps = parseTargetReps(text);
+  if (reps !== null && reps > 0) return { target: { kind: "volume", totalReps: reps } };
+  return { note: text };
+}
+
+/**
  * Flatten a sheet into an ordered list of runnable items. Completely blank
- * rows (no name and no prescription) are dropped so empty builder rows don't
+ * rows (no name, no target, no note) are dropped so empty builder rows don't
  * inflate the run.
  */
 export function flattenSheet(sheet: RoutineSheet): RunItem[] {
   const items: RunItem[] = [];
   sheet.routines.forEach((routine, routineIndex) => {
     routine.exercises.forEach((ex, exerciseIndex) => {
-      const prescription = ex.prescription ?? "";
-      if (ex.name.trim() === "" && prescription.trim() === "") return;
-      const structured = ex.setTargets && ex.setTargets.length > 0 ? ex.setTargets : undefined;
+      const target = ex.target;
+      const note = (ex.note ?? "").trim();
+      if (ex.name.trim() === "" && !target && note === "") return;
+      // A per-set scheme drives the row set-by-set; a volume target gives a rep
+      // total to count down; a note-only row has no countable target (manual done).
+      const setTargets =
+        target?.kind === "sets" && target.sets.length > 0 ? target.sets : undefined;
+      const targetReps =
+        target?.kind === "sets"
+          ? target.sets.reduce((a, t) => a + t.reps, 0)
+          : target?.kind === "volume"
+            ? target.totalReps
+            : null;
       // Identity: prefer fields carried on the RoutineExercise; otherwise try
       // a runtime name-match. Either source produces the same shape downstream.
       const carried =
@@ -130,15 +168,11 @@ export function flattenSheet(sheet: RoutineSheet): RunItem[] {
         routineTitle: routine.title,
         exerciseIndex,
         name: ex.name,
-        prescription,
-        // Structured rows derive a rep total from their sets so the grand-total
-        // tallies still read; otherwise fall back to parsing the free text.
-        targetReps: structured
-          ? structured.reduce((a, t) => a + t.reps, 0)
-          : parseTargetReps(prescription),
-        ...(structured
+        prescription: formatTarget(ex),
+        targetReps,
+        ...(setTargets
           ? {
-              setTargets: structured.map((t) => ({
+              setTargets: setTargets.map((t) => ({
                 reps: t.reps,
                 ...(t.loadKg !== undefined ? { loadKg: t.loadKg } : {}),
               })),

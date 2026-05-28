@@ -7,11 +7,14 @@ import {
   SHEET_SCHEMA_ID,
   SHEET_SCHEMA_VERSION,
   type Equipment,
+  type ExerciseTarget,
   type LoggedExercise,
+  type RoutineExercise,
   type RoutineSheet,
   type SessionArchive,
   type SetTarget,
   type TrainingSession,
+  type VolumeTarget,
 } from "./types";
 
 /** Generate a RFC4122 v4 uuid, falling back when crypto.randomUUID is absent. */
@@ -36,6 +39,39 @@ export function uuid(): string {
     .join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10, 16).join("")}`;
 }
 
+/** Deep clone an exercise target (per-set scheme or rep volume). */
+function cloneTarget(t: ExerciseTarget): ExerciseTarget {
+  if (t.kind === "sets") {
+    return {
+      kind: "sets",
+      sets: t.sets.map((s) => ({
+        reps: s.reps,
+        ...(s.loadKg !== undefined ? { loadKg: s.loadKg } : {}),
+      })),
+    };
+  }
+  return {
+    kind: "volume",
+    totalReps: t.totalReps,
+    ...(t.loadKg !== undefined ? { loadKg: t.loadKg } : {}),
+  };
+}
+
+/** Deep clone a routine exercise so editing never mutates stored data. */
+export function cloneRoutineExercise(e: RoutineExercise): RoutineExercise {
+  return {
+    name: e.name,
+    ...(e.target ? { target: cloneTarget(e.target) } : {}),
+    ...(e.note !== undefined ? { note: e.note } : {}),
+    ...(e.exerciseId !== undefined ? { exerciseId: e.exerciseId } : {}),
+    ...(e.muscle !== undefined ? { muscle: e.muscle } : {}),
+    ...(e.equipment !== undefined ? { equipment: e.equipment } : {}),
+    ...(e.secondaryMuscles && e.secondaryMuscles.length > 0
+      ? { secondaryMuscles: [...e.secondaryMuscles] }
+      : {}),
+  };
+}
+
 /** Deep clone a routine sheet so editing never mutates stored data. */
 export function cloneSheet(sheet: RoutineSheet): RoutineSheet {
   return {
@@ -46,24 +82,7 @@ export function cloneSheet(sheet: RoutineSheet): RoutineSheet {
     routines: sheet.routines.map((r) => ({
       title: r.title,
       tags: [...r.tags],
-      exercises: r.exercises.map((e) => ({
-        name: e.name,
-        ...(e.prescription !== undefined ? { prescription: e.prescription } : {}),
-        ...(e.setTargets
-          ? {
-              setTargets: e.setTargets.map((t) => ({
-                reps: t.reps,
-                ...(t.loadKg !== undefined ? { loadKg: t.loadKg } : {}),
-              })),
-            }
-          : {}),
-        ...(e.exerciseId !== undefined ? { exerciseId: e.exerciseId } : {}),
-        ...(e.muscle !== undefined ? { muscle: e.muscle } : {}),
-        ...(e.equipment !== undefined ? { equipment: e.equipment } : {}),
-        ...(e.secondaryMuscles && e.secondaryMuscles.length > 0
-          ? { secondaryMuscles: [...e.secondaryMuscles] }
-          : {}),
-      })),
+      exercises: r.exercises.map(cloneRoutineExercise),
     })),
     ...(sheet.updatedAt !== undefined ? { updatedAt: sheet.updatedAt } : {}),
   };
@@ -93,6 +112,24 @@ export function formatSetTargets(targets: readonly SetTarget[]): string {
   return `${repPart} @ ${loadPart}kg`;
 }
 
+/** Render a self-paced rep volume as "50 reps" (or "50 reps @ 20kg" when loaded). */
+export function formatVolumeTarget(t: VolumeTarget): string {
+  const reps = `${t.totalReps} reps`;
+  return t.loadKg !== undefined && t.loadKg > 0 ? `${reps} @ ${round2(t.loadKg)}kg` : reps;
+}
+
+/**
+ * A compact human label for an exercise's target — the per-set scheme, the rep
+ * volume, or (for a note-only row) its note. Used by the builder preview, the
+ * shared PNG/PDF exports, and as the target carried into a live/run session.
+ */
+export function formatTarget(ex: RoutineExercise): string {
+  const t = ex.target;
+  if (t?.kind === "sets") return formatSetTargets(t.sets);
+  if (t?.kind === "volume") return formatVolumeTarget(t);
+  return (ex.note ?? "").trim();
+}
+
 /** Pretty-print a routine sheet as interop JSON. */
 export function sheetToJson(sheet: RoutineSheet): string {
   return JSON.stringify(sheet, null, 2);
@@ -112,26 +149,21 @@ export function formatClock(totalSeconds: number): string {
 }
 
 /**
- * Summarise an exercise's logged sets as a free-text prescription, e.g.
- * "3 × 10 @ 20 kg", "12, 10, 8 reps @ 20 kg", or "4 × 12" for bodyweight.
+ * Build a per-set target from an exercise's logged sets (reps + any added/external
+ * load). Placeholder sets with no reps (timed/manual rows) are dropped; returns
+ * undefined when nothing countable was logged.
  */
-function summarizeSets(ex: LoggedExercise): string {
-  const sets = ex.sets;
-  if (sets.length === 0) return "—";
-  const reps = sets.map((s) => s.reps);
-  const weights = sets.map((s) => s.weightKg);
-  const sameReps = reps.every((r) => r === reps[0]);
-  const sameWeight = weights.every((w) => w === weights[0]);
-  const bw = isBodyweight(ex.equipment);
-  const load = (w: number): string => (bw ? (w > 0 ? ` + ${round2(w)} kg` : "") : w > 0 ? ` @ ${round2(w)} kg` : "");
-  if (sameReps && sameWeight) return `${sets.length} × ${reps[0]}${load(weights[0]!)}`;
-  const repsStr = reps.join(", ");
-  return sameWeight ? `${repsStr} reps${load(weights[0]!)}` : `${repsStr} reps`;
+function loggedSetsToTarget(ex: LoggedExercise): ExerciseTarget | undefined {
+  const sets = ex.sets
+    .filter((s) => s.reps > 0)
+    .map((s) => ({ reps: s.reps, ...(s.weightKg > 0 ? { loadKg: round2(s.weightKg) } : {}) }));
+  return sets.length > 0 ? { kind: "sets", sets } : undefined;
 }
 
 /**
  * Turn a logged training session into a one-routine sheet so it can be reused
  * and shared through the routine export/share pipeline (PNG/PDF/WhatsApp/JSON).
+ * Each logged exercise becomes a per-set target reflecting what was actually done.
  */
 export function sessionToSheet(session: TrainingSession): RoutineSheet {
   return {
@@ -143,10 +175,10 @@ export function sessionToSheet(session: TrainingSession): RoutineSheet {
       {
         title: session.name || "Session",
         tags: [formatSessionDate(session.startedAt)],
-        exercises: session.exercises.map((ex) => ({
-          name: ex.name,
-          prescription: summarizeSets(ex),
-        })),
+        exercises: session.exercises.map((ex) => {
+          const target = loggedSetsToTarget(ex);
+          return { name: ex.name, ...(target ? { target } : {}) };
+        }),
       },
     ],
     updatedAt: new Date().toISOString(),

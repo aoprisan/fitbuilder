@@ -59,7 +59,7 @@ export function mountTrain(root: HTMLElement, nav: Nav): void {
     sheets.forEach((sheet) => {
       sheet.routines.forEach((routine, i) => {
         const exCount = routine.exercises.filter(
-          (e) => e.name.trim() !== "" || (e.prescription ?? "").trim() !== "",
+          (e) => e.name.trim() !== "" || e.target !== undefined || (e.note ?? "").trim() !== "",
         ).length;
         if (exCount === 0) return;
         const title = routine.title || "Untitled routine";

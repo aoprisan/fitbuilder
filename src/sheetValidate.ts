@@ -1,9 +1,11 @@
+import { prescriptionToTarget } from "./execute";
 import {
   EQUIPMENT,
   MUSCLE_GROUPS,
   SHEET_SCHEMA_ID,
   SHEET_SCHEMA_VERSION,
   type Equipment,
+  type ExerciseTarget,
   type MuscleGroup,
   type Routine,
   type RoutineExercise,
@@ -41,6 +43,36 @@ function validateSetTarget(value: unknown): SetTarget | null {
   };
 }
 
+/** A list of raw set objects → validated SetTargets (drops unreadable entries). */
+function validateSetList(raw: unknown): SetTarget[] {
+  return Array.isArray(raw)
+    ? raw.map(validateSetTarget).filter((t): t is SetTarget => t !== null)
+    : [];
+}
+
+/** Validate a structured exercise target, or undefined when it can't be read. */
+function validateTarget(value: unknown): ExerciseTarget | undefined {
+  if (!isRecord(value)) return undefined;
+  const kind = value["kind"];
+  if (kind === "sets") {
+    const sets = validateSetList(value["sets"]);
+    return sets.length > 0 ? { kind: "sets", sets } : undefined;
+  }
+  if (kind === "volume") {
+    const totalReps = value["totalReps"];
+    if (typeof totalReps !== "number" || !Number.isFinite(totalReps) || totalReps <= 0) {
+      return undefined;
+    }
+    const loadKg = value["loadKg"];
+    return {
+      kind: "volume",
+      totalReps: Math.floor(totalReps),
+      ...(typeof loadKg === "number" && Number.isFinite(loadKg) && loadKg > 0 ? { loadKg } : {}),
+    };
+  }
+  return undefined;
+}
+
 function asMuscle(value: unknown): MuscleGroup | undefined {
   return typeof value === "string" && (MUSCLE_GROUPS as readonly string[]).includes(value)
     ? (value as MuscleGroup)
@@ -63,19 +95,37 @@ function asSecondaryMuscles(value: unknown): readonly MuscleGroup[] {
 
 function validateExercise(value: unknown): RoutineExercise {
   if (!isRecord(value)) fail("Each exercise must be an object.");
-  const rawTargets = value["setTargets"];
-  const setTargets = Array.isArray(rawTargets)
-    ? rawTargets.map(validateSetTarget).filter((t): t is SetTarget => t !== null)
-    : [];
-  const prescription = asString(value["prescription"]);
+
+  // Prefer the structured `target`. Fall back to migrating legacy pre-structured
+  // sheets: explicit `setTargets` → a per-set scheme; a free-text `prescription`
+  // → a rep volume when it parses, otherwise a carried-over note.
+  let target = validateTarget(value["target"]);
+  let note: string | undefined;
+  if (!target) {
+    const legacySets = validateSetList(value["setTargets"]);
+    if (legacySets.length > 0) {
+      target = { kind: "sets", sets: legacySets };
+    } else {
+      const pres = asString(value["prescription"]).trim();
+      if (pres !== "") {
+        const migrated = prescriptionToTarget(pres);
+        target = migrated.target;
+        note = migrated.note;
+      }
+    }
+  }
+  // An explicit `note` (new shape) wins over any migrated note.
+  const explicitNote = asString(value["note"]).trim();
+  if (explicitNote !== "") note = explicitNote;
+
   const exerciseId = value["exerciseId"];
   const muscle = asMuscle(value["muscle"]);
   const equipment = asEquipment(value["equipment"]);
   const secondary = asSecondaryMuscles(value["secondaryMuscles"]);
   return {
     name: asString(value["name"]),
-    ...(prescription !== "" ? { prescription } : {}),
-    ...(setTargets.length > 0 ? { setTargets } : {}),
+    ...(target ? { target } : {}),
+    ...(note ? { note } : {}),
     ...(typeof exerciseId === "string" && exerciseId !== "" ? { exerciseId } : {}),
     ...(muscle !== undefined ? { muscle } : {}),
     ...(equipment !== undefined ? { equipment } : {}),

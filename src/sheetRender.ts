@@ -14,7 +14,7 @@ import {
 } from "./canvasKit";
 import { loadTrainer } from "./trainer";
 import type { Routine, RoutineSheet } from "./types";
-import { formatSetTargets } from "./util";
+import { formatTarget } from "./util";
 
 /* Renders a routine sheet onto a <canvas> using the Canvas 2D API directly —
    no DOM rasterization library, so the output is deterministic and dependency
@@ -102,12 +102,9 @@ function drawRoutine(ctx: Ctx, routine: Routine, top: number, paint: boolean): n
   // Exercise rows.
   routine.exercises.forEach((exercise, i) => {
     const name = exercise.name.trim() || "—";
-    // Structured per-set targets take precedence on shared exports; free-text
-    // prescription is the fallback for imported / hand-written routines.
-    const pres =
-      exercise.setTargets && exercise.setTargets.length > 0
-        ? formatSetTargets(exercise.setTargets)
-        : (exercise.prescription ?? "").trim();
+    // The structured target (per-set scheme or rep volume) prints as the row's
+    // prescription; note-only rows fall back to their carried note.
+    const pres = formatTarget(exercise);
 
     ctx.font = `600 ${NAME_SIZE}px ${MONO}`;
     const nameLines = wrap(ctx, name, nameColW);

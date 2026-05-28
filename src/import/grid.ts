@@ -1,3 +1,4 @@
+import { prescriptionToTarget } from "../execute";
 import { catalogIdentityFor } from "../sheet";
 import {
   SHEET_SCHEMA_ID,
@@ -100,9 +101,13 @@ export function gridToRoutines(rows: GridRow[]): Routine[] {
       current = { title: "Routine", tags: [], exercises: [] };
       routines.push(current);
     }
+    // Auto-convert the wall-chart's free text into a rep volume where it parses
+    // (e.g. "30-50 repetari" → 50 reps); otherwise carry it as a display note.
+    const { target, note } = prescriptionToTarget(parsed.prescription);
     current.exercises.push({
       name: parsed.name,
-      ...(parsed.prescription !== "" ? { prescription: parsed.prescription } : {}),
+      ...(target ? { target } : {}),
+      ...(note ? { note } : {}),
       ...catalogIdentityFor(parsed.name),
     });
   }
