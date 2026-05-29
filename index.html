@@ -4,8 +4,25 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
-    <meta name="theme-color" content="#efe7d4" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#14110b" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#efe7d4" />
+    <!-- Pin the saved (or OS-preferred) theme before first paint to avoid a
+         flash of the wrong stock. Mirrors src/theme.ts — keep the two in sync. -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("gymlog.theme");
+          var theme =
+            stored === "light" || stored === "dark"
+              ? stored
+              : matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light";
+          document.documentElement.setAttribute("data-theme", theme);
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute("content", theme === "dark" ? "#14110b" : "#efe7d4");
+        } catch (e) {}
+      })();
+    </script>
     <meta
       name="description"
       content="Draft workout programs, print them as shareable routine sheets, and run live training sessions — a vintage athletic training ledger."
