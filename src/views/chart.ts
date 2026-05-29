@@ -1,5 +1,12 @@
 import { h } from "../dom";
+import { registerTranslations, t } from "../i18n";
 import { round2 } from "../util";
+
+registerTranslations({
+  "{0} over time": "{0} în timp",
+  "first session": "prima sesiune",
+  "no change": "fără schimbare",
+});
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -60,7 +67,7 @@ export function lineChart(opts: LineChartOpts): HTMLElement {
     class: "stat-chart-svg",
     viewBox: `0 0 ${W} ${H}`,
     role: "img",
-    "aria-label": `${title} over time`,
+    "aria-label": t("{0} over time").replace("{0}", title),
   });
 
   const baselineY = PAD_T + PLOT_H;
@@ -125,12 +132,12 @@ export function lineChart(opts: LineChartOpts): HTMLElement {
     delta > 0 ? "stat-chart-delta up" : delta < 0 ? "stat-chart-delta down" : "stat-chart-delta flat";
   const deltaText =
     n <= 1
-      ? "first session"
+      ? t("first session")
       : delta > 0
         ? `▲ +${fmt(delta)} ${unit}`
         : delta < 0
           ? `▼ ${fmt(Math.abs(delta))} ${unit}`
-          : "no change";
+          : t("no change");
 
   const head = h("div", { class: "stat-chart-head" }, [
     h("div", { class: "stat-chart-titles" }, [

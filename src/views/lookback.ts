@@ -1,4 +1,11 @@
 import { h } from "../dom";
+import { registerTranslations, t } from "../i18n";
+
+registerTranslations({
+  "Number of recent sessions to analyse": "Numărul de sesiuni recente de analizat",
+  "Analyze the last ": "Analizează ultimele ",
+  " sessions": " sesiuni",
+});
 
 export interface LookbackControl {
   field: HTMLElement;
@@ -26,7 +33,7 @@ export function lookbackSlider(available: number): LookbackControl {
     max: String(max),
     step: "1",
     value: String(value),
-    aria: { label: "Number of recent sessions to analyse" },
+    aria: { label: t("Number of recent sessions to analyse") },
   });
   slider.addEventListener("input", () => {
     value = Number(slider.value);
@@ -34,7 +41,7 @@ export function lookbackSlider(available: number): LookbackControl {
   });
 
   const field = h("label", { class: "field lookback-field" }, [
-    h("span", { class: "field-label" }, ["Analyze the last ", valueEl, " sessions"]),
+    h("span", { class: "field-label" }, [t("Analyze the last "), valueEl, t(" sessions")]),
     slider,
   ]);
 

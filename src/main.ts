@@ -9,6 +9,7 @@ import { importRoutineFromUrl, urlWithoutRoutine } from "./shareRoutine";
 import { saveSheet } from "./sheetStorage";
 import { setActiveLog, setEditingSheet, setExecuting, setSheetFlash, state } from "./state";
 import { type AppMode, loadMode, saveMode } from "./mode";
+import { getLang, type Lang, onLangChange, setLang, t } from "./i18n";
 import { cloneSheet } from "./util";
 import { mountClaudeStart } from "./views/claudeStart";
 import { mountExecute } from "./views/execute";
@@ -151,7 +152,9 @@ function boot(): void {
       // prior session is already persisted, so this only changes activeLog.
       if (state.activeLog && state.activeLog.exercises.some((ex) => ex.sets.length > 0)) {
         const ok = confirm(
-          "A live session is in progress. Start a new one from this routine? Your current session is kept in the Live list.",
+          t(
+            "A live session is in progress. Start a new one from this routine? Your current session is kept in the Live list.",
+          ),
         );
         if (!ok) return;
       }
@@ -220,9 +223,10 @@ function boot(): void {
     clear(navRow);
     navButtons.clear();
     for (const item of NAV_BY_MODE[mode]) {
-      const btn = h("button", { class: "nav-btn", type: "button", aria: { label: item.label } }, [
+      const label = t(item.label);
+      const btn = h("button", { class: "nav-btn", type: "button", aria: { label } }, [
         item.icon(),
-        h("span", { class: "nav-label", text: item.label }),
+        h("span", { class: "nav-label", text: label }),
       ]);
       btn.addEventListener("click", () => nav.go(item.name));
       navButtons.set(item.name, btn);
@@ -252,7 +256,7 @@ function boot(): void {
     "div",
     { class: "mode-toggle", role: "group", aria: { label: "App mode" } },
     (["student", "trainer"] as const).map((m) => {
-      const label = m === "student" ? "Student" : "Trainer";
+      const label = t(m === "student" ? "Student" : "Trainer");
       const btn = h("button", {
         class: "mode-toggle-btn",
         type: "button",
@@ -264,6 +268,54 @@ function boot(): void {
       return btn;
     }),
   );
+  /** Re-stamp the mode labels after a language change (the toggle itself stays). */
+  function relabelMode(): void {
+    for (const [m, btn] of modeButtons) {
+      const label = t(m === "student" ? "Student" : "Trainer");
+      btn.textContent = label;
+      btn.setAttribute("aria-label", `${label} mode`);
+    }
+  }
+
+  // Language toggle (EN / RO): mirrors the mode toggle's segmented stamp. The
+  // codes are language-neutral, so only the active highlight changes on switch.
+  let lang: Lang = getLang();
+  const langButtons = new Map<Lang, HTMLButtonElement>();
+  function highlightLang(): void {
+    for (const [l, btn] of langButtons) {
+      const active = l === lang;
+      btn.classList.toggle("active", active);
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+    }
+  }
+  const langToggle = h(
+    "div",
+    { class: "mode-toggle lang-toggle", role: "group", aria: { label: "Language" } },
+    (["en", "ro"] as const).map((l) => {
+      const btn = h("button", {
+        class: "mode-toggle-btn",
+        type: "button",
+        text: l === "en" ? "EN" : "RO",
+        aria: { label: l === "en" ? "English" : "Română" },
+      });
+      btn.addEventListener("click", () => {
+        if (l === lang) return;
+        lang = l;
+        setLang(l);
+      });
+      langButtons.set(l, btn);
+      return btn;
+    }),
+  );
+
+  // A language switch re-renders all chrome and remounts the current view so the
+  // freshly mounted DOM picks up the new strings (views read t() at mount time).
+  onLangChange(() => {
+    highlightLang();
+    relabelMode();
+    renderNav();
+    navigate(currentView);
+  });
 
   const header = h("header", { class: "app-header" }, [
     h("button", {
@@ -274,11 +326,13 @@ function boot(): void {
       on: { click: () => nav.go("home") },
     }),
     modeToggle,
+    langToggle,
     navRow,
   ]);
 
   app.append(header, viewHost);
   highlightMode();
+  highlightLang();
   renderNav();
   navigate(consumeSharedRoutine(mode) ?? (mode === "trainer" ? "sheet" : "home"));
 }

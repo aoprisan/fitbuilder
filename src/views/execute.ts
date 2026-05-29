@@ -4,11 +4,92 @@ import { ExecuteController } from "../execute";
 import { executeRunToSession } from "../log";
 import { loadLogo } from "../logo";
 import { loadSessions, saveSession } from "../logStorage";
+import { registerTranslations, t } from "../i18n";
 import { findMovement, movementsForMuscle } from "../movements";
 import type { Cleanup, Nav } from "../router";
 import { state } from "../state";
 import { loadTrainer } from "../trainer";
 import { isBodyweight, MUSCLE_GROUPS, MUSCLE_LABELS, type MuscleGroup, type RoutineSheet } from "../types";
+
+registerTranslations({
+  "Brand logo": "Logo marcă",
+  Failure: "Eșec",
+  "/": "/",
+  reps: "repetări",
+  "−": "−",
+  "one fewer rep": "o repetare mai puțin",
+  "reps in this set": "repetări în această serie",
+  "+": "+",
+  "one more rep": "o repetare în plus",
+  "Log set": "Înregistrează seria",
+  Undo: "Anulează",
+  "Mark done": "Marchează ca finalizat",
+  "Reps this set": "Repetări în această serie",
+  "+ Add weight / RIR": "+ Adaugă greutate / RIR",
+  decrease: "scade",
+  "added weight or hold time": "greutate adăugată sau timp de menținere",
+  increase: "crește",
+  "Reps in reserve (optional)": "Repetări în rezervă (opțional)",
+  "Reps in reserve": "Repetări în rezervă",
+  "trained to failure": "antrenat până la eșec",
+  "{0} reps in reserve": "{0} repetări în rezervă",
+  "Routine complete": "Rutină finalizată",
+  "Save to log": "Salvează în jurnal",
+  "Save this run to your log": "Salvează această execuție în jurnal",
+  "Logs what you did here as a session — it counts toward effort, recovery and stats in Live & Stats.":
+    "Înregistrează ce ai făcut aici ca o sesiune — contează la efort, recuperare și statistici în Live și Statistici.",
+  Exercises: "Exerciții",
+  Reps: "Repetări",
+  "Reps left": "Repetări rămase",
+  Routine: "Rutină",
+  done: "gata",
+  "Untitled exercise": "Exercițiu fără titlu",
+  "Counts as {0}": "Contează ca {0}",
+  "Counts as {0} · {1}": "Contează ca {0} · {1}",
+  Done: "Gata",
+  Change: "Schimbă",
+  "Pick what this counts as so it credits the right muscle and load.":
+    "Alege ce reprezintă, ca să crediteze mușchiul și încărcătura corecte.",
+  "Muscle group": "Grupă musculară",
+  Exercise: "Exercițiu",
+  "Current exercise": "Exercițiul curent",
+  "EXERCISE {0} OF {1} · SET {2}/{3}": "EXERCIȚIUL {0} DIN {1} · SERIA {2}/{3}",
+  "Target · {0} reps @ {1} kg": "Țintă · {0} repetări @ {1} kg",
+  "Target · {0} reps": "Țintă · {0} repetări",
+  "All sets logged": "Toate seriile înregistrate",
+  "EXERCISE {0} OF {1}": "EXERCIȚIUL {0} DIN {1}",
+  "—": "—",
+  "No sets yet — log your first set.": "Nicio serie încă — înregistrează prima serie.",
+  "{0}/{1} sets: {2} — {3} to go": "{0}/{1} serii: {2} — încă {3}",
+  "{0}/{1} sets: {2} — done": "{0}/{1} serii: {2} — gata",
+  "{0} set: {1} — {2} to go": "{0} serie: {1} — încă {2}",
+  "{0} set: {1} — done": "{0} serie: {1} — gata",
+  "{0} sets: {1} — {2} to go": "{0} serii: {1} — încă {2}",
+  "{0} sets: {1} — done": "{0} serii: {1} — gata",
+  "Mark not done": "Marchează ca nefinalizat",
+  "Hold (seconds)": "Menținere (secunde)",
+  "Added weight (kg)": "Greutate adăugată (kg)",
+  "Weight (kg)": "Greutate (kg)",
+  "− Hide hold / RIR": "− Ascunde menținere / RIR",
+  "+ Add hold / RIR": "+ Adaugă menținere / RIR",
+  "− Hide weight / RIR": "− Ascunde greutate / RIR",
+  "+ Add weight / RIR (toggle)": "+ Adaugă greutate / RIR",
+  "Update log": "Actualizează jurnalul",
+  "Logged ✓ — view it in the Live tab. Log more, then Update to refresh it.":
+    "Înregistrat ✓ — vezi-l în tabul Live. Înregistrează mai mult, apoi Actualizează pentru a-l reîmprospăta.",
+  "{0} set · ≈ {1} effort · ~{2} kcal{3}": "{0} serie · ≈ efort {1} · ~{2} kcal{3}",
+  "{0} sets · ≈ {1} effort · ~{2} kcal{3}": "{0} serii · ≈ efort {1} · ~{2} kcal{3}",
+  " · {0}% of your usual": " · {0}% din obișnuit",
+  Reset: "Resetează",
+  "Back to Routines": "Înapoi la Rutine",
+  "{0} exercises · {1} reps logged. Nice work.":
+    "{0} exerciții · {1} repetări înregistrate. Bravo.",
+  "{0} exercises checked off. Nice work.": "{0} exerciții bifate. Bravo.",
+  Execute: "Execută",
+  "Trainer · {0}": "Antrenor · {0}",
+  "This sheet has no exercises. Add some in Routines first.":
+    "Această foaie nu are exerciții. Adaugă câteva în Rutine mai întâi.",
+});
 
 /** Reps-in-reserve chips for the optional intensity input; "4+" stores 4 (fresh). */
 const RIR_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
@@ -25,7 +106,7 @@ function logoBanner(): HTMLElement | null {
   if (!url) return null;
   const img = h("img", { class: "screen-logo-img" });
   img.src = url;
-  img.alt = "Brand logo";
+  img.alt = t("Brand logo");
   return h("div", { class: "screen-logo" }, [img]);
 }
 
@@ -100,7 +181,7 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
   const tallyDone = h("span", { class: "tally-done" });
   const tallySep = h("span", { class: "tally-sep", text: "/" });
   const tallyTarget = h("span", { class: "tally-target" });
-  const tallyUnit = h("span", { class: "tally-unit", text: "reps" });
+  const tallyUnit = h("span", { class: "tally-unit", text: t("reps") });
   const tally = h("p", { class: "now-tally" }, [tallyDone, tallySep, tallyTarget, tallyUnit]);
 
   const nowFill = h("div", { class: "progress-fill" });
@@ -110,20 +191,20 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
 
   // Rep logger: type the set you just did, then Log. Minus/plus nudge by one;
   // chips log a common set instantly; Undo pops the last set.
-  const minusBtn = h("button", { class: "step-btn", type: "button", text: "−", aria: { label: "one fewer rep" } });
+  const minusBtn = h("button", { class: "step-btn", type: "button", text: "−", aria: { label: t("one fewer rep") } });
   const repInput = h("input", {
     class: "rep-input",
     type: "number",
     inputmode: "numeric",
     min: "0",
     value: "10",
-    aria: { label: "reps in this set" },
+    aria: { label: t("reps in this set") },
   });
-  const plusBtn = h("button", { class: "step-btn", type: "button", text: "+", aria: { label: "one more rep" } });
+  const plusBtn = h("button", { class: "step-btn", type: "button", text: "+", aria: { label: t("one more rep") } });
   const stepper = h("div", { class: "rep-stepper" }, [minusBtn, repInput, plusBtn]);
 
-  const logBtn = h("button", { class: "btn btn-primary rep-log", type: "button", text: "Log set" });
-  const undoBtn = h("button", { class: "btn rep-undo", type: "button", text: "Undo" });
+  const logBtn = h("button", { class: "btn btn-primary rep-log", type: "button", text: t("Log set") });
+  const undoBtn = h("button", { class: "btn rep-undo", type: "button", text: t("Undo") });
 
   const chipRow = h(
     "div",
@@ -139,28 +220,28 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
   );
 
   // Manual done toggle for timed / hold rows that carry no rep target.
-  const manualBtn = h("button", { class: "btn btn-primary rep-manual", type: "button", text: "Mark done" });
+  const manualBtn = h("button", { class: "btn btn-primary rep-manual", type: "button", text: t("Mark done") });
 
   const repControls = h("div", { class: "rep-logger" }, [
-    h("p", { class: "rep-logger-label", text: "Reps this set" }),
+    h("p", { class: "rep-logger-label", text: t("Reps this set") }),
     stepper,
     h("div", { class: "btn-row rep-actions" }, [logBtn, undoBtn]),
     chipRow,
   ]);
 
   // ---- Optional weight / RIR (or hold / RIR) inputs, collapsed by default ----
-  const optToggle = h("button", { class: "btn btn-small exec-opt-toggle", type: "button", text: "+ Add weight / RIR" });
+  const optToggle = h("button", { class: "btn btn-small exec-opt-toggle", type: "button", text: t("+ Add weight / RIR") });
   const auxLabelEl = h("p", { class: "rep-logger-label" });
-  const auxMinus = h("button", { class: "step-btn", type: "button", text: "−", aria: { label: "decrease" } });
+  const auxMinus = h("button", { class: "step-btn", type: "button", text: "−", aria: { label: t("decrease") } });
   const auxInput = h("input", {
     class: "rep-input",
     type: "number",
     inputmode: "decimal",
     min: "0",
     value: "0",
-    aria: { label: "added weight or hold time" },
+    aria: { label: t("added weight or hold time") },
   });
-  const auxPlus = h("button", { class: "step-btn", type: "button", text: "+", aria: { label: "increase" } });
+  const auxPlus = h("button", { class: "step-btn", type: "button", text: "+", aria: { label: t("increase") } });
   const auxStepper = h("div", { class: "rep-stepper" }, [auxMinus, auxInput, auxPlus]);
   const rirHost = h("div", { class: "field rir-field" });
   const optBody = h("div", { class: "exec-optional", hidden: true }, [auxLabelEl, auxStepper, rirHost]);
@@ -183,19 +264,19 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
   // ---- Completion banner ----------------------------------------------------
   const doneSub = h("p", { class: "done-sub" });
   const doneCard = h("section", { class: "card session-done", hidden: true }, [
-    h("p", { class: "done-title", text: "Routine complete" }),
+    h("p", { class: "done-title", text: t("Routine complete") }),
     doneSub,
   ]);
 
   // ---- Save run to log ------------------------------------------------------
   const savePreview = h("p", { class: "exec-save-preview" });
-  const saveBtn = h("button", { class: "btn btn-primary", type: "button", text: "Save to log" });
+  const saveBtn = h("button", { class: "btn btn-primary", type: "button", text: t("Save to log") });
   const saveStatus = h("p", { class: "status", role: "status", aria: { live: "polite" } });
   const saveCard = h("section", { class: "card exec-save", hidden: true }, [
-    h("p", { class: "exec-save-title", text: "Save this run to your log" }),
+    h("p", { class: "exec-save-title", text: t("Save this run to your log") }),
     h("p", {
       class: "plan-meta",
-      text: "Logs what you did here as a session — it counts toward effort, recovery and stats in Live & Stats.",
+      text: t("Logs what you did here as a session — it counts toward effort, recovery and stats in Live & Stats."),
     }),
     savePreview,
     saveBtn,
@@ -214,9 +295,9 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
   const repValue = h("span", { class: "meta-value" });
   const leftValue = h("span", { class: "meta-value" });
   const meta = h("section", { class: "session-meta exec-meta" }, [
-    h("div", { class: "meta-item" }, [h("span", { class: "meta-label", text: "Exercises" }), exValue]),
-    h("div", { class: "meta-item" }, [h("span", { class: "meta-label", text: "Reps" }), repValue]),
-    h("div", { class: "meta-item" }, [h("span", { class: "meta-label", text: "Reps left" }), leftValue]),
+    h("div", { class: "meta-item" }, [h("span", { class: "meta-label", text: t("Exercises") }), exValue]),
+    h("div", { class: "meta-item" }, [h("span", { class: "meta-label", text: t("Reps") }), repValue]),
+    h("div", { class: "meta-item" }, [h("span", { class: "meta-label", text: t("Reps left") }), leftValue]),
   ]);
 
   // ---- Checklist ------------------------------------------------------------
@@ -233,7 +314,7 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
         checklist.appendChild(
           h("div", { class: "exec-routine-head" }, [
             h("span", { class: "routine-no", text: `R${item.routineIndex + 1}` }),
-            h("span", { class: "exec-routine-title", text: item.routineTitle || "Routine" }),
+            h("span", { class: "exec-routine-title", text: item.routineTitle || t("Routine") }),
             ...(routine && routine.tags.length > 0
               ? [
                   h(
@@ -255,8 +336,8 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
           ? `${ctl.workSets(i).length}/${setCount}`
           : target == null
             ? done
-              ? "done"
-              : "—"
+              ? t("done")
+              : t("—")
             : `${ctl.loggedReps(i)}/${target}`;
 
       const miniFill = h("div", { class: "exec-mini-fill" });
@@ -269,7 +350,7 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
       }, [
         h("span", { class: "exec-check", aria: { hidden: "true" } }),
         h("span", { class: "exec-body" }, [
-          h("span", { class: "exec-name", text: item.name || "Untitled exercise" }),
+          h("span", { class: "exec-name", text: item.name || t("Untitled exercise") }),
           item.prescription
             ? h("span", { class: "exec-pres", text: item.prescription })
             : null,
@@ -307,18 +388,18 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
   function renderRir(): void {
     clear(rirHost);
     rirHost.append(
-      h("span", { class: "field-label", text: "Reps in reserve (optional)" }),
+      h("span", { class: "field-label", text: t("Reps in reserve (optional)") }),
       h(
         "div",
-        { class: "toggle rir-toggle", role: "group", aria: { label: "Reps in reserve" } },
+        { class: "toggle rir-toggle", role: "group", aria: { label: t("Reps in reserve") } },
         RIR_OPTIONS.map((o) =>
           h("button", {
             class: pendingRir === o.value ? "toggle-btn active" : "toggle-btn",
             type: "button",
-            text: o.label,
+            text: t(o.label),
             aria: {
               pressed: String(pendingRir === o.value),
-              label: o.value === 0 ? "trained to failure" : `${o.label} reps in reserve`,
+              label: o.value === 0 ? t("trained to failure") : t("{0} reps in reserve").replace("{0}", o.label),
             },
             on: {
               click: () => {
@@ -342,14 +423,16 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
     const summary = h("div", { class: "exec-id-summary" }, [
       h("span", {
         class: "exec-id-label",
-        text: `Counts as ${MUSCLE_LABELS[m.muscle]}${mvName ? ` · ${mvName}` : ""}`,
+        text: mvName
+          ? t("Counts as {0} · {1}").replace("{0}", t(MUSCLE_LABELS[m.muscle])).replace("{1}", mvName)
+          : t("Counts as {0}").replace("{0}", t(MUSCLE_LABELS[m.muscle])),
       }),
       ...(m.mapped
         ? [
             h("button", {
               class: "btn btn-small exec-id-change",
               type: "button",
-              text: showIdentity ? "Done" : "Change",
+              text: showIdentity ? t("Done") : t("Change"),
               on: {
                 click: () => {
                   showIdentity = !showIdentity;
@@ -367,15 +450,15 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
         identityHost.append(
           h("p", {
             class: "rir-hint",
-            text: "Pick what this counts as so it credits the right muscle and load.",
+            text: t("Pick what this counts as so it credits the right muscle and load."),
           }),
         );
       }
       identityHost.append(
         toggleRow(
-          "Muscle group",
+          t("Muscle group"),
           MUSCLE_GROUPS,
-          (mg) => MUSCLE_LABELS[mg as MuscleGroup],
+          (mg) => t(MUSCLE_LABELS[mg as MuscleGroup]),
           m.muscle,
           (mg) => {
             ctl.setMuscle(i, mg as MuscleGroup);
@@ -383,7 +466,7 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
           },
         ),
         toggleRow(
-          "Exercise",
+          t("Exercise"),
           movementsForMuscle(m.muscle).map((mv) => mv.id),
           (id) => findMovement(id)?.name ?? id,
           m.exerciseId ?? "",
@@ -457,7 +540,7 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
   const resetBtn = h("button", {
     class: "btn",
     type: "button",
-    text: "Reset",
+    text: t("Reset"),
     on: {
       click: () => {
         ctl.reset();
@@ -476,7 +559,7 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
   const backBtn = h("button", {
     class: "btn",
     type: "button",
-    text: "Back to Routines",
+    text: t("Back to Routines"),
     on: { click: () => nav.go("sheet") },
   });
 
@@ -509,8 +592,8 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
     setText(
       doneSub,
       repsTarget > 0
-        ? `${exTotal} exercises · ${repsDone} reps logged. Nice work.`
-        : `${exTotal} exercises checked off. Nice work.`,
+        ? t("{0} exercises · {1} reps logged. Nice work.").replace("{0}", String(exTotal)).replace("{1}", String(repsDone))
+        : t("{0} exercises checked off. Nice work.").replace("{0}", String(exTotal)),
     );
 
     const i = ctl.selectedIndex();
@@ -543,25 +626,32 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
       }
 
       const target = item.targetReps;
-      setText(eyebrow, item.routineTitle || "Current exercise");
-      setText(nameEl, item.name || "Untitled exercise");
+      setText(eyebrow, item.routineTitle || t("Current exercise"));
+      setText(nameEl, item.name || t("Untitled exercise"));
       renderIdentity();
 
       // Step + target lines: structured rows show the current set's target.
       if (structured) {
         const cur = ctl.currentSetTarget(i);
-        setText(stepEl, `EXERCISE ${i + 1} OF ${exTotal} · SET ${Math.min(loggedSets + 1, setCount)}/${setCount}`);
+        setText(
+          stepEl,
+          t("EXERCISE {0} OF {1} · SET {2}/{3}")
+            .replace("{0}", String(i + 1))
+            .replace("{1}", String(exTotal))
+            .replace("{2}", String(Math.min(loggedSets + 1, setCount)))
+            .replace("{3}", String(setCount)),
+        );
         setText(
           presEl,
           cur
             ? cur.loadKg !== undefined
-              ? `Target · ${cur.reps} reps @ ${cur.loadKg} kg`
-              : `Target · ${cur.reps} reps`
-            : "All sets logged",
+              ? t("Target · {0} reps @ {1} kg").replace("{0}", String(cur.reps)).replace("{1}", String(cur.loadKg))
+              : t("Target · {0} reps").replace("{0}", String(cur.reps))
+            : t("All sets logged"),
         );
       } else {
-        setText(stepEl, `EXERCISE ${i + 1} OF ${exTotal}`);
-        setText(presEl, item.prescription || "—");
+        setText(stepEl, t("EXERCISE {0} OF {1}").replace("{0}", String(i + 1)).replace("{1}", String(exTotal)));
+        setText(presEl, item.prescription || t("—"));
       }
 
       const repItem = target != null && target > 0;
@@ -583,22 +673,35 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
           setText(
             setsEl,
             sets.length === 0
-              ? "No sets yet — log your first set."
-              : `${sets.length}/${setCount} sets: ${sets.join(" · ")}` +
-                  (remainingSets > 0 ? ` — ${remainingSets} to go` : " — done"),
+              ? t("No sets yet — log your first set.")
+              : (remainingSets > 0 ? t("{0}/{1} sets: {2} — {3} to go") : t("{0}/{1} sets: {2} — done"))
+                  .replace("{0}", String(sets.length))
+                  .replace("{1}", String(setCount))
+                  .replace("{2}", sets.join(" · "))
+                  .replace("{3}", String(remainingSets)),
           );
         } else {
           const remaining = ctl.remainingReps(i);
+          const tmpl =
+            sets.length === 1
+              ? remaining > 0
+                ? t("{0} set: {1} — {2} to go")
+                : t("{0} set: {1} — done")
+              : remaining > 0
+                ? t("{0} sets: {1} — {2} to go")
+                : t("{0} sets: {1} — done");
           setText(
             setsEl,
             sets.length === 0
-              ? "No sets yet — log your first set."
-              : `${sets.length} ${sets.length === 1 ? "set" : "sets"}: ${sets.join(" · ")}` +
-                  (remaining > 0 ? ` — ${remaining} to go` : " — done"),
+              ? t("No sets yet — log your first set.")
+              : tmpl
+                  .replace("{0}", String(sets.length))
+                  .replace("{1}", sets.join(" · "))
+                  .replace("{2}", String(remaining)),
           );
         }
       } else {
-        manualBtn.textContent = ctl.isDone(i) ? "Mark not done" : "Mark done";
+        manualBtn.textContent = ctl.isDone(i) ? t("Mark not done") : t("Mark done");
       }
 
       // Optional inputs adapt to the row: weight for rep rows, hold time for
@@ -609,14 +712,20 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
       setText(
         auxLabelEl,
         manual
-          ? "Hold (seconds)"
+          ? t("Hold (seconds)")
           : m && isBodyweight(m.equipment)
-            ? "Added weight (kg)"
-            : "Weight (kg)",
+            ? t("Added weight (kg)")
+            : t("Weight (kg)"),
       );
       setText(
         optToggle,
-        `${showOptional ? "− Hide" : "+ Add"} ${manual ? "hold / RIR" : "weight / RIR"}`,
+        manual
+          ? showOptional
+            ? t("− Hide hold / RIR")
+            : t("+ Add hold / RIR")
+          : showOptional
+            ? t("− Hide weight / RIR")
+            : t("+ Add weight / RIR (toggle)"),
       );
       optBody.hidden = !showOptional;
       renderRir();
@@ -628,14 +737,21 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
     if (!saveCard.hidden) {
       const session = executeRunToSession(ctl, sheet.name, { fromSheetId: sheet.id });
       const effort = readEffort(session, loadSessions());
-      const vs = effort.vsTypicalPct !== null ? ` · ${effort.vsTypicalPct}% of your usual` : "";
+      const vs =
+        effort.vsTypicalPct !== null
+          ? t(" · {0}% of your usual").replace("{0}", String(effort.vsTypicalPct))
+          : "";
       setText(
         savePreview,
-        `${loggedSets} ${loggedSets === 1 ? "set" : "sets"} · ≈ ${effort.label} effort · ~${estimateCalories(effort)} kcal${vs}`,
+        (loggedSets === 1 ? t("{0} set · ≈ {1} effort · ~{2} kcal{3}") : t("{0} sets · ≈ {1} effort · ~{2} kcal{3}"))
+          .replace("{0}", String(loggedSets))
+          .replace("{1}", effort.label)
+          .replace("{2}", String(estimateCalories(effort)))
+          .replace("{3}", vs),
       );
-      saveBtn.textContent = savedSessionId ? "Update log" : "Save to log";
+      saveBtn.textContent = savedSessionId ? t("Update log") : t("Save to log");
       if (savedSessionId) {
-        setText(saveStatus, "Logged ✓ — view it in the Live tab. Log more, then Update to refresh it.");
+        setText(saveStatus, t("Logged ✓ — view it in the Live tab. Log more, then Update to refresh it."));
         saveStatus.className = "status status-ok";
       } else {
         setText(saveStatus, "");
@@ -649,11 +765,11 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
   const trainer = loadTrainer();
   const container = h("div", { class: "view view-execute" }, [
     logoBanner(),
-    h("h1", { class: "view-title", text: "Execute" }),
+    h("h1", { class: "view-title", text: t("Execute") }),
     h("p", { class: "session-plan-name", text: sheet.name }),
-    trainer ? h("p", { class: "session-trainer", text: `Trainer · ${trainer}` }) : null,
+    trainer ? h("p", { class: "session-trainer", text: t("Trainer · {0}").replace("{0}", trainer) }) : null,
     empty
-      ? h("p", { class: "empty", text: "This sheet has no exercises. Add some in Routines first." })
+      ? h("p", { class: "empty", text: t("This sheet has no exercises. Add some in Routines first.") })
       : nowCard,
     doneCard,
     progress,
