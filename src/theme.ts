@@ -1,6 +1,7 @@
 /* =============================================================================
-   Theme — light / dark stock for the ledger. The colour ramps themselves live
-   in styles.css (the `:root[data-theme="…"]` blocks); this module only decides
+   Theme — the stock the app is printed on. Two ledger skins (light / dark) plus
+   two alternates (blueprint, riso). The colour ramps themselves live in
+   styles.css (the `:root[data-theme="…"]` blocks); this module only decides
    which one is pinned and keeps the browser chrome (status-bar `theme-color`)
    in step.
 
@@ -15,7 +16,10 @@
    a tiny inline copy of `apply()` in <head>; keep the two in sync.
    ========================================================================== */
 
-export type Theme = "light" | "dark";
+/** All pinnable themes. `light`/`dark` are the ledger stock; `blueprint` and
+ *  `riso` are alternate skins (see the `:root[data-theme="…"]` blocks). */
+export const THEMES = ["light", "dark", "blueprint", "riso"] as const;
+export type Theme = (typeof THEMES)[number];
 
 const KEY = "gymlog.theme";
 
@@ -23,6 +27,8 @@ const KEY = "gymlog.theme";
 const THEME_COLOR: Record<Theme, string> = {
   light: "#efe7d4",
   dark: "#14110b",
+  blueprint: "#15315c",
+  riso: "#f7f3e7",
 };
 
 /** The OS-level preference, used as the default until the user pins a theme. */
@@ -38,7 +44,7 @@ function systemTheme(): Theme {
 export function getTheme(): Theme {
   try {
     const stored = localStorage.getItem(KEY);
-    if (stored === "light" || stored === "dark") return stored;
+    if (stored && (THEMES as readonly string[]).includes(stored)) return stored as Theme;
   } catch {
     // ignore — fall through to the system preference
   }

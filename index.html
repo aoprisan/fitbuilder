@@ -10,16 +10,22 @@
     <script>
       (function () {
         try {
+          var colors = {
+            light: "#efe7d4",
+            dark: "#14110b",
+            blueprint: "#15315c",
+            riso: "#f7f3e7",
+          };
           var stored = localStorage.getItem("gymlog.theme");
           var theme =
-            stored === "light" || stored === "dark"
+            stored && colors[stored]
               ? stored
               : matchMedia("(prefers-color-scheme: dark)").matches
                 ? "dark"
                 : "light";
           document.documentElement.setAttribute("data-theme", theme);
           var meta = document.querySelector('meta[name="theme-color"]');
-          if (meta) meta.setAttribute("content", theme === "dark" ? "#14110b" : "#efe7d4");
+          if (meta) meta.setAttribute("content", colors[theme]);
         } catch (e) {}
       })();
     </script>
@@ -38,7 +44,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Bungee&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Anton&family=Bungee&family=IBM+Plex+Mono:wght@400;500;600;700&family=Oswald:wght@500;600;700&family=Saira+Stencil+One&display=swap"
       rel="stylesheet"
     />
   </head>

@@ -9,7 +9,7 @@ import { importRoutineFromUrl, urlWithoutRoutine } from "./shareRoutine";
 import { saveSheet } from "./sheetStorage";
 import { setActiveLog, setEditingSheet, setExecuting, setSheetFlash, state } from "./state";
 import { type AppMode, loadMode, saveMode } from "./mode";
-import { getTheme, setTheme, type Theme } from "./theme";
+import { getTheme, setTheme, type Theme, THEMES } from "./theme";
 import { getLang, type Lang, onLangChange, setLang, t } from "./i18n";
 import { cloneSheet } from "./util";
 import { mountClaudeStart } from "./views/claudeStart";
@@ -40,6 +40,13 @@ function navIcon(...paths: string[]): SVGElement {
     path.setAttribute("d", d);
     svg.appendChild(path);
   }
+  return svg;
+}
+
+/** Same stroked glyph as navIcon, but under an arbitrary class (e.g. the gear). */
+function glyph(cls: string, ...paths: string[]): SVGElement {
+  const svg = navIcon(...paths);
+  svg.setAttribute("class", cls);
   return svg;
 }
 
@@ -309,9 +316,16 @@ function boot(): void {
     }),
   );
 
-  // Theme toggle (Light / Dark): same segmented stamp. Flipping the pinned
-  // theme is instant — every surface paints from CSS custom properties — so
-  // unlike mode/language this needs no nav re-render or view remount.
+  // Theme toggle (Light / Dark / Blueprint / Riso): same segmented stamp.
+  // Flipping the pinned theme is instant — every surface paints from CSS custom
+  // properties — so unlike mode/language this needs no nav re-render or view
+  // remount.
+  const THEME_LABEL: Record<Theme, string> = {
+    light: "Light",
+    dark: "Dark",
+    blueprint: "Blueprint",
+    riso: "Riso",
+  };
   let theme: Theme = getTheme();
   const themeButtons = new Map<Theme, HTMLButtonElement>();
   function highlightTheme(): void {
@@ -324,8 +338,8 @@ function boot(): void {
   const themeToggle = h(
     "div",
     { class: "mode-toggle theme-toggle", role: "group", aria: { label: "Theme" } },
-    (["light", "dark"] as const).map((tm) => {
-      const label = t(tm === "light" ? "Light" : "Dark");
+    THEMES.map((tm) => {
+      const label = t(THEME_LABEL[tm]);
       const btn = h("button", {
         class: "mode-toggle-btn",
         type: "button",
@@ -345,10 +359,111 @@ function boot(): void {
   /** Re-stamp the theme labels after a language change (the toggle itself stays). */
   function relabelTheme(): void {
     for (const [tm, btn] of themeButtons) {
-      const label = t(tm === "light" ? "Light" : "Dark");
+      const label = t(THEME_LABEL[tm]);
       btn.textContent = label;
       btn.setAttribute("aria-label", `${label} theme`);
     }
+  }
+
+  // Settings sheet — a gear in the masthead opens an overlay holding the cosmetic
+  // preferences (language + theme), so the mobile header no longer stacks three
+  // segmented controls above the fold. The Student/Trainer gate is a structural
+  // switch, not a preference, so it stays inline in the masthead.
+  const GEAR_RING = "M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z";
+  const GEAR_COG =
+    "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z";
+
+  const settingsBtn = h(
+    "button",
+    {
+      class: "settings-btn",
+      type: "button",
+      aria: {
+        label: "Settings",
+        haspopup: "dialog",
+        expanded: "false",
+        controls: "settings-dialog",
+      },
+    },
+    [glyph("settings-glyph", GEAR_RING, GEAR_COG)],
+  );
+
+  const settingsTitle = h("h2", {
+    id: "settings-title",
+    class: "settings-title",
+    text: t("Settings"),
+  });
+  const closeBtn = h("button", {
+    class: "settings-close",
+    type: "button",
+    text: "✕",
+    aria: { label: t("Close") },
+  });
+  const langLabel = h("span", { class: "settings-label", text: t("Language") });
+  const themeLabel = h("span", { class: "settings-label", text: t("Theme") });
+  const dialog = h(
+    "div",
+    {
+      id: "settings-dialog",
+      class: "settings-dialog",
+      role: "dialog",
+      aria: { modal: "true", labelledby: "settings-title" },
+    },
+    [
+      h("div", { class: "settings-head" }, [settingsTitle, closeBtn]),
+      h("div", { class: "settings-row" }, [langLabel, langToggle]),
+      h("div", { class: "settings-row" }, [themeLabel, themeToggle]),
+    ],
+  );
+  const scrim = h("div", { class: "settings-scrim" }, [dialog]);
+
+  let settingsOpen = false;
+  let settingsReturnFocus: HTMLElement | null = null;
+  function openSettings(): void {
+    if (settingsOpen) return;
+    settingsOpen = true;
+    settingsReturnFocus = document.activeElement as HTMLElement | null;
+    scrim.classList.add("is-open");
+    settingsBtn.setAttribute("aria-expanded", "true");
+    (dialog.querySelector<HTMLElement>("button:not(.settings-close)") ?? closeBtn).focus();
+  }
+  function closeSettings(): void {
+    if (!settingsOpen) return;
+    settingsOpen = false;
+    scrim.classList.remove("is-open");
+    settingsBtn.setAttribute("aria-expanded", "false");
+    settingsReturnFocus?.focus();
+  }
+  settingsBtn.addEventListener("click", () => (settingsOpen ? closeSettings() : openSettings()));
+  closeBtn.addEventListener("click", closeSettings);
+  scrim.addEventListener("click", (e) => {
+    if (e.target === scrim) closeSettings();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && settingsOpen) closeSettings();
+  });
+  // Trap Tab within the open dialog so focus can't wander to the page behind it.
+  dialog.addEventListener("keydown", (e) => {
+    if (e.key !== "Tab") return;
+    const focusables = [...dialog.querySelectorAll<HTMLElement>("button")];
+    if (focusables.length === 0) return;
+    const first = focusables[0]!;
+    const last = focusables[focusables.length - 1]!;
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  });
+  /** Re-stamp the settings chrome after a language change. */
+  function relabelSettings(): void {
+    settingsTitle.textContent = t("Settings");
+    langLabel.textContent = t("Language");
+    themeLabel.textContent = t("Theme");
+    closeBtn.setAttribute("aria-label", t("Close"));
+    settingsBtn.setAttribute("aria-label", t("Settings"));
   }
 
   // A language switch re-renders all chrome and remounts the current view so the
@@ -357,25 +472,28 @@ function boot(): void {
     highlightLang();
     relabelMode();
     relabelTheme();
+    relabelSettings();
     renderNav();
     navigate(currentView);
   });
 
   const header = h("header", { class: "app-header" }, [
-    h("button", {
-      class: "brand",
-      type: "button",
-      text: "GYM LOG",
-      aria: { label: "Gym Log home" },
-      on: { click: () => nav.go("home") },
-    }),
+    h("div", { class: "masthead" }, [
+      h("button", {
+        class: "brand",
+        type: "button",
+        text: "GYM LOG",
+        aria: { label: "Gym Log home" },
+        on: { click: () => nav.go("home") },
+      }),
+      settingsBtn,
+    ]),
     modeToggle,
-    langToggle,
-    themeToggle,
     navRow,
   ]);
 
   app.append(header, viewHost);
+  document.body.append(scrim);
   highlightMode();
   highlightLang();
   highlightTheme();

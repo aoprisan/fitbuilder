@@ -81,6 +81,71 @@
   --brick: #d3705f;
 }
 
+/* ── Blueprint — cyanotype drafting table ──────────────────────────────────
+   The field-manual's engineering sibling: chalk-white drafting lines on
+   prussian-blue stock, redline-orange markup and an amber active highlighter.
+   A cool, technical counterpart to the warm ledger. Sets the FULL token
+   contract (not just the brick lift the night press does) so nothing leaks
+   through from the dark @media block when the OS is also in dark mode — it sits
+   after that block at equal specificity, so source order lets it win. */
+:root[data-theme="blueprint"] {
+  color-scheme: dark;
+  --paper: #15315c;
+  --paper-deep: #1b3a68;
+  --paper-ash: #244a82;
+  --paper-edge: #2c558f;
+  --ink: #eaf2ff;
+  --ink-soft: rgba(234, 242, 255, 0.68);
+  --ink-faint: rgba(234, 242, 255, 0.42);
+  --ink-ghost: rgba(234, 242, 255, 0.2);
+  --brick: #ff8a5c;  /* architect's redline markup */
+  --signal: #ffb000; /* amber highlighter — active */
+  --mustard: #ffd166;
+  --pine: #6fe3a0;   /* mint drafting pen — done/go */
+  --navy: #8fb8ff;   /* light-blue pen */
+  --rust: #ff9e6d;
+  --teal: #5fd6d0;
+  --plum: #c79bff;
+  --olive: #b9d65f;
+  --clay: #d9a06b;
+  --on-press: #0f284c; /* dark blue ink on the bright press fills */
+  --on-light: #0f284c;
+  --brick-fill: #c75636;
+  --font-display: "Oswald", "Alfa Slab One", sans-serif;
+  --font-stamp: "Saira Stencil One", "Bungee", sans-serif;
+}
+
+/* ── Riso Locker — athletic risograph zine ─────────────────────────────────
+   Same print shop, the cheap loud machine: fluorescent pink + electric blue on
+   newsprint, fat poster type. The bright, playful stock. Full token contract
+   for the same dark-OS reason as Blueprint above. */
+:root[data-theme="riso"] {
+  color-scheme: light;
+  --paper: #f7f3e7;
+  --paper-deep: #efe9d5;
+  --paper-ash: #e6dec6;
+  --paper-edge: #dad0b3;
+  --ink: #1a1730;
+  --ink-soft: rgba(26, 23, 48, 0.66);
+  --ink-faint: rgba(26, 23, 48, 0.36);
+  --ink-ghost: rgba(26, 23, 48, 0.15);
+  --brick: #ff2e63;  /* fluorescent pink — primary stamp */
+  --signal: #ff5722; /* fluoro red-orange — active */
+  --mustard: #ffb703;/* riso yellow */
+  --pine: #00a878;   /* riso green — done/go */
+  --navy: #2547ff;   /* electric blue */
+  --rust: #ff6f3c;
+  --teal: #00b4d8;
+  --plum: #9b5de5;
+  --olive: #9bc53d;
+  --clay: #d68c45;
+  --on-press: #fbf7ec;
+  --on-light: #1a1730;
+  --brick-fill: #ff2e63;
+  --font-display: "Anton", "Alfa Slab One", sans-serif;
+  --font-stamp: "Bungee", sans-serif;
+}
+
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
@@ -212,6 +277,191 @@ textarea {
   color: var(--paper);
 }
 
+/* The theme toggle carries four options — too wide for one row in the desktop
+   sidebar (264px) — so it stacks 2×2. Internal dividers are redrawn per cell
+   since the segmented border-left logic above assumes a single row. */
+.theme-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.theme-toggle .mode-toggle-btn {
+  border: none;
+}
+
+.theme-toggle .mode-toggle-btn:nth-child(2),
+.theme-toggle .mode-toggle-btn:nth-child(4) {
+  border-left: 2px solid var(--ink);
+}
+
+.theme-toggle .mode-toggle-btn:nth-child(3),
+.theme-toggle .mode-toggle-btn:nth-child(4) {
+  border-top: 2px solid var(--ink);
+}
+
+/* Brand + settings gear share the top line, so the gear costs no extra height. */
+.masthead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+/* Settings gear — a small ink stamp that opens the preferences sheet. */
+.settings-btn {
+  flex: none;
+  align-self: flex-start;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-top: 4px;
+  border: 2px solid var(--ink);
+  background: var(--paper-deep);
+  box-shadow: 3px 3px 0 0 var(--ink);
+  color: var(--ink);
+  cursor: pointer;
+  transition: transform 120ms var(--ease), background 120ms ease, color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.settings-btn:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.settings-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 0 var(--ink);
+}
+
+.settings-btn[aria-expanded="true"] {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.settings-glyph {
+  width: 22px;
+  height: 22px;
+}
+
+/* ── Settings sheet ── an overlay card in the Training Ledger language. ──── */
+.settings-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(12, 9, 5, 0.52);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 180ms ease, visibility 180ms ease;
+}
+
+.settings-scrim.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.settings-dialog {
+  width: min(380px, 100%);
+  background: var(--paper);
+  border: var(--rule);
+  box-shadow: 8px 8px 0 0 var(--ink);
+  padding: 20px 22px 24px;
+  transform: translateY(10px) scale(0.985);
+  transition: transform 200ms var(--ease);
+}
+
+.settings-scrim.is-open .settings-dialog {
+  transform: none;
+}
+
+.settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  margin-bottom: 18px;
+  border-bottom: var(--rule);
+}
+
+.settings-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 27px;
+  line-height: 0.86;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.settings-close {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  line-height: 1;
+  color: var(--ink);
+  background: var(--paper-deep);
+  border: 2px solid var(--ink);
+  box-shadow: 2px 2px 0 0 var(--ink);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.settings-close:hover {
+  background: var(--brick);
+  color: var(--on-press);
+}
+
+.settings-row + .settings-row {
+  margin-top: 18px;
+}
+
+.settings-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--brick);
+  margin-bottom: 9px;
+}
+
+/* In the sheet the toggles fill the card width instead of hugging the start. */
+.settings-dialog .mode-toggle {
+  display: flex;
+  width: 100%;
+}
+
+.settings-dialog .theme-toggle {
+  display: grid;
+  width: 100%;
+}
+
+.settings-dialog .mode-toggle-btn {
+  flex: 1;
+  padding-top: 9px;
+  padding-bottom: 7px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-scrim,
+  .settings-dialog {
+    transition: opacity 180ms ease, visibility 180ms ease;
+  }
+  .settings-dialog {
+    transform: none;
+  }
+}
+
 .brand {
   font-family: var(--font-display);
   font-size: clamp(38px, 11vw, 60px);
@@ -233,6 +483,7 @@ textarea {
 .brand::after {
   content: "TRAINING LEDGER · Nº 01";
   display: inline-block;
+  white-space: nowrap;
   font-family: var(--font-mono);
   font-weight: 700;
   font-size: 9.5px;

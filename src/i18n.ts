@@ -108,6 +108,12 @@ const RO: Record<string, string> = {
   Trainer: "Antrenor",
   Light: "Zi",
   Dark: "Noapte",
+
+  // — Settings sheet —
+  Settings: "Setări",
+  Language: "Limbă",
+  Theme: "Temă",
+  Close: "Închide",
 };
 
 /** Add or override translations (used to assemble per-view strings). */
