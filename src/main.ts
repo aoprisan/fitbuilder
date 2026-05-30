@@ -9,6 +9,7 @@ import { importRoutineFromUrl, urlWithoutRoutine } from "./shareRoutine";
 import { saveSheet } from "./sheetStorage";
 import { setActiveLog, setEditingSheet, setExecuting, setSheetFlash, state } from "./state";
 import { type AppMode, loadMode, saveMode } from "./mode";
+import { getTheme, setTheme, type Theme } from "./theme";
 import { getLang, type Lang, onLangChange, setLang, t } from "./i18n";
 import { cloneSheet } from "./util";
 import { mountClaudeStart } from "./views/claudeStart";
@@ -308,11 +309,54 @@ function boot(): void {
     }),
   );
 
+  // Theme toggle (Light / Dark): same segmented stamp. Flipping the pinned
+  // theme is instant — every surface paints from CSS custom properties — so
+  // unlike mode/language this needs no nav re-render or view remount.
+  let theme: Theme = getTheme();
+  const themeButtons = new Map<Theme, HTMLButtonElement>();
+  function highlightTheme(): void {
+    for (const [tm, btn] of themeButtons) {
+      const active = tm === theme;
+      btn.classList.toggle("active", active);
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+    }
+  }
+  const themeToggle = h(
+    "div",
+    { class: "mode-toggle theme-toggle", role: "group", aria: { label: "Theme" } },
+    (["light", "dark"] as const).map((tm) => {
+      const label = t(tm === "light" ? "Light" : "Dark");
+      const btn = h("button", {
+        class: "mode-toggle-btn",
+        type: "button",
+        text: label,
+        aria: { label: `${label} theme` },
+      });
+      btn.addEventListener("click", () => {
+        if (tm === theme) return;
+        theme = tm;
+        setTheme(tm);
+        highlightTheme();
+      });
+      themeButtons.set(tm, btn);
+      return btn;
+    }),
+  );
+  /** Re-stamp the theme labels after a language change (the toggle itself stays). */
+  function relabelTheme(): void {
+    for (const [tm, btn] of themeButtons) {
+      const label = t(tm === "light" ? "Light" : "Dark");
+      btn.textContent = label;
+      btn.setAttribute("aria-label", `${label} theme`);
+    }
+  }
+
   // A language switch re-renders all chrome and remounts the current view so the
   // freshly mounted DOM picks up the new strings (views read t() at mount time).
   onLangChange(() => {
     highlightLang();
     relabelMode();
+    relabelTheme();
     renderNav();
     navigate(currentView);
   });
@@ -327,12 +371,14 @@ function boot(): void {
     }),
     modeToggle,
     langToggle,
+    themeToggle,
     navRow,
   ]);
 
   app.append(header, viewHost);
   highlightMode();
   highlightLang();
+  highlightTheme();
   renderNav();
   navigate(consumeSharedRoutine(mode) ?? (mode === "trainer" ? "sheet" : "home"));
 }

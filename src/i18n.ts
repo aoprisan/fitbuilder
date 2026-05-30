@@ -106,6 +106,8 @@ const RO: Record<string, string> = {
   Recovery: "Recuperare",
   Student: "Elev",
   Trainer: "Antrenor",
+  Light: "Zi",
+  Dark: "Noapte",
 };
 
 /** Add or override translations (used to assemble per-view strings). */
