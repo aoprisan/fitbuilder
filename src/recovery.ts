@@ -1,3 +1,4 @@
+import { CARDIO_LEG_MUSCLES, cardioLegDose } from "./cardio";
 import { fatigueProximity, setEffort } from "./effort";
 import { cnsFactor, muscleDemandFactor } from "./loadProfile";
 import { SECONDARY_MUSCLE_SHARE } from "./movements";
@@ -50,6 +51,16 @@ const RECOVERY_REF_DEMAND = 16;
 const RECOVERY_SCALE_MIN = 0.6;
 const RECOVERY_SCALE_MAX = 1.6;
 
+// Lower-body recovery demand a *full* cardio bout imposes. Kept just under the
+// hard-bout reference so a typical run sits at the gentle end of each leg muscle's
+// window (legs ~their 0.6 floor, ≈1.8 days; calves/glutes lighter), climbing only
+// for long or hilly bouts. Deliberately divorced from cardio's large distance-
+// based effort so a run reads as soreness, not a brutal leg day.
+const CARDIO_LEG_DEMAND_REF = 14;
+// Bouts below this dose (≈5 min / 0.75 km flat) don't fatigue the legs — an easy
+// stroll shouldn't reset the leg recovery clock.
+const CARDIO_LEG_MIN_DOSE = 0.15;
+
 interface MuscleBout {
   at: number;
   iso: string;
@@ -89,6 +100,7 @@ export function muscleRecovery(
       if (ex.sets.length === 0) continue;
       const compound = isCompound(ex);
       const demandFactor = muscleDemandFactor(ex.equipment, compound);
+      const cardio = isCardio(ex.equipment);
       for (const s of ex.sets) {
         // Proximity to failure scales local damage: a set taken to failure
         // demands more recovery than the same set stopped well short.
@@ -96,6 +108,15 @@ export function muscleRecovery(
         mark(ex.muscle, at, session.startedAt, demand);
         for (const sec of ex.secondaryMuscles ?? [])
           mark(sec, at, session.startedAt, demand * SECONDARY_MUSCLE_SHARE);
+        if (cardio) {
+          // Running fatigues the lower body too. Use a small, bout-dosed demand
+          // (not the large cardio effort above) so the legs read as light leg
+          // soreness; trivial strolls are gated out so they don't reset the clock.
+          const legDose = cardioLegDose(s);
+          if (legDose >= CARDIO_LEG_MIN_DOSE)
+            for (const { muscle, share } of CARDIO_LEG_MUSCLES)
+              mark(muscle, at, session.startedAt, CARDIO_LEG_DEMAND_REF * share * legDose);
+        }
       }
     }
   }
