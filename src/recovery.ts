@@ -1,4 +1,4 @@
-import { fatigueProximity, setEffort } from "./effort";
+import { CARDIO_LEG_CREDIT, cardioLegDose, fatigueProximity, setEffort } from "./effort";
 import { cnsFactor, muscleDemandFactor } from "./loadProfile";
 import { SECONDARY_MUSCLE_SHARE } from "./movements";
 import type { LoggedExercise, MuscleGroup, TrainingSession } from "./types";
@@ -50,6 +50,13 @@ const RECOVERY_REF_DEMAND = 16;
 const RECOVERY_SCALE_MIN = 0.6;
 const RECOVERY_SCALE_MAX = 1.6;
 
+// Recovery demand one full leg-dose unit of running lands (before the treadmill
+// muscle factor and each leg's share). A run's leg fatigue tracks its leg dose
+// (the fractional hard set, see {@link cardioLegDose}) — *not* the distance-
+// inflated cardio effort, which would read as a heavy leg day — so a typical run
+// parks the legs near the short end of their window and clears in a day or two.
+const CARDIO_LEG_DEMAND_PER_DOSE = RECOVERY_REF_DEMAND;
+
 interface MuscleBout {
   at: number;
   iso: string;
@@ -96,6 +103,17 @@ export function muscleRecovery(
         mark(ex.muscle, at, session.startedAt, demand);
         for (const sec of ex.secondaryMuscles ?? [])
           mark(sec, at, session.startedAt, demand * SECONDARY_MUSCLE_SHARE);
+        // A treadmill/run bout also fatigues the legs — put them on the recovery
+        // clock with a gentle, dose-based demand (not the distance-inflated cardio
+        // effort), so running registers leg soreness that clears comparatively fast.
+        if (isCardio(ex.equipment)) {
+          const dose = cardioLegDose(s);
+          if (dose > 0) {
+            const legDemand = dose * demandFactor * CARDIO_LEG_DEMAND_PER_DOSE;
+            for (const { muscle, share } of CARDIO_LEG_CREDIT)
+              mark(muscle, at, session.startedAt, legDemand * share);
+          }
+        }
       }
     }
   }

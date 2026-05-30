@@ -1,4 +1,4 @@
-import { stimulusProximity } from "./effort";
+import { CARDIO_LEG_CREDIT, cardioLegDose, stimulusProximity } from "./effort";
 import { effectiveLoadKg, hypertrophyFactor, strengthFactor } from "./loadProfile";
 import { findMovement, SECONDARY_MUSCLE_SHARE } from "./movements";
 import {
@@ -339,37 +339,16 @@ export interface MuscleWeeklyVolume {
 }
 
 /**
- * Lower-body muscles a treadmill bout credits toward weekly hypertrophy volume,
- * with each muscle's share of one "hard set". Running is a real but low-efficiency
- * leg stimulus, so the shares are partial — calves and the quads (legs) take the
- * most, glutes less. The credit only touches the weekly dose board: cardio's big,
- * distance-driven effort still stays off the per-muscle recovery clock (legs don't
- * need days off after a run), so the two reads don't double-count.
- */
-const CARDIO_LEG_CREDIT: ReadonlyArray<{ muscle: MuscleGroup; share: number }> = [
-  { muscle: "legs", share: 0.5 },
-  { muscle: "calves", share: 0.5 },
-  { muscle: "glutes", share: 0.3 },
-];
-// A bout this long (or this far) lands a full credit unit; shorter counts pro-rata.
-const CARDIO_LEG_REF_SEC = 1800;
-const CARDIO_LEG_REF_KM = 5;
-// Each 1% of incline adds this much to the credit — hills shift far more onto the legs.
-const CARDIO_LEG_INCLINE_PER_PCT = 0.04;
-
-/**
- * Credit one cardio bout's fractional hard-set contribution to the legs. The
- * dose is the larger of its time- and distance-based fraction (capped at a single
- * unit so one long bout can't masquerade as a leg session), nudged up by incline.
+ * Credit one cardio bout's fractional hard-set contribution to the legs on the
+ * weekly dose board, using the shared {@link CARDIO_LEG_CREDIT} shares and
+ * {@link cardioLegDose}. The same shares/dose also feed the session effort
+ * breakdown and the per-muscle recovery clock — each a distinct read (weekly
+ * volume vs. work done vs. soreness window), so they don't double-count.
  */
 function creditCardioLegs(set: WorkSet, credit: (muscle: MuscleGroup, amount: number) => void): void {
-  const dose = Math.min(
-    1,
-    Math.max((set.durationSec ?? 0) / CARDIO_LEG_REF_SEC, (set.distanceKm ?? 0) / CARDIO_LEG_REF_KM),
-  );
+  const dose = cardioLegDose(set);
   if (dose <= 0) return;
-  const inclineMult = 1 + Math.max(0, set.inclinePct ?? 0) * CARDIO_LEG_INCLINE_PER_PCT;
-  for (const { muscle, share } of CARDIO_LEG_CREDIT) credit(muscle, share * dose * inclineMult);
+  for (const { muscle, share } of CARDIO_LEG_CREDIT) credit(muscle, share * dose);
 }
 
 /**

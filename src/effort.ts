@@ -42,6 +42,39 @@ const CARDIO_POINTS_PER_KM = 12;
 const CARDIO_INCLINE_PER_PCT = 0.04;
 const CARDIO_SECONDS_PER_POINT = 90;
 
+/**
+ * Lower-body muscles a treadmill/run bout fatigues, each with its share of one
+ * "hard set" of leg work. Running is a real but low-efficiency leg stimulus, so
+ * the shares are partial — the quads (legs) and calves take the most, glutes
+ * less. This is the canonical definition; the weekly-volume board reuses it.
+ */
+export const CARDIO_LEG_CREDIT: ReadonlyArray<{ muscle: MuscleGroup; share: number }> = [
+  { muscle: "legs", share: 0.5 },
+  { muscle: "calves", share: 0.5 },
+  { muscle: "glutes", share: 0.3 },
+];
+// A bout this long (or this far) lands a full credit unit; shorter counts pro-rata.
+const CARDIO_LEG_REF_SEC = 1800;
+const CARDIO_LEG_REF_KM = 5;
+// Each 1% of incline adds this much to the credit — hills shift far more onto the legs.
+const CARDIO_LEG_INCLINE_PER_PCT = 0.04;
+
+/**
+ * Fractional "hard set" of leg work a single cardio bout lands: the larger of its
+ * time- and distance-based fraction (capped at one unit so one long bout can't
+ * masquerade as a leg session), lifted by incline. 0 when the bout recorded
+ * neither duration nor distance. Multiply by each {@link CARDIO_LEG_CREDIT} share
+ * for that muscle's contribution.
+ */
+export function cardioLegDose(set: WorkSet): number {
+  const dose = Math.min(
+    1,
+    Math.max((set.durationSec ?? 0) / CARDIO_LEG_REF_SEC, (set.distanceKm ?? 0) / CARDIO_LEG_REF_KM),
+  );
+  if (dose <= 0) return 0;
+  return dose * (1 + Math.max(0, set.inclinePct ?? 0) * CARDIO_LEG_INCLINE_PER_PCT);
+}
+
 // Recommended fluid (ml) per effort point — tuned so a full session (~45 pts)
 // suggests ≈ 0.8 L, a brutal one north of a litre.
 const ML_PER_EFFORT_POINT = 18;
@@ -249,6 +282,15 @@ function accumulateMuscleWork(sessions: Iterable<TrainingSession>): MuscleWork[]
         credit(ex.muscle, s, 1, ex.equipment);
         for (const sec of ex.secondaryMuscles ?? [])
           credit(sec, s, SECONDARY_MUSCLE_SHARE, ex.equipment);
+        // A treadmill/run bout also fatigues the legs — credit the lower body a
+        // fraction of the bout (its effort/time/sets) on top of the cardio line,
+        // so the breakdown reflects the leg work a run actually does.
+        if (isCardio(ex.equipment)) {
+          const dose = cardioLegDose(s);
+          if (dose > 0)
+            for (const { muscle, share } of CARDIO_LEG_CREDIT)
+              credit(muscle, s, share * dose, ex.equipment);
+        }
       }
     }
   }
