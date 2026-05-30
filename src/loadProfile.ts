@@ -72,6 +72,11 @@ export const LOAD_PROFILES: Record<Equipment, LoadProfile> = {
   "lateral-raise": { loadFidelity: 0.8, cns: 0.5, muscle: 0.8, strength: 0.5, hypertrophy: 1 },
   "rear-delt-fly": { loadFidelity: 0.75, cns: 0.5, muscle: 0.8, strength: 0.5, hypertrophy: 1 },
   "lateral-abs-machine": { loadFidelity: 0.6, cns: 0.5, muscle: 0.8, strength: 0.5, hypertrophy: 0.95 },
+  // Cardio (treadmill): no external load (these terms multiply a 0 kg load to 0),
+  // so the numbers here only set its systemic/local recovery cost — a steady run
+  // taxes the cardiovascular system and legs but carries no strength/hypertrophy
+  // signal. Kept modest so a cardio bout reads as light-to-moderate fatigue.
+  treadmill: { loadFidelity: 1, cns: 0.5, muscle: 0.6, strength: 0, hypertrophy: 0 },
 };
 
 // Compound lifts (those that tax secondary muscles) demand more from the whole

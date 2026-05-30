@@ -1,6 +1,7 @@
 import { effectiveLoadKg } from "./loadProfile";
 import { SECONDARY_MUSCLE_SHARE } from "./movements";
 import type { Equipment, MuscleGroup, TrainingSession, WorkSet } from "./types";
+import { isCardio } from "./types";
 import { clamp, round2 } from "./util";
 
 /**
@@ -30,6 +31,16 @@ const SECONDS_PER_POINT = 120; // 2 min under tension ≈ 1 point
 // Effort points a typical full session is worth when there's no history to
 // calibrate against (a first session). ~12–16 solid sets land near here.
 const FULL_SESSION_EFFORT = 45;
+
+// Cardio (treadmill/run): energy tracks *distance*, lifted by incline, rather
+// than reps × load. Tuned so a flat kilometre lands near ~60 kcal of burn
+// (CARDIO_POINTS_PER_KM × KCAL_PER_EFFORT_POINT) — a deliberately conservative
+// ballpark in the same spirit as the strength figures. Incline multiplies the
+// cost (each 1% grade ≈ +4% energy). When distance wasn't recorded the bout
+// falls back to a steady time-based rate.
+const CARDIO_POINTS_PER_KM = 12;
+const CARDIO_INCLINE_PER_PCT = 0.04;
+const CARDIO_SECONDS_PER_POINT = 90;
 
 // Recommended fluid (ml) per effort point — tuned so a full session (~45 pts)
 // suggests ≈ 0.8 L, a brutal one north of a litre.
@@ -72,9 +83,20 @@ export function fatigueProximity(rir?: number): number {
  * tension still count in full.
  */
 export function setEffort(set: WorkSet, equipment?: Equipment): number {
+  const duration = set.durationSec ?? 0;
+  // Cardio: no reps or load — bill the bout by distance (incline-weighted), or by
+  // time when distance is missing. Strength terms below would all read 0 anyway,
+  // so this is the only place cardio diverges from the shared model.
+  if (equipment && isCardio(equipment)) {
+    const dist = set.distanceKm ?? 0;
+    if (dist > 0) {
+      const incline = Math.max(0, set.inclinePct ?? 0);
+      return 1 + dist * CARDIO_POINTS_PER_KM * (1 + incline * CARDIO_INCLINE_PER_PCT);
+    }
+    return 1 + duration / CARDIO_SECONDS_PER_POINT;
+  }
   const load = equipment ? effectiveLoadKg(set.weightKg, equipment) : Math.max(0, set.weightKg);
   const volume = set.reps * load;
-  const duration = set.durationSec ?? 0;
   return (
     1 +
     set.reps / REPS_PER_POINT +

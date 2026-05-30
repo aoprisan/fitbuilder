@@ -132,6 +132,9 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
     genericMovement("core", "cable"),
     genericMovement("core", "dumbbell"),
   ],
+  cardio: [
+    { id: "treadmill", name: "Treadmill", primaryMuscle: "cardio", secondaryMuscles: [], equipment: "treadmill", aliases: ["Run", "Running", "Jog", "Jogging", "Walk", "Alergare", "Banda", "Banda de Alergat"] },
+  ],
 };
 
 /**

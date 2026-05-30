@@ -43,6 +43,7 @@ import { setActiveLog, setEditingSheet, setSheetFlash, state } from "../state";
 import {
   EQUIPMENT_LABELS,
   isBodyweight,
+  isCardio,
   MUSCLE_GROUPS,
   MUSCLE_LABELS,
   type Equipment,
@@ -53,9 +54,11 @@ import {
 } from "../types";
 import {
   cloneSheet,
+  formatCardioSet,
   formatClock,
   formatLoad,
   formatSessionDate,
+  round2,
   sessionSetCount,
   sessionToSheet,
   sessionVolume,
@@ -216,6 +219,9 @@ registerTranslations({
   Reps: "Repetări",
   "Added (kg)": "Adăugat (kg)",
   "Weight (kg)": "Greutate (kg)",
+  "Distance (km)": "Distanță (km)",
+  "Speed (km/h)": "Viteză (km/h)",
+  "Incline (%)": "Înclinare (%)",
 });
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -367,6 +373,10 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   // In-flight set values.
   let setReps = 10;
   let setWeight = 10;
+  // In-flight cardio values (treadmill bout): distance km, speed km/h, incline %.
+  let setDistanceKm = 1;
+  let setSpeedKmh = 8;
+  let setInclinePct = 0;
   // Reps in reserve for the set being logged; null until tapped (optional).
   let pendingRir: number | null = null;
 
@@ -493,6 +503,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       hasCurrentEx: currentEx !== null,
       setReps,
       setWeight,
+      setDistanceKm,
+      setSpeedKmh,
+      setInclinePct,
       setRir: pendingRir,
       setStartEpoch,
       setElapsedMs,
@@ -522,6 +535,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         : null;
     setReps = saved.setReps;
     setWeight = saved.setWeight;
+    setDistanceKm = saved.setDistanceKm;
+    setSpeedKmh = saved.setSpeedKmh;
+    setInclinePct = saved.setInclinePct;
     pendingRir = saved.setRir;
     setStartEpoch = saved.setStartEpoch;
     setElapsedMs = saved.setElapsedMs;
@@ -641,8 +657,16 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     setElapsedMs = Date.now() - setStartEpoch;
     const last =
       currentEx && currentEx.sets.length ? currentEx.sets[currentEx.sets.length - 1]! : null;
-    setReps = last ? last.reps : 10;
-    setWeight = last ? last.weightKg : isBodyweight(equipment) ? 0 : 10;
+    if (isCardio(equipment)) {
+      // Carry the last bout's speed/incline forward; estimate distance from speed
+      // over the elapsed time as a starting point the user reads off the machine.
+      setSpeedKmh = last?.speedKmh ?? setSpeedKmh;
+      setInclinePct = last?.inclinePct ?? setInclinePct;
+      setDistanceKm = round2((setSpeedKmh * setElapsedMs) / 3_600_000) || (last?.distanceKm ?? setDistanceKm);
+    } else {
+      setReps = last ? last.reps : 10;
+      setWeight = last ? last.weightKg : isBodyweight(equipment) ? 0 : 10;
+    }
     pendingRir = null; // proximity to failure is logged fresh per set
     sub = "logging";
     render();
@@ -651,12 +675,22 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   function commitSet(): void {
     const s = state.activeLog;
     if (!s) return;
-    const set: WorkSet = {
-      reps: setReps,
-      weightKg: setWeight,
-      durationSec: Math.round(setElapsedMs / 1000),
-      ...(pendingRir !== null ? { rir: pendingRir } : {}),
-    };
+    const durationSec = Math.round(setElapsedMs / 1000);
+    const set: WorkSet = isCardio(equipment)
+      ? {
+          reps: 0,
+          weightKg: 0,
+          durationSec,
+          distanceKm: setDistanceKm,
+          speedKmh: setSpeedKmh,
+          inclinePct: setInclinePct,
+        }
+      : {
+          reps: setReps,
+          weightKg: setWeight,
+          durationSec,
+          ...(pendingRir !== null ? { rir: pendingRir } : {}),
+        };
     if (!currentEx) {
       const mv = findMovement(movementId);
       if (!mv) return;
@@ -721,7 +755,10 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         h("span", { class: "muscle-name", text: t(MUSCLE_LABELS[m.muscle]) }),
         h("span", {
           class: "muscle-stat",
-          text: `${m.volume > 0 ? `${m.volume} kg` : t("Bodyweight")} · ${formatClock(m.timeSec)}`,
+          text:
+            m.muscle === "cardio"
+              ? formatClock(m.timeSec)
+              : `${m.volume > 0 ? `${m.volume} kg` : t("Bodyweight")} · ${formatClock(m.timeSec)}`,
         }),
       ]),
     );
@@ -1203,9 +1240,12 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       return host;
     }
     sets.forEach((s, i) => {
-      const bits = [t("{0} reps").replace("{0}", String(s.reps)), formatLoad(equipment, s.weightKg)];
-      if (s.rir !== undefined) bits.push(s.rir === 0 ? t("to failure") : t("RIR {0}").replace("{0}", String(s.rir)));
-      if (s.durationSec !== undefined) bits.push(formatClock(s.durationSec));
+      const bits = isCardio(equipment)
+        ? [formatCardioSet(s)]
+        : [t("{0} reps").replace("{0}", String(s.reps)), formatLoad(equipment, s.weightKg)];
+      if (!isCardio(equipment) && s.rir !== undefined)
+        bits.push(s.rir === 0 ? t("to failure") : t("RIR {0}").replace("{0}", String(s.rir)));
+      if (!isCardio(equipment) && s.durationSec !== undefined) bits.push(formatClock(s.durationSec));
       host.appendChild(
         h("div", { class: "live-set" }, [
           h("span", { class: "set-no", text: t("Set {0}").replace("{0}", String(i + 1)) }),
@@ -1438,6 +1478,77 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
 
     // sub === "logging" — the ✓ Done button sits above the dials so you don't
     // have to swipe down across the weight knob (which would rotate it) to reach it.
+    const dials = isCardio(equipment)
+      ? [
+          dialField({
+            label: t("Distance (km)"),
+            value: setDistanceKm,
+            step: 0.1,
+            min: 0,
+            integer: false,
+            unit: "km",
+            tone: "signal",
+            onCommit: (n) => {
+              setDistanceKm = n;
+              snapshot();
+            },
+          }),
+          dialField({
+            label: t("Speed (km/h)"),
+            value: setSpeedKmh,
+            step: 0.5,
+            min: 0,
+            integer: false,
+            unit: "km/h",
+            tone: "navy",
+            onCommit: (n) => {
+              setSpeedKmh = n;
+              snapshot();
+            },
+          }),
+          dialField({
+            label: t("Incline (%)"),
+            value: setInclinePct,
+            step: 0.5,
+            min: 0,
+            integer: false,
+            unit: "%",
+            tone: "navy",
+            onCommit: (n) => {
+              setInclinePct = n;
+              snapshot();
+            },
+          }),
+        ]
+      : [
+          dialField({
+            label: t("Reps"),
+            value: setReps,
+            step: 1,
+            min: 0,
+            integer: true,
+            unit: t("reps"),
+            tone: "signal",
+            onCommit: (n) => {
+              setReps = n;
+              snapshot();
+            },
+          }),
+          dialField({
+            label: isBodyweight(equipment) ? t("Added (kg)") : t("Weight (kg)"),
+            value: setWeight,
+            step: 2.5,
+            min: 0,
+            integer: false,
+            unit: "kg",
+            tone: "navy",
+            onCommit: (n) => {
+              setWeight = n;
+              snapshot();
+            },
+          }),
+          renderRirField(),
+        ];
     container.append(
       h("p", { class: "set-time", text: t("Set time {0}").replace("{0}", formatClock(setElapsedMs / 1000)) }),
       h("div", { class: "btn-row live-actions" }, [
@@ -1448,35 +1559,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           on: { click: commitSet },
         }),
       ]),
-      h("div", { class: "card live-dials" }, [
-        dialField({
-          label: t("Reps"),
-          value: setReps,
-          step: 1,
-          min: 0,
-          integer: true,
-          unit: t("reps"),
-          tone: "signal",
-          onCommit: (n) => {
-            setReps = n;
-            snapshot();
-          },
-        }),
-        dialField({
-          label: isBodyweight(equipment) ? t("Added (kg)") : t("Weight (kg)"),
-          value: setWeight,
-          step: 2.5,
-          min: 0,
-          integer: false,
-          unit: "kg",
-          tone: "navy",
-          onCommit: (n) => {
-            setWeight = n;
-            snapshot();
-          },
-        }),
-        renderRirField(),
-      ]),
+      h("div", { class: "card live-dials" }, dials),
     );
   }
 

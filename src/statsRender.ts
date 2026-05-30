@@ -22,8 +22,11 @@ import { loadTrainer } from "./trainer";
 import {
   bestOneRm,
   type BestOneRm,
+  buildCardioProgress,
   buildProgress,
+  type CardioPoint,
   exerciseKeyLabel,
+  isCardioExerciseKey,
   type ProgressFilter,
   type ProgressPoint,
 } from "./stats";
@@ -66,7 +69,10 @@ function buildLifetimeSummary(lifetime: LifetimeEffort): SummaryBlock | null {
     musclesLabel: "Effort per muscle",
     muscles: byEffort.map((m) => ({
       name: MUSCLE_LABELS[m.muscle],
-      detail: `${m.volume > 0 ? `${m.volume} kg` : "Bodyweight"} · ${formatClock(m.timeSec)} · ${m.sets} ${m.sets === 1 ? "set" : "sets"}`,
+      detail:
+        m.muscle === "cardio"
+          ? `${formatClock(m.timeSec)} · ${m.sets} ${m.sets === 1 ? "set" : "sets"}`
+          : `${m.volume > 0 ? `${m.volume} kg` : "Bodyweight"} · ${formatClock(m.timeSec)} · ${m.sets} ${m.sets === 1 ? "set" : "sets"}`,
       ratio: topEffort > 0 ? m.effort / topEffort : 0,
     })),
     hydration: `≈ ${liters.toFixed(1)} L · ${glassCount} ${glassCount === 1 ? "glass" : "glasses"}`,
@@ -304,10 +310,38 @@ export async function renderStatsToCanvas(
   const trainer = loadTrainer();
 
   const summary = buildLifetimeSummary(lifetimeEffort(sessions));
+  const scope = filter === "all" ? "All exercises" : exerciseKeyLabel(filter);
+  const kg = (n: number): string => String(round2(n));
+
+  // Cardio scopes chart distance/pace/climb; everything else the strength series.
+  const cardio = filter !== "all" && isCardioExerciseKey(filter);
+  if (cardio) {
+    const cardioPoints: CardioPoint[] = buildCardioProgress(sessions, filter);
+    const labels = cardioPoints.map((p) => p.label);
+    const range =
+      cardioPoints.length === 0
+        ? "No sessions logged yet"
+        : cardioPoints.length === 1
+          ? `1 session · ${labels[0]}`
+          : `${cardioPoints.length} sessions · ${labels[0]} → ${labels[labels.length - 1]}`;
+    const charts: ChartSpec[] =
+      cardioPoints.length === 0
+        ? []
+        : [
+            { title: "Distance", unit: "km", values: cardioPoints.map((p) => p.distanceKm), labels, color: C.signal, format: kg },
+            { title: "Avg speed", unit: "km/h", values: cardioPoints.map((p) => p.speedKmh), labels, color: C.navy, format: kg },
+            { title: "Pace", unit: "/km", values: cardioPoints.map((p) => p.paceSecPerKm), labels, color: C.brick, format: (n) => formatClock(n) },
+            { title: "Time", unit: "", values: cardioPoints.map((p) => p.durationSec), labels, color: C.pine, format: (n) => formatClock(n) },
+            { title: "Climb", unit: "m", values: cardioPoints.map((p) => p.climbM), labels, color: C.mustard, format: (n) => String(Math.round(n)) },
+          ];
+    return paintPage((ctx, paint) =>
+      drawStats(ctx, scope, range, summary, null, charts, logo, trainer, paint),
+    );
+  }
+
   const points: ProgressPoint[] = buildProgress(sessions, filter);
   const best = points.length > 0 ? bestOneRm(sessions, filter, loadOneRmMaxes()) : null;
   const labels = points.map((p) => p.label);
-  const scope = filter === "all" ? "All exercises" : exerciseKeyLabel(filter);
   const range =
     points.length === 0
       ? "No sessions logged yet"
@@ -315,7 +349,6 @@ export async function renderStatsToCanvas(
         ? `1 session · ${labels[0]}`
         : `${points.length} sessions · ${labels[0]} → ${labels[labels.length - 1]}`;
 
-  const kg = (n: number): string => String(round2(n));
   const charts: ChartSpec[] =
     points.length === 0
       ? []

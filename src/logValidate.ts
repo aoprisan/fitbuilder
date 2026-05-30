@@ -39,17 +39,28 @@ function coerceNonNegative(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
 }
 
+/** A finite, non-negative number passes through; anything else drops to undefined. */
+function optionalNonNegative(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
 function coerceSet(value: unknown): WorkSet {
   if (!isRecord(value)) return { reps: 0, weightKg: 0 };
   const reps = coerceNonNegative(value["reps"]);
   const weightKg = coerceNonNegative(value["weightKg"]);
-  const dur = value["durationSec"];
-  const rir = value["rir"];
+  const dur = optionalNonNegative(value["durationSec"]);
+  const rir = optionalNonNegative(value["rir"]);
+  const distanceKm = optionalNonNegative(value["distanceKm"]);
+  const speedKmh = optionalNonNegative(value["speedKmh"]);
+  const inclinePct = optionalNonNegative(value["inclinePct"]);
   return {
     reps,
     weightKg,
-    ...(typeof dur === "number" && Number.isFinite(dur) && dur >= 0 ? { durationSec: dur } : {}),
-    ...(typeof rir === "number" && Number.isFinite(rir) && rir >= 0 ? { rir } : {}),
+    ...(dur !== undefined ? { durationSec: dur } : {}),
+    ...(rir !== undefined ? { rir } : {}),
+    ...(distanceKm !== undefined ? { distanceKm } : {}),
+    ...(speedKmh !== undefined ? { speedKmh } : {}),
+    ...(inclinePct !== undefined ? { inclinePct } : {}),
   };
 }
 
