@@ -35,6 +35,10 @@ export interface LiveProgress {
   /** In-flight reps/weight while logging a set. */
   setReps: number;
   setWeight: number;
+  /** In-flight cardio values while logging a treadmill bout (distance km / speed km/h / incline %). */
+  setDistanceKm: number;
+  setSpeedKmh: number;
+  setInclinePct: number;
   /** In-flight reps-in-reserve for the set being logged; null when not chosen. */
   setRir: number | null;
   /** Epoch ms when the running set started (sub === "running"); 0 otherwise. */
@@ -124,6 +128,9 @@ export function loadProgress(): LiveProgress | null {
     hasCurrentEx: raw["hasCurrentEx"] === true,
     setReps: num(raw["setReps"]),
     setWeight: num(raw["setWeight"]),
+    setDistanceKm: num(raw["setDistanceKm"]),
+    setSpeedKmh: num(raw["setSpeedKmh"]),
+    setInclinePct: num(raw["setInclinePct"]),
     setRir,
     setStartEpoch: num(raw["setStartEpoch"]),
     setElapsedMs: num(raw["setElapsedMs"]),

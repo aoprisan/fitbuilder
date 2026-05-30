@@ -3,6 +3,7 @@ import { effectiveLoadKg, hypertrophyFactor, strengthFactor } from "./loadProfil
 import { findMovement, SECONDARY_MUSCLE_SHARE } from "./movements";
 import {
   EQUIPMENT_LABELS,
+  isCardio,
   MUSCLE_GROUPS,
   MUSCLE_LABELS,
   type Equipment,
@@ -67,6 +68,21 @@ export function exerciseKey(ex: {
   return ex.exerciseId !== undefined && ex.exerciseId !== ""
     ? ex.exerciseId
     : `${ex.muscle}::${ex.equipment}`;
+}
+
+/**
+ * Whether an exercise key refers to cardio gear (treadmill/run) — used to switch
+ * the Stats view from the strength charts (reps/weight/1RM) to the cardio charts
+ * (distance/pace/elevation). Resolves the catalog movement, or the equipment from
+ * a legacy "muscle::equipment" key.
+ */
+export function isCardioExerciseKey(key: ExerciseKey): boolean {
+  if (key.includes("::")) {
+    const equipment = key.split("::")[1];
+    return equipment !== undefined && isCardio(equipment as Equipment);
+  }
+  const movement = findMovement(key);
+  return movement !== undefined && isCardio(movement.equipment);
 }
 
 /** Human-readable label for an exercise key, e.g. "Chest · Incline Bench Press". */
@@ -204,6 +220,79 @@ export function buildProgress(
 }
 
 /* =============================================================================
+   Cardio progress — distance, pace, time and climb per session. Cardio sets
+   carry no reps or load, so the strength series above read flat zero for them;
+   this is the parallel read the Stats view shows when the scope is a cardio
+   exercise (e.g. the treadmill).
+   ========================================================================== */
+
+/** One session reduced to its chartable cardio metrics. */
+export interface CardioPoint {
+  /** ISO timestamp the session started — used for ordering. */
+  date: string;
+  /** Short x-axis label, e.g. "22 May". */
+  label: string;
+  /** Total distance covered, km. */
+  distanceKm: number;
+  /** Total moving time across the cardio sets, seconds. */
+  durationSec: number;
+  /** Average speed, km/h — distance ÷ moving time (0 when time is unknown). */
+  speedKmh: number;
+  /** Pace, seconds per km — the inverse read of speed (0 when distance is unknown). */
+  paceSecPerKm: number;
+  /** Vertical climb from incline × distance, metres. */
+  climbM: number;
+}
+
+/**
+ * Chronological cardio progress for the given scope. Sets are summed per session
+ * (distance, time, climb); speed and pace are derived from the session totals so
+ * a session of mixed-speed bouts reads as its true average. Sessions with no
+ * cardio work in scope are skipped, mirroring {@link buildProgress}.
+ */
+export function buildCardioProgress(
+  sessions: TrainingSession[],
+  filter: ProgressFilter,
+): CardioPoint[] {
+  const ordered = [...sessions].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+  const points: CardioPoint[] = [];
+
+  for (const session of ordered) {
+    let distanceKm = 0;
+    let durationSec = 0;
+    let climbM = 0;
+    let any = false;
+
+    for (const ex of session.exercises) {
+      if (!isCardio(ex.equipment)) continue;
+      if (filter !== "all" && exerciseKey(ex) !== filter) continue;
+      for (const s of ex.sets) {
+        any = true;
+        const dist = Math.max(0, s.distanceKm ?? 0);
+        distanceKm += dist;
+        durationSec += s.durationSec ?? 0;
+        climbM += dist * 1000 * (Math.max(0, s.inclinePct ?? 0) / 100);
+      }
+    }
+
+    if (!any) continue;
+
+    const hours = durationSec / 3600;
+    points.push({
+      date: session.startedAt,
+      label: shortDate(session.startedAt),
+      distanceKm: round2(distanceKm),
+      durationSec: Math.round(durationSec),
+      speedKmh: hours > 0 ? round2(distanceKm / hours) : 0,
+      paceSecPerKm: distanceKm > 0 ? Math.round(durationSec / distanceKm) : 0,
+      climbM: Math.round(climbM),
+    });
+  }
+
+  return points;
+}
+
+/* =============================================================================
    Weekly volume per muscle — the dose unit hypertrophy research is built on.
    The dose-response is *per muscle, per week*: growth is reliably productive at
    roughly 10–20 hard sets, with a minimum effective dose near ~6 and clearly
@@ -270,6 +359,9 @@ export function weeklyMuscleVolume(
     const at = new Date(session.startedAt).getTime();
     if (Number.isNaN(at) || at < cutoff || at > nowMs) continue;
     for (const ex of session.exercises) {
+      // Cardio isn't hypertrophy volume — a treadmill bout is no "hard set", so
+      // it never credits the weekly dose-response board.
+      if (isCardio(ex.equipment)) continue;
       for (const s of ex.sets) {
         const hardSet = stimulusProximity(s.rir); // a full near-failure set = 1
         credit(ex.muscle, hardSet);
@@ -278,8 +370,12 @@ export function weeklyMuscleVolume(
     }
   }
 
-  return MUSCLE_GROUPS.map((muscle): MuscleWeeklyVolume => {
-    const n = round2(sets.get(muscle) ?? 0);
-    return { muscle, sets: n, band: classifyWeeklyVolume(n), stimulus: volumeStimulus(n) };
-  }).sort((a, b) => b.sets - a.sets);
+  // `cardio` is a training category, not a hypertrophy target, so it's left off
+  // the sets-per-muscle board entirely (it carries no credited volume anyway).
+  return MUSCLE_GROUPS.filter((muscle) => muscle !== "cardio").map(
+    (muscle): MuscleWeeklyVolume => {
+      const n = round2(sets.get(muscle) ?? 0);
+      return { muscle, sets: n, band: classifyWeeklyVolume(n), stimulus: volumeStimulus(n) };
+    },
+  ).sort((a, b) => b.sets - a.sets);
 }

@@ -11,7 +11,8 @@ export type Equipment =
   | "lat-pulldown"
   | "rear-delt-fly"
   | "lateral-raise"
-  | "lateral-abs-machine";
+  | "lateral-abs-machine"
+  | "treadmill";
 
 export interface WorkSet {
   reps: number;
@@ -26,6 +27,18 @@ export interface WorkSet {
    * exactly as before. The strongest per-set driver of both stimulus and fatigue.
    */
   rir?: number;
+  /**
+   * Cardio (treadmill / run) — distance covered in km. Present only for cardio
+   * gear, where a "set" is a bout of steady work rather than reps × load: `reps`
+   * and `weightKg` stay 0 and the work is described by distance, speed and
+   * incline instead. Absent on every strength set, so the strength heuristics are
+   * untouched.
+   */
+  distanceKm?: number;
+  /** Cardio — average speed in km/h. */
+  speedKmh?: number;
+  /** Cardio — treadmill incline as a percent grade (0 = flat). */
+  inclinePct?: number;
 }
 
 export const EQUIPMENT: readonly Equipment[] = [
@@ -42,6 +55,7 @@ export const EQUIPMENT: readonly Equipment[] = [
   "rear-delt-fly",
   "lateral-raise",
   "lateral-abs-machine",
+  "treadmill",
 ] as const;
 
 /** Human-readable label for each equipment type. */
@@ -59,6 +73,7 @@ export const EQUIPMENT_LABELS: Record<Equipment, string> = {
   "rear-delt-fly": "Rear Delt Fly",
   "lateral-raise": "Lateral Raise",
   "lateral-abs-machine": "Lateral Abs Machine",
+  treadmill: "Treadmill",
 };
 
 /** Equipment whose sets are bodyweight-based; any weight is *added* load. */
@@ -66,6 +81,18 @@ export const BODYWEIGHT_EQUIPMENT: readonly Equipment[] = ["trx", "calisthenics"
 
 export function isBodyweight(equipment: Equipment): boolean {
   return (BODYWEIGHT_EQUIPMENT as readonly Equipment[]).includes(equipment);
+}
+
+/**
+ * Cardio equipment: a "set" is a timed bout described by distance / speed /
+ * incline rather than reps × load. These sets carry 0 reps and 0 weight, so the
+ * strength heuristics (volume, 1RM, hypertrophy) read them as no-ops; the cardio
+ * fields on {@link WorkSet} drive the energy and progress read instead.
+ */
+export const CARDIO_EQUIPMENT: readonly Equipment[] = ["treadmill"] as const;
+
+export function isCardio(equipment: Equipment): boolean {
+  return (CARDIO_EQUIPMENT as readonly Equipment[]).includes(equipment);
 }
 
 /* =============================================================================
@@ -182,7 +209,8 @@ export type MuscleGroup =
   | "glutes"
   | "core"
   | "forearms"
-  | "calves";
+  | "calves"
+  | "cardio";
 
 export const MUSCLE_GROUPS: readonly MuscleGroup[] = [
   "chest",
@@ -196,9 +224,15 @@ export const MUSCLE_GROUPS: readonly MuscleGroup[] = [
   "core",
   "forearms",
   "calves",
+  "cardio",
 ] as const;
 
-/** Human-readable label for each muscle group. */
+/**
+ * Human-readable label for each muscle group. `cardio` is not a muscle but a
+ * training category (treadmill / conditioning); it rides the same per-group
+ * machinery — its own catalog list, recovery clock and effort line — so it slots
+ * into the live picker, recovery board and breakdowns alongside the real muscles.
+ */
 export const MUSCLE_LABELS: Record<MuscleGroup, string> = {
   chest: "Chest",
   back: "Back",
@@ -211,6 +245,7 @@ export const MUSCLE_LABELS: Record<MuscleGroup, string> = {
   core: "Core",
   forearms: "Forearms",
   calves: "Calves",
+  cardio: "Cardio",
 };
 
 export interface LoggedExercise {

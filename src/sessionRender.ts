@@ -26,10 +26,18 @@ import { epley1RM } from "./stats";
 import { loadTrainer } from "./trainer";
 import {
   EQUIPMENT_LABELS,
+  isCardio,
   MUSCLE_LABELS,
   type TrainingSession,
 } from "./types";
-import { formatClock, formatSessionDate, round2, sessionSetCount, sessionVolume } from "./util";
+import {
+  formatCardioSet,
+  formatClock,
+  formatSessionDate,
+  round2,
+  sessionSetCount,
+  sessionVolume,
+} from "./util";
 
 /* Renders a finished (or in-progress) live session as a one-page "recap" — the
    same effort/recovery card shown on screen plus a ledger of every exercise and
@@ -76,7 +84,10 @@ function buildSessionSummary(
     musclesLabel: "Muscles worked",
     muscles: muscles.map((m) => ({
       name: MUSCLE_LABELS[m.muscle],
-      detail: `${m.volume > 0 ? `${m.volume} kg` : "Bodyweight"} · ${formatClock(m.timeSec)}`,
+      detail:
+        m.muscle === "cardio"
+          ? formatClock(m.timeSec)
+          : `${m.volume > 0 ? `${m.volume} kg` : "Bodyweight"} · ${formatClock(m.timeSec)}`,
       ratio: topEffort > 0 ? m.effort / topEffort : 0,
     })),
     hydration: `≈ ${hydration.liters.toFixed(1)} L · ${glasses}`,
@@ -120,9 +131,11 @@ function drawExercises(ctx: Ctx, session: TrainingSession, top: number, paint: b
     const secondaries = ex.secondaryMuscles ?? [];
     const worked = [ex.muscle, ...secondaries].map((m) => MUSCLE_LABELS[m]).join(" · ");
     const eyebrow = `${worked} · ${EQUIPMENT_LABELS[ex.equipment]}`;
-    const setTokens = ex.sets
-      .map((s) => `${s.reps}×${s.weightKg > 0 ? `${round2(s.weightKg)} kg` : "BW"}`)
-      .join("   ·   ");
+    const setTokens = (
+      isCardio(ex.equipment)
+        ? ex.sets.map((s) => formatCardioSet(s))
+        : ex.sets.map((s) => `${s.reps}×${s.weightKg > 0 ? `${round2(s.weightKg)} kg` : "BW"}`)
+    ).join("   ·   ");
     const onerm = ex.oneRmKg ?? ex.sets.reduce((m, s) => Math.max(m, epley1RM(s)), 0);
     const onermLine =
       onerm > 0 ? `1RM ${round2(onerm)} kg${ex.oneRmKg === undefined ? " est" : ""}` : "";

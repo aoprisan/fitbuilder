@@ -2,7 +2,7 @@ import { fatigueProximity, setEffort } from "./effort";
 import { cnsFactor, muscleDemandFactor } from "./loadProfile";
 import { SECONDARY_MUSCLE_SHARE } from "./movements";
 import type { LoggedExercise, MuscleGroup, TrainingSession } from "./types";
-import { MUSCLE_GROUPS } from "./types";
+import { isCardio, MUSCLE_GROUPS } from "./types";
 import { clamp } from "./util";
 
 const HOUR_MS = 3_600_000;
@@ -28,6 +28,8 @@ export const RECOVERY_HOURS: Record<MuscleGroup, number> = {
   core: 24,
   forearms: 24,
   calves: 36,
+  // Conditioning, not muscle damage — steady cardio clears comparatively fast.
+  cardio: 24,
 };
 
 export interface MuscleRecovery {
@@ -208,8 +210,15 @@ function sessionCnsLoad(session: TrainingSession): number {
   let load = 0;
   for (const ex of session.exercises) {
     const factor = cnsFactor(ex.equipment, isCompound(ex));
+    // Cardio carries no reps, so the rep-range weighting (which would read 0 reps
+    // as heavy low-rep strength) doesn't apply — weight it neutrally instead.
+    const cardio = isCardio(ex.equipment);
     for (const s of ex.sets)
-      load += setEffort(s, ex.equipment) * repsIntensity(s.reps) * factor * fatigueProximity(s.rir);
+      load +=
+        setEffort(s, ex.equipment) *
+        (cardio ? 1 : repsIntensity(s.reps)) *
+        factor *
+        fatigueProximity(s.rir);
   }
   return load;
 }

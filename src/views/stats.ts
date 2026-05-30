@@ -17,8 +17,11 @@ import type { Cleanup, Nav } from "../router";
 import {
   bestOneRm,
   type BestOneRm,
+  buildCardioProgress,
   buildProgress,
+  type CardioPoint,
   exerciseKeyLabel,
+  isCardioExerciseKey,
   presentExerciseKeys,
   type ProgressFilter,
 } from "../stats";
@@ -54,6 +57,18 @@ registerTranslations({
   Hypertrophy: "Hipertrofie",
   "Volume in the 6–20 rep muscle-building range.":
     "Volum în intervalul 6–20 repetări pentru construcția musculară.",
+  // — Cardio progress —
+  Distance: "Distanță",
+  "How far you covered each session.": "Cât de departe ai parcurs în fiecare sesiune.",
+  "Avg speed": "Viteză medie",
+  "Average pace held — are you getting faster?":
+    "Ritmul mediu menținut — devii mai rapid?",
+  Pace: "Ritm",
+  "Time per kilometre — lower is faster.": "Timp pe kilometru — mai mic e mai rapid.",
+  Time: "Timp",
+  "Total moving time each session.": "Timpul total de mișcare în fiecare sesiune.",
+  Climb: "Urcare",
+  "Vertical metres climbed from incline.": "Metri verticali urcați din înclinare.",
   "Best one-rep max": "Cel mai bun 1RM",
   Logged: "Înregistrat",
   Estimated: "Estimat",
@@ -205,6 +220,13 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
 
     if (keys.length > 0) container.append(renderFilter(keys));
 
+    // A cardio scope (e.g. the treadmill) charts distance / pace / climb instead
+    // of the reps-and-load strength series, which read flat zero for it.
+    if (filter !== "all" && isCardioExerciseKey(filter)) {
+      renderCardioScope(sessions);
+      return;
+    }
+
     const points = buildProgress(sessions, filter);
 
     if (points.length === 0) {
@@ -300,6 +322,92 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
   }
 
   /**
+   * Cardio progress for a treadmill/run scope: distance, average speed, pace,
+   * moving time and climb over time. Mirrors the strength branch's range header,
+   * empty state and export panel, but with cardio-shaped charts.
+   */
+  function renderCardioScope(sessions: TrainingSession[]): void {
+    const points: CardioPoint[] = buildCardioProgress(sessions, filter);
+
+    if (points.length === 0) {
+      container.append(
+        h("p", { class: "empty", text: t("No sets logged for this exercise yet.") }),
+        h("div", { class: "btn-row" }, [
+          h("button", {
+            class: "btn btn-primary",
+            type: "button",
+            text: t("Go to Live"),
+            on: { click: () => nav.go("live") },
+          }),
+        ]),
+      );
+      if (sessions.length > 0) container.append(renderExportPanel(sessions));
+      return;
+    }
+
+    const labels = points.map((p) => p.label);
+    container.append(
+      h("p", {
+        class: "stat-range",
+        text:
+          points.length === 1
+            ? t("1 session · {0}").replace("{0}", String(labels[0]))
+            : t("{0} sessions · {1} → {2}")
+                .replace("{0}", String(points.length))
+                .replace("{1}", String(labels[0]))
+                .replace("{2}", String(labels[labels.length - 1])),
+      }),
+      lineChart({
+        title: t("Distance"),
+        unit: "km",
+        values: points.map((p) => p.distanceKm),
+        labels,
+        color: "var(--signal)",
+        hint: t("How far you covered each session."),
+        format: (n) => String(round2(n)),
+      }),
+      lineChart({
+        title: t("Avg speed"),
+        unit: "km/h",
+        values: points.map((p) => p.speedKmh),
+        labels,
+        color: "var(--navy)",
+        hint: t("Average pace held — are you getting faster?"),
+        format: (n) => String(round2(n)),
+      }),
+      lineChart({
+        title: t("Pace"),
+        unit: "/km",
+        values: points.map((p) => p.paceSecPerKm),
+        labels,
+        color: "var(--brick)",
+        hint: t("Time per kilometre — lower is faster."),
+        format: (n) => formatClock(n),
+      }),
+      lineChart({
+        title: t("Time"),
+        unit: "",
+        values: points.map((p) => p.durationSec),
+        labels,
+        color: "var(--pine)",
+        hint: t("Total moving time each session."),
+        format: (n) => formatClock(n),
+      }),
+      lineChart({
+        title: t("Climb"),
+        unit: "m",
+        values: points.map((p) => p.climbM),
+        labels,
+        color: "var(--mustard)",
+        hint: t("Vertical metres climbed from incline."),
+        format: (n) => String(Math.round(n)),
+      }),
+    );
+
+    container.append(renderExportPanel(sessions));
+  }
+
+  /**
    * Headline best one-rep max for the current scope: the heaviest tested max the
    * user has logged shown beside the best Epley estimate from their sets. Either
    * reads "—" when nothing qualifies (e.g. bodyweight-only work has no estimate).
@@ -343,7 +451,11 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
     const muscleRows = byEffort.map((m) => {
       const fill = h("div", { class: "muscle-bar-fill" });
       fill.style.width = `${topEffort > 0 ? (m.effort / topEffort) * 100 : 0}%`;
-      const detail = `${m.volume > 0 ? `${m.volume} kg` : t("Bodyweight")} · ${formatClock(m.timeSec)} · ${m.sets} ${m.sets === 1 ? t("set") : t("sets")}`;
+      const setsLabel = `${m.sets} ${m.sets === 1 ? t("set") : t("sets")}`;
+      const detail =
+        m.muscle === "cardio"
+          ? `${formatClock(m.timeSec)} · ${setsLabel}`
+          : `${m.volume > 0 ? `${m.volume} kg` : t("Bodyweight")} · ${formatClock(m.timeSec)} · ${setsLabel}`;
       return h("div", { class: "muscle-effort" }, [
         h("div", { class: "muscle-row" }, [
           h("span", { class: "muscle-name", text: t(MUSCLE_LABELS[m.muscle]) }),

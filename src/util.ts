@@ -1,6 +1,7 @@
 import {
   EQUIPMENT_LABELS,
   isBodyweight,
+  isCardio,
   MUSCLE_LABELS,
   SESSION_ARCHIVE_SCHEMA_ID,
   SESSION_ARCHIVE_SCHEMA_VERSION,
@@ -15,6 +16,7 @@ import {
   type SetTarget,
   type TrainingSession,
   type VolumeTarget,
+  type WorkSet,
 } from "./types";
 
 /** Generate a RFC4122 v4 uuid, falling back when crypto.randomUUID is absent. */
@@ -260,7 +262,8 @@ export function sessionsToXml(sessions: TrainingSession[]): string {
       );
       for (const set of ex.sets) {
         lines.push(
-          `      <set${attr("reps", set.reps)}${attr("weightKg", set.weightKg)}${attr("durationSec", set.durationSec)}${attr("rir", set.rir)} />`,
+          `      <set${attr("reps", set.reps)}${attr("weightKg", set.weightKg)}${attr("durationSec", set.durationSec)}${attr("rir", set.rir)}` +
+            `${attr("distanceKm", set.distanceKm)}${attr("speedKmh", set.speedKmh)}${attr("inclinePct", set.inclinePct)} />`,
         );
       }
       lines.push("    </exercise>");
@@ -295,6 +298,20 @@ export function formatLoad(equipment: Equipment, weightKg: number): string {
   return `${round2(weightKg)} kg`;
 }
 
+/**
+ * Format a cardio (treadmill) bout for display — distance, speed, incline and
+ * time, omitting any field that wasn't recorded. Reads e.g. "5 km · 8 km/h · 2%
+ * · 30:00". Returns "—" when a bout carries nothing measurable.
+ */
+export function formatCardioSet(set: WorkSet): string {
+  const bits: string[] = [];
+  if (set.distanceKm !== undefined && set.distanceKm > 0) bits.push(`${round2(set.distanceKm)} km`);
+  if (set.speedKmh !== undefined && set.speedKmh > 0) bits.push(`${round2(set.speedKmh)} km/h`);
+  if (set.inclinePct !== undefined && set.inclinePct > 0) bits.push(`${round2(set.inclinePct)}%`);
+  if (set.durationSec !== undefined) bits.push(formatClock(set.durationSec));
+  return bits.length > 0 ? bits.join(" · ") : "—";
+}
+
 /** Coaching instruction prepended to the Markdown log so an agent knows what to do with it. */
 export const SESSION_ANALYSIS_PROMPT =
   "You are an expert strength & conditioning coach. Analyse my training log below " +
@@ -320,6 +337,19 @@ function sessionToMarkdown(session: TrainingSession): string {
       return;
     }
     lines.push("");
+    if (isCardio(ex.equipment)) {
+      // Cardio bouts read in distance / speed / incline / time, not reps × load.
+      lines.push("| Bout | Distance | Speed | Incline | Time |");
+      lines.push("|----:|---------:|------:|--------:|-----:|");
+      ex.sets.forEach((set, j) => {
+        const dist = set.distanceKm !== undefined ? `${round2(set.distanceKm)} km` : "—";
+        const speed = set.speedKmh !== undefined ? `${round2(set.speedKmh)} km/h` : "—";
+        const incline = set.inclinePct !== undefined ? `${round2(set.inclinePct)}%` : "—";
+        const time = set.durationSec !== undefined ? formatClock(set.durationSec) : "—";
+        lines.push(`| ${j + 1} | ${dist} | ${speed} | ${incline} | ${time} |`);
+      });
+      return;
+    }
     lines.push("| Set | Reps | Load | RIR | Time |");
     lines.push("|----:|-----:|------|----:|-----:|");
     ex.sets.forEach((set, j) => {
