@@ -2,6 +2,7 @@ import {
   C,
   CW,
   DISPLAY,
+  drawFooter,
   ensureFonts,
   type LogoFit,
   MONO,
@@ -243,24 +244,8 @@ function drawSheet(
 
   y += 24;
 
-  // Footer.
-  if (paint) {
-    ctx.strokeStyle = C.line;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(PAD, y + 0.5);
-    ctx.lineTo(PAD + CW, y + 0.5);
-    ctx.stroke();
-  }
-  y += 12;
-  ctx.font = `700 11px ${MONO}`;
-  if (paint) {
-    ctx.fillStyle = C.inkFaint;
-    ctx.fillText("GYM LOG — ROUTINE SHEET", PAD, y);
-  }
-  y += 22;
-
-  return y + PAD;
+  // Shared footer (hairline rule + section label + growth-loop watermark).
+  return drawFooter(ctx, y, "GYM LOG — ROUTINE SHEET", paint);
 }
 
 /** Render a sheet to a freshly created (high-DPI) canvas. */

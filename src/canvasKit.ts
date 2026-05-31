@@ -28,6 +28,12 @@ export const C = {
 export const DISPLAY = "'Alfa Slab One', Rockwell, Georgia, serif";
 export const MONO = "'IBM Plex Mono', ui-monospace, Menlo, monospace";
 
+// Public install URL, stamped on every shared export as a quiet growth loop:
+// each routine/recap a trainer sends doubles as a link back to the app. (Becomes
+// a removable mark for a future "Pro" tier — see the monetization plan.)
+export const APP_URL = "aoprisan.github.io/fitbuilder";
+export const WATERMARK = `Made with Gym Log · ${APP_URL}`;
+
 // Logical layout units (multiplied by SCALE for the actual bitmap). Shared so
 // every export is the same width and renders at the same crispness.
 export const W = 760;
@@ -233,6 +239,11 @@ export function drawFooter(ctx: Ctx, y: number, label: string, paint: boolean): 
   if (paint) {
     ctx.fillStyle = C.inkFaint;
     ctx.fillText(label, PAD, cy);
+    // Growth-loop watermark, right-aligned opposite the section label.
+    ctx.font = `400 11px ${MONO}`;
+    ctx.textAlign = "right";
+    ctx.fillText(WATERMARK, PAD + CW, cy);
+    ctx.textAlign = "left";
   }
   cy += 22;
   return cy + PAD;

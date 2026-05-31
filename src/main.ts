@@ -1,4 +1,5 @@
 import "./styles.css";
+import { track } from "./analytics";
 import { clear, h } from "./dom";
 import { registerServiceWorker } from "./pwa";
 import { sheetToSession } from "./log";
@@ -125,6 +126,7 @@ function consumeSharedRoutine(mode: AppMode): ViewName | null {
   history.replaceState(null, "", urlWithoutRoutine(window.location.href));
   const stored = saveSheet(sheet);
   setEditingSheet(cloneSheet(stored));
+  track("routine_imported", { via: "link" });
   if (mode === "trainer") {
     setSheetFlash(`Imported "${stored.name}" from a shared link. Edit or save it here.`, "ok");
     return "sheet";
@@ -179,6 +181,7 @@ function boot(): void {
     }
     currentView = view;
     highlightNav();
+    track("view", { name: view });
 
     clear(viewHost);
     let result: Cleanup | void;
@@ -256,6 +259,7 @@ function boot(): void {
     if (next === mode) return;
     mode = next;
     saveMode(next);
+    track("mode_switch", { mode: next });
     highlightMode();
     renderNav();
     navigate(next === "trainer" ? "sheet" : "train");
@@ -401,6 +405,24 @@ function boot(): void {
   });
   const langLabel = h("span", { class: "settings-label", text: t("Language") });
   const themeLabel = h("span", { class: "settings-label", text: t("Theme") });
+  const aboutLabel = h("span", { class: "settings-label", text: t("About") });
+  const DISCLAIMER =
+    "Gym Log is for general fitness tracking only — not medical advice. Train within your limits and check with a professional before starting a new program.";
+  const disclaimer = h("p", { class: "settings-disclaimer", text: t(DISCLAIMER) });
+  const privacyLink = h("a", {
+    class: "settings-link",
+    href: "./privacy.html",
+    target: "_blank",
+    rel: "noopener",
+    text: t("Privacy"),
+  });
+  const termsLink = h("a", {
+    class: "settings-link",
+    href: "./terms.html",
+    target: "_blank",
+    rel: "noopener",
+    text: t("Terms"),
+  });
   const dialog = h(
     "div",
     {
@@ -413,6 +435,11 @@ function boot(): void {
       h("div", { class: "settings-head" }, [settingsTitle, closeBtn]),
       h("div", { class: "settings-row" }, [langLabel, langToggle]),
       h("div", { class: "settings-row" }, [themeLabel, themeToggle]),
+      h("div", { class: "settings-row" }, [
+        aboutLabel,
+        disclaimer,
+        h("div", { class: "settings-links" }, [privacyLink, termsLink]),
+      ]),
     ],
   );
   const scrim = h("div", { class: "settings-scrim" }, [dialog]);
@@ -462,6 +489,10 @@ function boot(): void {
     settingsTitle.textContent = t("Settings");
     langLabel.textContent = t("Language");
     themeLabel.textContent = t("Theme");
+    aboutLabel.textContent = t("About");
+    disclaimer.textContent = t(DISCLAIMER);
+    privacyLink.textContent = t("Privacy");
+    termsLink.textContent = t("Terms");
     closeBtn.setAttribute("aria-label", t("Close"));
     settingsBtn.setAttribute("aria-label", t("Settings"));
   }
@@ -499,6 +530,7 @@ function boot(): void {
   highlightTheme();
   renderNav();
   navigate(consumeSharedRoutine(mode) ?? (mode === "trainer" ? "sheet" : "home"));
+  track("pageview", { mode });
 }
 
 registerServiceWorker();
