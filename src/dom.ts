@@ -20,6 +20,8 @@ export interface ElAttrs {
   autocomplete?: string;
   accept?: string;
   href?: string;
+  target?: string;
+  rel?: string;
   download?: string;
   title?: string;
   disabled?: boolean;

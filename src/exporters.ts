@@ -1,3 +1,4 @@
+import { track } from "./analytics";
 import { dataUrlToBytes, jpegToPdf } from "./pdf";
 import { renderRecoveryToCanvas } from "./recoveryRender";
 import { renderSessionToCanvas } from "./sessionRender";
@@ -139,11 +140,13 @@ async function shareForAnalysis(
 
 /** Share/copy every logged session as a Markdown report for agent analysis. */
 export function analyzeSessionsInClaude(sessions: TrainingSession[]): Promise<AnalyzeResult> {
+  track("claude_analyze", { scope: "all" });
   return shareForAnalysis(sessionsToMarkdown(sessions), sessionsFilename("md"), "Training log");
 }
 
 /** Share/copy one session as a Markdown report for agent analysis. */
 export function analyzeSessionInClaude(session: TrainingSession): Promise<AnalyzeResult> {
+  track("claude_analyze", { scope: "one" });
   return shareForAnalysis(
     sessionsToMarkdown([session]),
     `${sessionSlug(session)}.md`,
@@ -153,6 +156,7 @@ export function analyzeSessionInClaude(session: TrainingSession): Promise<Analyz
 
 /** Hand a plan-building prompt to Claude (share sheet on phones, clipboard + new chat on desktop). */
 export function startPlanInClaude(prompt: string): Promise<AnalyzeResult> {
+  track("claude_plan", { via: "share" });
   return shareForAnalysis(prompt, "fitbuilder-plan.md", "Build my training plan");
 }
 
@@ -177,6 +181,7 @@ export function copySessionPrompt(session: TrainingSession): Promise<CopyResult>
 
 /** Copy the plan-building prompt to the clipboard so it can be pasted into any AI; download as a backstop. */
 export function copyPlanPrompt(prompt: string): Promise<CopyResult> {
+  track("claude_plan", { via: "copy" });
   return copyForAnalysis(prompt, "fitbuilder-plan.md");
 }
 
@@ -184,11 +189,13 @@ export function copyPlanPrompt(prompt: string): Promise<CopyResult> {
 async function downloadCanvasPng(canvas: HTMLCanvasElement, filename: string): Promise<void> {
   const blob = await canvasToBlob(canvas, "image/png");
   downloadBlob(blob, filename);
+  track("export", { format: "png" });
 }
 
 /** Download a rendered canvas as a (JPEG-in-)PDF. */
 function downloadCanvasPdf(canvas: HTMLCanvasElement, filename: string): void {
   downloadBlob(pdfBlobFromCanvas(canvas), filename);
+  track("export", { format: "pdf" });
 }
 
 export type ShareResult = "shared" | "downloaded";
@@ -205,6 +212,7 @@ async function shareCanvas(
 ): Promise<ShareResult> {
   const blob = await canvasToBlob(canvas, "image/png");
   const file = new File([blob], filename, { type: "image/png" });
+  track("share", { format: "image" });
 
   const nav = shareNav();
   if (nav.share && nav.canShare && nav.canShare({ files: [file] })) {
@@ -253,6 +261,7 @@ export interface LinkShareResult {
  */
 export async function shareRoutineLink(sheet: RoutineSheet): Promise<LinkShareResult> {
   const url = encodeRoutineLink(sheet);
+  track("share", { format: "link" });
   const nav = shareNav();
 
   if (typeof nav.share === "function") {

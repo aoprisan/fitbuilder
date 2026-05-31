@@ -1,3 +1,4 @@
+import { track } from "../analytics";
 import { clear, h } from "../dom";
 import {
   estimateCalories,
@@ -698,6 +699,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       s.exercises.push(currentEx);
     }
     currentEx.sets.push(set);
+    track("set_logged", { cardio: isCardio(equipment) });
     persist();
     restStartEpoch = Date.now();
     sub = "resting";

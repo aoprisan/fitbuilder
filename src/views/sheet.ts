@@ -1,3 +1,4 @@
+import { track } from "../analytics";
 import { clear, h } from "../dom";
 import { canShareFiles, exportRoutineQrPng, exportSheetPdf, exportSheetPng, shareRoutineLink, shareSheet } from "../exporters";
 import { ImportError, importRoutineFile } from "../import";
@@ -832,6 +833,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
         if (!first) first = stored;
       }
       renderSaved();
+      track("routine_imported", { via: "file", count: imported.length });
       const routineCount = imported.reduce((n, s) => n + s.routines.length, 0);
       const sheetWord = imported.length === 1 ? t("sheet") : t("sheets");
       const routineWord = routineCount === 1 ? t("routine") : t("routines");
@@ -1029,7 +1031,12 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
         class: "btn",
         type: "button",
         text: t("New sheet"),
-        on: { click: () => nav.editSheet(blankSheet()) },
+        on: {
+          click: () => {
+            track("routine_created");
+            nav.editSheet(blankSheet());
+          },
+        },
       }),
     ]),
     savedHost,

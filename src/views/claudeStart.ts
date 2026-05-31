@@ -1,3 +1,4 @@
+import { track } from "../analytics";
 import { buildPlanPrompt, parsePlanFromText, type Goal, type Level, type PlanInputs } from "../claudePlan";
 import { h } from "../dom";
 import { copyPlanPrompt, startPlanInClaude } from "../exporters";
@@ -175,6 +176,7 @@ export function mountClaudeStart(root: HTMLElement, nav: Nav): Cleanup {
     }
     try {
       const stored = saveSheet(parsePlanFromText(pasteArea.value));
+      track("claude_plan_imported");
       if (loadMode() === "trainer") {
         // Trainer authors plans: open it in the Routines builder to refine.
         setSheetFlash(t('Added "{0}" from Claude. Edit it here.').replace("{0}", stored.name), "ok");
