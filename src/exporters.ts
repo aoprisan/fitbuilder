@@ -185,6 +185,18 @@ export function copyPlanPrompt(prompt: string): Promise<CopyResult> {
   return copyForAnalysis(prompt, "fitbuilder-plan.md");
 }
 
+/** Hand a "plan my next session" prompt to Claude (share sheet on phones, clipboard + new chat on desktop). */
+export function startTargetInClaude(prompt: string): Promise<AnalyzeResult> {
+  track("claude_target", { via: "share" });
+  return shareForAnalysis(prompt, "fitbuilder-next-session.md", "Plan my next session");
+}
+
+/** Copy a "plan my next session" prompt to the clipboard so it can be pasted into any AI; download as a backstop. */
+export function copyTargetPrompt(prompt: string): Promise<CopyResult> {
+  track("claude_target", { via: "copy" });
+  return copyForAnalysis(prompt, "fitbuilder-next-session.md");
+}
+
 /** Download a rendered canvas as a PNG. */
 async function downloadCanvasPng(canvas: HTMLCanvasElement, filename: string): Promise<void> {
   const blob = await canvasToBlob(canvas, "image/png");

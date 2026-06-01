@@ -2213,6 +2213,31 @@ textarea {
   font-variant-numeric: tabular-nums;
 }
 
+/* Stats "target session" card — the hypertrophy progression suggestion, tied to
+   the Hypertrophy chart hue. */
+.target-session {
+  border-left: 8px solid var(--mustard);
+}
+
+.target-rir {
+  margin: 12px 0 0;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.target-rationale {
+  margin: 8px 0 0;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+
 /* ─────────────────────── EFFORT GAUGE + HYDRATION ─────────────────────── */
 
 .live-effort {
