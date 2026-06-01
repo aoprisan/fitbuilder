@@ -262,6 +262,51 @@ function sumReps(sets: readonly WorkSet[]): number {
   return sets.reduce((a, s) => a + s.reps, 0);
 }
 
+/**
+ * Reps tally (done / target) + progress bar — shared by the structured benchmark
+ * and the free-text prescription fallback so both read identically.
+ */
+function repTally(done: number, target: number): HTMLElement[] {
+  const pct = target > 0 ? Math.round(Math.min(1, done / target) * 100) : 0;
+  const fill = h("div", { class: "progress-fill" });
+  fill.style.width = `${pct}%`;
+  return [
+    h("p", { class: "now-tally" }, [
+      h("span", { class: "tally-done", text: String(done) }),
+      h("span", { class: "tally-sep", text: "/" }),
+      h("span", { class: "tally-target", text: String(target) }),
+      h("span", { class: "tally-unit", text: t("reps") }),
+    ]),
+    h(
+      "div",
+      {
+        class: "progress now-progress",
+        role: "progressbar",
+        aria: { valuemin: "0", valuemax: "100", valuenow: String(pct), label: t("Target progress") },
+      },
+      [fill],
+    ),
+  ];
+}
+
+/**
+ * Group consecutive items by their (optional) `section`, preserving order — the
+ * one place the "emit a phase header when the section changes" logic lives, so
+ * the logged list and the adherence panel stay in sync.
+ */
+function bySectionRuns<T extends { section?: string }>(
+  items: readonly T[],
+): { section: string; items: T[] }[] {
+  const runs: { section: string; items: T[] }[] = [];
+  for (const it of items) {
+    const section = it.section ?? "";
+    const last = runs[runs.length - 1];
+    if (last && last.section === section) last.items.push(it);
+    else runs.push({ section, items: [it] });
+  }
+  return runs;
+}
+
 /** A prescribed set as "10 @ 20 kg" (or "10 reps" when bodyweight / no load). */
 function fmtPlanSet(st: SetTarget): string {
   return st.loadKg !== undefined && st.loadKg > 0
@@ -332,27 +377,10 @@ function renderBenchRow(equipment: Equipment, c: SetComparison): HTMLElement {
  * tally for routine-loaded exercises; freestyle rows have no benchmark.
  */
 function renderBenchmark(ex: LoggedExercise, bm: ExerciseBenchmark): HTMLElement {
-  const pct = Math.round(bm.fraction * 100);
-  const fill = h("div", { class: "progress-fill" });
-  fill.style.width = `${pct}%`;
   const children: HTMLElement[] = [
     h("p", { class: "now-eyebrow", text: t("Plan") }),
     h("p", { class: "now-target", text: bm.label }),
-    h("p", { class: "now-tally" }, [
-      h("span", { class: "tally-done", text: String(bm.doneReps) }),
-      h("span", { class: "tally-sep", text: "/" }),
-      h("span", { class: "tally-target", text: String(bm.prescribedReps) }),
-      h("span", { class: "tally-unit", text: t("reps") }),
-    ]),
-    h(
-      "div",
-      {
-        class: "progress now-progress",
-        role: "progressbar",
-        aria: { valuemin: "0", valuemax: "100", valuenow: String(pct), label: t("Target progress") },
-      },
-      [fill],
-    ),
+    ...repTally(bm.doneReps, bm.prescribedReps),
   ];
   if (bm.kind === "sets" && bm.sets.length > 0) {
     children.push(h("div", { class: "bench-sets" }, bm.sets.map((c) => renderBenchRow(ex.equipment, c))));
@@ -368,25 +396,23 @@ function renderAdherence(a: SessionAdherence): HTMLElement {
   // Per-exercise rows, with a phase sub-header inserted whenever the section
   // changes — so a followed structured session reads Warm-up / Main / … in order.
   const rows: HTMLElement[] = [];
-  let lastSection = " ";
-  a.rows.forEach((r) => {
-    if (r.section !== lastSection) {
-      lastSection = r.section;
-      if (r.section !== "") {
-        rows.push(h("p", { class: "live-section-label", text: r.section }));
-      }
+  bySectionRuns(a.rows).forEach((run) => {
+    if (run.section !== "") {
+      rows.push(h("p", { class: "live-section-label", text: run.section }));
     }
-    const bm = r.benchmark;
-    const stat =
-      bm.targetLoadKg !== null
-        ? `${bm.doneReps}/${bm.prescribedReps} ${t("reps")} · ${bm.loggedLoadKg ?? 0}/${bm.targetLoadKg} kg`
-        : `${bm.doneReps}/${bm.prescribedReps} ${t("reps")}`;
-    rows.push(
-      h("div", { class: "muscle-row" }, [
-        h("span", { class: "muscle-name", text: r.name }),
-        h("span", { class: "muscle-stat", text: stat }),
-      ]),
-    );
+    run.items.forEach((r) => {
+      const bm = r.benchmark;
+      const stat =
+        bm.targetLoadKg !== null
+          ? `${bm.doneReps}/${bm.prescribedReps} ${t("reps")} · ${bm.loggedLoadKg ?? 0}/${bm.targetLoadKg} kg`
+          : `${bm.doneReps}/${bm.prescribedReps} ${t("reps")}`;
+      rows.push(
+        h("div", { class: "muscle-row" }, [
+          h("span", { class: "muscle-name", text: r.name }),
+          h("span", { class: "muscle-stat", text: stat }),
+        ]),
+      );
+    });
   });
   return h("div", { class: "summary-adherence" }, [
     h("div", { class: "adherence-head" }, [
@@ -835,20 +861,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       // ramps/pyramids advance set-by-set. Fall back to carrying the last set
       // forward (or the bodyweight/default) for off-plan or volume work.
       const planned = currentEx ? nextSetTarget(currentEx) : null;
-      if (planned) {
-        setReps = planned.reps;
-        setWeight =
-          planned.loadKg !== undefined
-            ? planned.loadKg
-            : last
-              ? last.weightKg
-              : isBodyweight(equipment)
-                ? 0
-                : 10;
-      } else {
-        setReps = last ? last.reps : 10;
-        setWeight = last ? last.weightKg : isBodyweight(equipment) ? 0 : 10;
-      }
+      const fallbackWeight = last ? last.weightKg : isBodyweight(equipment) ? 0 : 10;
+      setReps = planned?.reps ?? (last ? last.reps : 10);
+      setWeight = planned?.loadKg ?? fallbackWeight;
     }
     pendingRir = null; // proximity to failure is logged fresh per set
     sub = "logging";
@@ -1234,28 +1249,25 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     const logged = session.exercises.filter((ex) => ex.sets.length > 0);
     if (logged.length > 0) {
       doneHost.append(h("p", { class: "field-label", text: t("Logged so far — tap to add sets") }));
-      // Group the logged list by session phase (Warm-up / Main / …) when the
-      // exercises carry a section, so a followed structured session reads in order.
-      let lastSection = " ";
-      logged.forEach((ex) => {
-        const section = ex.section ?? "";
-        if (section !== lastSection) {
-          lastSection = section;
-          if (section !== "") {
-            doneHost.append(h("p", { class: "live-section-label", text: section }));
-          }
+      // Grouped by session phase (Warm-up / Main / …) so a followed structured
+      // session reads in order; unlabelled runs render without a header.
+      bySectionRuns(logged).forEach((run) => {
+        if (run.section !== "") {
+          doneHost.append(h("p", { class: "live-section-label", text: run.section }));
         }
-        doneHost.append(
-          h("button", {
-            class: "btn btn-small live-done-row",
-            type: "button",
-            text: (ex.sets.length === 1 ? t("{0} — {1} set") : t("{0} — {1} sets"))
-              .replace("{0}", ex.name)
-              .replace("{1}", String(ex.sets.length)),
-            aria: { label: t("log sets for {0}").replace("{0}", ex.name) },
-            on: { click: () => resumeExercise(ex) },
-          }),
-        );
+        run.items.forEach((ex) => {
+          doneHost.append(
+            h("button", {
+              class: "btn btn-small live-done-row",
+              type: "button",
+              text: (ex.sets.length === 1 ? t("{0} — {1} set") : t("{0} — {1} sets"))
+                .replace("{0}", ex.name)
+                .replace("{1}", String(ex.sets.length)),
+              aria: { label: t("log sets for {0}").replace("{0}", ex.name) },
+              on: { click: () => resumeExercise(ex) },
+            }),
+          );
+        });
       });
     }
 
@@ -1540,27 +1552,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       const pres = currentEx?.prescription;
       const target = pres !== undefined ? parseTargetReps(pres) : null;
       if (currentEx && pres !== undefined && target !== null && target > 0) {
-        const logged = sumReps(currentEx.sets);
-        const pct = Math.round(Math.min(1, logged / target) * 100);
-        const fill = h("div", { class: "progress-fill" });
-        fill.style.width = `${pct}%`;
         container.append(
           h("p", { class: "now-target", text: pres }),
-          h("p", { class: "now-tally" }, [
-            h("span", { class: "tally-done", text: String(logged) }),
-            h("span", { class: "tally-sep", text: "/" }),
-            h("span", { class: "tally-target", text: String(target) }),
-            h("span", { class: "tally-unit", text: t("reps") }),
-          ]),
-          h(
-            "div",
-            {
-              class: "progress now-progress",
-              role: "progressbar",
-              aria: { valuemin: "0", valuemax: "100", valuenow: String(pct), label: t("Target progress") },
-            },
-            [fill],
-          ),
+          ...repTally(sumReps(currentEx.sets), target),
         );
       }
     }

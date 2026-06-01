@@ -12,6 +12,8 @@ import {
   blankSheet,
   catalogIdentityFor,
   singleRoutineSheet,
+  toMovementsRoutine,
+  toSessionRoutine,
 } from "../sheet";
 import { deleteSheet, loadSheets, saveSheet } from "../sheetStorage";
 import { setSheetFlash, state, takeSheetFlash } from "../state";
@@ -27,7 +29,7 @@ import type {
   SetTarget,
   VolumeTarget,
 } from "../types";
-import { cloneSheet, routineExercises, routineKind, sheetToJson, slug } from "../util";
+import { cloneSheet, routineExerciseCount, routineKind, sheetToJson, slug } from "../util";
 import { registerTranslations, t } from "../i18n";
 
 registerTranslations({
@@ -243,7 +245,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
   const routinesHost = h("div", { class: "routines" });
 
   const exerciseCount = (): number =>
-    sheet.routines.reduce((sum, r) => sum + routineExercises(r).length, 0);
+    sheet.routines.reduce((sum, r) => sum + routineExerciseCount(r), 0);
 
   // ---- Structured target editor ---------------------------------------------
   // Every exercise carries a structured target in one of two modes, toggled per
@@ -541,24 +543,13 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
 
     const kind = routineKind(routine);
 
-    // Switch a routine between a loose movement list and a structured session,
-    // mutating in place so the working sheet keeps the change. Movement→session
-    // wraps the flat list into one "Main" section; session→movements flattens
-    // every section back down (section labels are dropped).
+    // Switch a routine between a loose movement list and a structured session.
+    // The conversion (wrap into one "Main" section / flatten back) lives in
+    // sheet.ts; replace the slot in the working sheet with the converted routine.
     const setKind = (next: RoutineKind): void => {
       if (next === kind) return;
-      if (next === "session") {
-        const exercises =
-          routine.exercises.length > 0 ? routine.exercises : [blankRoutineExercise()];
-        routine.kind = "session";
-        routine.sections = [{ title: "Main", exercises }];
-        routine.exercises = [];
-      } else {
-        const flat = routineExercises(routine);
-        routine.exercises = flat.length > 0 ? flat : [blankRoutineExercise()];
-        routine.kind = "movements";
-        delete routine.sections;
-      }
+      sheet.routines[rIndex] =
+        next === "session" ? toSessionRoutine(routine) : toMovementsRoutine(routine);
       renderRoutines();
     };
 
@@ -1094,7 +1085,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
       return;
     }
     for (const s of sheets) {
-      const exCount = s.routines.reduce((sum, r) => sum + routineExercises(r).length, 0);
+      const exCount = s.routines.reduce((sum, r) => sum + routineExerciseCount(r), 0);
       savedHost.appendChild(
         h("section", { class: "card saved-item" }, [
           h("div", { class: "saved-info" }, [
