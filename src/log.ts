@@ -59,6 +59,7 @@ export function repeatSession(src: TrainingSession): TrainingSession {
       ...(ex.secondaryMuscles !== undefined ? { secondaryMuscles: [...ex.secondaryMuscles] } : {}),
       ...(ex.prescription !== undefined ? { prescription: ex.prescription } : {}),
       ...(ex.target !== undefined ? { target: cloneTarget(ex.target) } : {}),
+      ...(ex.section !== undefined ? { section: ex.section } : {}),
       sets: [],
     })),
   };
@@ -98,6 +99,9 @@ export function sheetToSession(sheet: RoutineSheet): TrainingSession {
           : {}),
         ...(item.prescription.trim() !== "" ? { prescription: item.prescription } : {}),
         ...(item.target ? { target: cloneTarget(item.target) } : {}),
+        ...(item.sectionTitle && item.sectionTitle.trim() !== ""
+          ? { section: item.sectionTitle }
+          : {}),
         sets: [],
       };
     }),
@@ -135,6 +139,9 @@ export function executeRunToSession(
         : {}),
       ...(item.prescription.trim() !== "" ? { prescription: item.prescription } : {}),
       ...(item.target ? { target: cloneTarget(item.target) } : {}),
+      ...(item.sectionTitle && item.sectionTitle.trim() !== ""
+        ? { section: item.sectionTitle }
+        : {}),
       sets: sets.map((s) => ({ ...s })),
     });
   });

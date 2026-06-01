@@ -365,16 +365,28 @@ function renderAdherence(a: SessionAdherence): HTMLElement {
   const pct = Math.min(100, a.pct);
   const fill = h("div", { class: "effort-bar-fill" });
   fill.style.width = `${pct}%`;
-  const rows = a.rows.map((r) => {
+  // Per-exercise rows, with a phase sub-header inserted whenever the section
+  // changes — so a followed structured session reads Warm-up / Main / … in order.
+  const rows: HTMLElement[] = [];
+  let lastSection = " ";
+  a.rows.forEach((r) => {
+    if (r.section !== lastSection) {
+      lastSection = r.section;
+      if (r.section !== "") {
+        rows.push(h("p", { class: "live-section-label", text: r.section }));
+      }
+    }
     const bm = r.benchmark;
     const stat =
       bm.targetLoadKg !== null
         ? `${bm.doneReps}/${bm.prescribedReps} ${t("reps")} · ${bm.loggedLoadKg ?? 0}/${bm.targetLoadKg} kg`
         : `${bm.doneReps}/${bm.prescribedReps} ${t("reps")}`;
-    return h("div", { class: "muscle-row" }, [
-      h("span", { class: "muscle-name", text: r.name }),
-      h("span", { class: "muscle-stat", text: stat }),
-    ]);
+    rows.push(
+      h("div", { class: "muscle-row" }, [
+        h("span", { class: "muscle-name", text: r.name }),
+        h("span", { class: "muscle-stat", text: stat }),
+      ]),
+    );
   });
   return h("div", { class: "summary-adherence" }, [
     h("div", { class: "adherence-head" }, [
@@ -1221,9 +1233,19 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     const doneHost = h("div", { class: "live-done-list" });
     const logged = session.exercises.filter((ex) => ex.sets.length > 0);
     if (logged.length > 0) {
-      doneHost.append(
-        h("p", { class: "field-label", text: t("Logged so far — tap to add sets") }),
-        ...logged.map((ex) =>
+      doneHost.append(h("p", { class: "field-label", text: t("Logged so far — tap to add sets") }));
+      // Group the logged list by session phase (Warm-up / Main / …) when the
+      // exercises carry a section, so a followed structured session reads in order.
+      let lastSection = " ";
+      logged.forEach((ex) => {
+        const section = ex.section ?? "";
+        if (section !== lastSection) {
+          lastSection = section;
+          if (section !== "") {
+            doneHost.append(h("p", { class: "live-section-label", text: section }));
+          }
+        }
+        doneHost.append(
           h("button", {
             class: "btn btn-small live-done-row",
             type: "button",
@@ -1233,8 +1255,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
             aria: { label: t("log sets for {0}").replace("{0}", ex.name) },
             on: { click: () => resumeExercise(ex) },
           }),
-        ),
-      );
+        );
+      });
     }
 
     const allSessions = loadSessions();
@@ -1359,6 +1381,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
 
     container.append(
       h("section", { class: "card live-select" }, [
+        ...(planned?.section
+          ? [h("p", { class: "live-section-eyebrow", text: planned.section })]
+          : []),
         h("h2", { class: "section-title", text: planned ? planned.name || t("Next exercise") : t("Next exercise") }),
         ...(planned && planned.prescription
           ? [h("p", { class: "now-target", text: planned.prescription })]
@@ -1490,6 +1515,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     const secondaries = currentEx?.secondaryMuscles ?? mv?.secondaryMuscles ?? [];
     const worked = [muscle, ...secondaries].map((m) => t(MUSCLE_LABELS[m])).join(" · ");
     const head = h("section", { class: "card live-ex-head" }, [
+      ...(currentEx?.section
+        ? [h("p", { class: "live-section-eyebrow", text: currentEx.section })]
+        : []),
       h("span", { class: `badge badge-${equipment}`, text: t(EQUIPMENT_LABELS[equipment]) }),
       h("h2", { class: "now-name", text: exName }),
       h("p", {

@@ -108,9 +108,11 @@ export function exerciseBenchmark(ex: LoggedExercise): ExerciseBenchmark | null 
   };
 }
 
-/** One planned exercise's benchmark, paired with its display name. */
+/** One planned exercise's benchmark, paired with its display name and phase. */
 export interface AdherenceRow {
   name: string;
+  /** Session phase (Warm-up / Main / …) for grouping the adherence read; "" when none. */
+  section: string;
   benchmark: ExerciseBenchmark;
 }
 
@@ -138,7 +140,7 @@ export function sessionAdherence(session: TrainingSession): SessionAdherence | n
   for (const ex of session.exercises) {
     const benchmark = exerciseBenchmark(ex);
     if (!benchmark || benchmark.prescribedReps <= 0) continue;
-    rows.push({ name: ex.name, benchmark });
+    rows.push({ name: ex.name, section: ex.section ?? "", benchmark });
     prescribedReps += benchmark.prescribedReps;
     doneReps += Math.min(benchmark.doneReps, benchmark.prescribedReps);
   }

@@ -309,6 +309,13 @@ export interface LoggedExercise {
    * free-text {@link prescription}, leaving legacy logs unchanged.
    */
   target?: ExerciseTarget;
+  /**
+   * The session phase this exercise belongs to (e.g. "Warm-up", "Main"), carried
+   * from a structured-session routine's {@link RoutineSection} when a Live "Follow"
+   * session is started from it. Display-only — groups the live flow by phase.
+   * Absent for freestyle / movement-list / off-plan exercises.
+   */
+  section?: string;
   /** User-logged one-rep max in kg; the calculated estimate is derived from the sets. */
   oneRmKg?: number;
   sets: WorkSet[];

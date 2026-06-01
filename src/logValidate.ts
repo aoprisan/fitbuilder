@@ -109,6 +109,7 @@ function coerceExercise(value: unknown): LoggedExercise {
   const exerciseId = rec["exerciseId"];
   const secondary = coerceSecondaryMuscles(rec["secondaryMuscles"]);
   const target = coerceTarget(rec["target"]);
+  const section = rec["section"];
   const oneRm = rec["oneRmKg"];
   return {
     name: typeof rec["name"] === "string" ? rec["name"] : "",
@@ -118,6 +119,7 @@ function coerceExercise(value: unknown): LoggedExercise {
     ...(secondary.length > 0 ? { secondaryMuscles: secondary } : {}),
     ...(typeof pres === "string" && pres !== "" ? { prescription: pres } : {}),
     ...(target ? { target } : {}),
+    ...(typeof section === "string" && section !== "" ? { section } : {}),
     ...(typeof oneRm === "number" && Number.isFinite(oneRm) && oneRm > 0 ? { oneRmKg: oneRm } : {}),
     sets,
   };
