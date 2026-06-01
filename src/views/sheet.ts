@@ -4,6 +4,14 @@ import { canShareFiles, exportRoutineQrPng, exportSheetPdf, exportSheetPng, shar
 import { ImportError, importRoutineFile } from "../import";
 import { renderRoutineQrCanvas } from "../qr";
 import { clearLogo, fileToLogoDataUrl, loadLogo, LogoError, saveLogo } from "../logo";
+import type { SelectMode } from "../liveProgress";
+import {
+  compoundMovements,
+  findMovement,
+  type Movement,
+  movementsForMuscle,
+  muscleShares,
+} from "../movements";
 import type { Cleanup, Nav } from "../router";
 import {
   blankRoutine,
@@ -11,25 +19,33 @@ import {
   blankSection,
   blankSheet,
   catalogIdentityFor,
+  identityFromMovement,
   singleRoutineSheet,
-  toMovementsRoutine,
-  toSessionRoutine,
 } from "../sheet";
 import { deleteSheet, loadSheets, saveSheet } from "../sheetStorage";
 import { setSheetFlash, state, takeSheetFlash } from "../state";
 import { loadTrainer, saveTrainer } from "../trainer";
-import type {
-  ExerciseTarget,
-  PerSetTarget,
-  Routine,
-  RoutineExercise,
-  RoutineKind,
-  RoutineSection,
-  RoutineSheet,
-  SetTarget,
-  VolumeTarget,
+import {
+  MUSCLE_GROUPS,
+  MUSCLE_LABELS,
+  type MuscleGroup,
+  type Routine,
+  type RoutineExercise,
+  type RoutineKind,
+  type RoutineSection,
+  type RoutineSheet,
+  type SetTarget,
+  type VolumeTarget,
 } from "../types";
-import { cloneSheet, routineExerciseCount, routineKind, sheetToJson, slug } from "../util";
+import {
+  cloneSheet,
+  routineExerciseCount,
+  routineKind,
+  sheetToJson,
+  slug,
+  toSetsTarget,
+  toVolumeTarget,
+} from "../util";
 import { registerTranslations, t } from "../i18n";
 
 registerTranslations({
@@ -58,11 +74,6 @@ registerTranslations({
   "reps @": "repetări @",
   "self-paced — any number of sets": "ritm propriu — orice număr de serii",
   Target: "Țintă",
-  "Per-set": "Pe serie",
-  "Total reps": "Total repetări",
-  "{0} target for exercise {1}": "țintă {0} pentru exercițiul {1}",
-  "Pick a target mode to make this exercise runnable.":
-    "Alege un mod de țintă pentru ca exercițiul să poată fi rulat.",
   "Note: {0}": "Notă: {0}",
   "clear note on exercise {0}": "șterge nota la exercițiul {0}",
   Exercise: "Exercițiu",
@@ -80,16 +91,25 @@ registerTranslations({
   Type: "Tip",
   "Movement list": "Listă de mișcări",
   "Structured session": "Sesiune structurată",
-  "{0} type for routine {1}": "tip {0} pentru rutina {1}",
+  "+ Movement list": "+ Listă de mișcări",
+  "+ Structured session": "+ Sesiune structurată",
+  Mode: "Mod",
+  Custom: "Personalizat",
+  Compound: "Compus",
+  "Compound lift": "Exercițiu compus",
+  "Muscle group": "Grupă musculară",
+  "Muscles worked": "Mușchi lucrați",
+  "Pick an exercise": "Alege un exercițiu",
+  "exercise {0} movement": "mișcarea exercițiului {0}",
   "Section (e.g. Warm-up)": "Secțiune (ex. Încălzire)",
   "section {0} title": "titlu secțiune {0}",
   "remove section {0}": "elimină secțiunea {0}",
   "+ Add section": "+ Adaugă secțiune",
   "+ Exercise": "+ Exercițiu",
-  "A loose list of movements with free-text or rep-count targets — what an imported chart becomes.":
-    "O listă liberă de mișcări cu ținte text sau pe repetări — ce devine un tabel importat.",
-  "A session organised into sections (warm-up, main, accessory), each set spelled out.":
-    "O sesiune organizată pe secțiuni (încălzire, principal, accesoriu), fiecare serie detaliată.",
+  "A loose list of movements — each with a total-rep goal, done in any number of sets.":
+    "O listă liberă de mișcări — fiecare cu un total de repetări, făcut în oricâte serii.",
+  "A structured session in sections (warm-up, main, accessory) — every exercise prescribed set by set.":
+    "O sesiune structurată pe secțiuni (încălzire, principal, accesoriu) — fiecare exercițiu prescris serie cu serie.",
   "Run ▸": "Rulează ▸",
   "run routine {0}": "rulează rutina {0}",
   "Start live ▸": "Începe live ▸",
@@ -248,11 +268,11 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
     sheet.routines.reduce((sum, r) => sum + routineExerciseCount(r), 0);
 
   // ---- Structured target editor ---------------------------------------------
-  // Every exercise carries a structured target in one of two modes, toggled per
-  // row: a fixed per-set scheme (sets · reps · load, e.g. "3×10 @ 20kg" or a ramp)
-  // or a self-paced rep volume ("50 reps", broken up however the trainee likes).
-  // Mode/structure changes re-render; typing into a field mutates in place so
-  // focus is kept.
+  // The target shape is fixed by the routine's kind, not chosen per row: a
+  // movement list prescribes a self-paced rep volume ("50 reps"), a structured
+  // session prescribes an explicit per-set scheme (sets · reps · load). The kind
+  // is fixed at creation. Typing into a field mutates in place so focus is kept;
+  // a note-only row stays note-only until edited into a target.
   const numInput = (value: string, placeholder: string, label: string): HTMLInputElement =>
     h("input", {
       class: "rex-set-input",
@@ -265,32 +285,22 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
       aria: { label },
     });
 
-  // Switch a row's target to per-set, preserving the rep total / load when coming
-  // from a volume target so nothing is silently lost.
-  const toPerSet = (cur: ExerciseTarget | undefined): PerSetTarget => {
-    if (cur?.kind === "sets") return cur;
-    if (cur?.kind === "volume") {
-      return {
-        kind: "sets",
-        sets: [{ reps: cur.totalReps, ...(cur.loadKg !== undefined ? { loadKg: cur.loadKg } : {}) }],
-      };
-    }
-    return { kind: "sets", sets: [{ reps: 10 }] };
-  };
-
-  // Switch a row's target to a rep volume, summing an existing per-set scheme.
-  const toVolume = (cur: ExerciseTarget | undefined): VolumeTarget => {
-    if (cur?.kind === "volume") return cur;
-    if (cur?.kind === "sets") {
-      const totalReps = cur.sets.reduce((a, t) => a + t.reps, 0) || 10;
-      const loadKg = cur.sets.find((t) => t.loadKg !== undefined)?.loadKg;
-      return { kind: "volume", totalReps, ...(loadKg !== undefined ? { loadKg } : {}) };
-    }
-    return { kind: "volume", totalReps: 50 };
-  };
-
-  // The per-set sub-editor: quick-fill + one editable row per set.
-  const renderPerSet = (ex: RoutineExercise, exIndex: number, sets: SetTarget[]): HTMLElement => {
+  // The per-set sub-editor: quick-fill + one editable row per set. The row's
+  // target is attached lazily — a note-only row keeps no target until the trainer
+  // edits a set, so imported holds/notes aren't silently turned into "1×10".
+  const renderPerSet = (ex: RoutineExercise, exIndex: number): HTMLElement => {
+    // Show the row's existing scheme; a stray rep-volume (legacy data) is summed
+    // into one set for display and only re-committed as per-set on the next edit.
+    const existing =
+      ex.target?.kind === "sets"
+        ? ex.target.sets
+        : ex.target?.kind === "volume"
+          ? toSetsTarget(ex.target).sets
+          : null;
+    const sets: SetTarget[] = existing ?? [{ reps: 10 }];
+    const attach = (): void => {
+      if (!(ex.target?.kind === "sets" && ex.target.sets === sets)) ex.target = { kind: "sets", sets };
+    };
     const qfSets = numInput("", t("sets"), t("quick-fill set count for exercise {0}").replace("{0}", String(exIndex + 1)));
     const qfReps = numInput("", t("reps"), t("quick-fill reps for exercise {0}").replace("{0}", String(exIndex + 1)));
     const qfLoad = numInput("", t("kg"), t("quick-fill load for exercise {0}").replace("{0}", String(exIndex + 1)));
@@ -311,7 +321,10 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
       reps.step = "1";
       reps.addEventListener("input", () => {
         const n = Math.floor(parseFloat(reps.value));
-        if (Number.isFinite(n) && n > 0) st.reps = n;
+        if (Number.isFinite(n) && n > 0) {
+          st.reps = n;
+          attach();
+        }
       });
       const load = numInput(
         st.loadKg !== undefined ? String(st.loadKg) : "",
@@ -323,6 +336,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
         const n = parseFloat(load.value);
         if (Number.isFinite(n) && n > 0) st.loadKg = n;
         else delete st.loadKg;
+        attach();
       });
       return h("div", { class: "rex-set-row" }, [
         h("span", { class: "rex-set-no", text: `${i + 1}` }),
@@ -340,6 +354,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
             click: () => {
               if (sets.length <= 1) return;
               sets.splice(i, 1);
+              attach();
               renderRoutines();
             },
           },
@@ -372,6 +387,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
           click: () => {
             const last = sets[sets.length - 1];
             sets.push(last ? { ...last } : { reps: 10 });
+            attach();
             renderRoutines();
           },
         },
@@ -380,12 +396,33 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
   };
 
   // The volume sub-editor: a total-rep goal plus an optional added/external load.
-  const renderVolume = (exIndex: number, target: VolumeTarget): HTMLElement => {
-    const reps = numInput(String(target.totalReps), t("reps"), t("total reps for exercise {0}").replace("{0}", String(exIndex + 1)));
+  // Like the per-set editor, the target is attached lazily so a note-only row
+  // isn't silently given a rep goal until the trainer actually types one.
+  const renderVolume = (ex: RoutineExercise, exIndex: number): HTMLElement => {
+    // Show the row's existing goal; a stray per-set scheme (legacy data) is summed
+    // into a total for display and only re-committed as a volume on the next edit.
+    const existing =
+      ex.target?.kind === "volume"
+        ? ex.target
+        : ex.target?.kind === "sets"
+          ? toVolumeTarget(ex.target)
+          : null;
+    const target: VolumeTarget = existing ?? { kind: "volume", totalReps: 50 };
+    const attach = (): void => {
+      if (ex.target !== target) ex.target = target;
+    };
+    const reps = numInput(
+      existing ? String(target.totalReps) : "",
+      t("reps"),
+      t("total reps for exercise {0}").replace("{0}", String(exIndex + 1)),
+    );
     reps.step = "1";
     reps.addEventListener("input", () => {
       const n = Math.floor(parseFloat(reps.value));
-      if (Number.isFinite(n) && n > 0) target.totalReps = n;
+      if (Number.isFinite(n) && n > 0) {
+        target.totalReps = n;
+        attach();
+      }
     });
     const load = numInput(
       target.loadKg !== undefined ? String(target.loadKg) : "",
@@ -397,6 +434,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
       const n = parseFloat(load.value);
       if (Number.isFinite(n) && n > 0) target.loadKg = n;
       else delete target.loadKg;
+      attach();
     });
     return h("div", { class: "rex-volume" }, [
       h("span", { class: "rex-set-x", text: t("Total") }),
@@ -408,36 +446,12 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
     ]);
   };
 
-  // Mode toggle (Per-set / Total reps) + the matching sub-editor, plus a carried
-  // note (e.g. an imported row we couldn't parse) when present.
-  const renderEditor = (ex: RoutineExercise, exIndex: number): HTMLElement => {
-    const kind = ex.target?.kind;
-    const modeBtn = (label: string, active: boolean, onPick: () => void): HTMLElement =>
-      h("button", {
-        class: `btn btn-tiny rex-mode-btn${active ? " active" : ""}`,
-        type: "button",
-        text: t(label),
-        aria: { pressed: active ? "true" : "false", label: t("{0} target for exercise {1}").replace("{0}", t(label)).replace("{1}", String(exIndex + 1)) },
-        on: { click: onPick },
-      });
-    const toggle = h("div", { class: "rex-mode" }, [
-      h("span", { class: "rex-sets-title", text: t("Target") }),
-      modeBtn("Per-set", kind === "sets", () => {
-        ex.target = toPerSet(ex.target);
-        renderRoutines();
-      }),
-      modeBtn("Total reps", kind === "volume", () => {
-        ex.target = toVolume(ex.target);
-        renderRoutines();
-      }),
-    ]);
-
-    const body =
-      ex.target?.kind === "sets"
-        ? renderPerSet(ex, exIndex, ex.target.sets)
-        : ex.target?.kind === "volume"
-          ? renderVolume(exIndex, ex.target)
-          : h("p", { class: "rex-note-hint", text: t("Pick a target mode to make this exercise runnable.") });
+  // The target sub-editor for one row. Its shape is dictated by the routine's
+  // kind, not chosen per row: a structured session is always per-set, a movement
+  // list is always a rep volume. A carried note (e.g. an unparsed import) shows
+  // beneath when present.
+  const renderEditor = (ex: RoutineExercise, exIndex: number, kind: RoutineKind): HTMLElement => {
+    const body = kind === "session" ? renderPerSet(ex, exIndex) : renderVolume(ex, exIndex);
 
     const note = (ex.note ?? "").trim();
     const noteLine =
@@ -459,7 +473,140 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
           ])
         : null;
 
-    return h("div", { class: "rex-structured" }, noteLine ? [toggle, body, noteLine] : [toggle, body]);
+    return h("div", { class: "rex-structured" }, noteLine ? [body, noteLine] : [body]);
+  };
+
+  // ---- Catalog movement picker (structured sessions) ------------------------
+  // A structured-session exercise is catalog-only: it's picked from the same
+  // movement catalog the freestyle Live screen uses, so each row carries a
+  // muscle / load type / compound-credit identity that flows into the run and
+  // the stats. Mirrors Live's "select" UI — a Custom/Compound mode toggle, then
+  // muscle + exercise chips (or compound-lift chips with the muscle split).
+  //
+  // The Custom/Compound mode is per-row UI state (not stored on the routine), so
+  // it lives in a WeakMap keyed by the exercise object, which survives the
+  // wholesale re-render renderRoutines() does on every edit.
+  const rowMode = new WeakMap<RoutineExercise, SelectMode>();
+
+  // A labelled row of chips (single-select), matching Live's renderToggle.
+  const chipToggle = (
+    groupLabel: string,
+    options: readonly string[],
+    label: (value: string) => string,
+    current: string,
+    onPick: (value: string) => void,
+  ): HTMLElement =>
+    h("div", { class: "field" }, [
+      h("span", { class: "field-label", text: groupLabel }),
+      h(
+        "div",
+        { class: "toggle", role: "group", aria: { label: groupLabel } },
+        options.map((opt) =>
+          h("button", {
+            class: current === opt ? "toggle-btn active" : "toggle-btn",
+            type: "button",
+            text: label(opt),
+            aria: { pressed: String(current === opt) },
+            on: { click: () => onPick(opt) },
+          }),
+        ),
+      ),
+    ]);
+
+  // The muscle split of a compound lift, as bars summing to 100% (as in Live).
+  const renderMuscleShares = (mv: Movement): HTMLElement =>
+    h("div", { class: "field" }, [
+      h("span", { class: "field-label", text: t("Muscles worked") }),
+      h(
+        "div",
+        { class: "muscle-shares" },
+        muscleShares(mv).map((s) => {
+          const fill = h("div", { class: "muscle-share-fill" });
+          fill.style.width = `${s.pct}%`;
+          return h("div", { class: "muscle-share" }, [
+            h("span", { class: "muscle-share-name", text: t(MUSCLE_LABELS[s.muscle]) }),
+            h("div", { class: "muscle-share-bar" }, [fill]),
+            h("span", { class: "muscle-share-pct", text: `${s.pct}%` }),
+          ]);
+        }),
+      ),
+    ]);
+
+  const renderMovementPicker = (ex: RoutineExercise, exIndex: number): HTMLElement => {
+    const mode = rowMode.get(ex) ?? "custom";
+    const current = ex.exerciseId ? findMovement(ex.exerciseId) : undefined;
+    const muscle: MuscleGroup = ex.muscle ?? current?.primaryMuscle ?? "chest";
+    const movementId = current?.id ?? movementsForMuscle(muscle)[0]?.id ?? "";
+    const selected = findMovement(movementId);
+
+    // Adopt a catalog movement as this row's identity (name + muscle/load/compound).
+    const pick = (id: string): void => {
+      const mv = findMovement(id);
+      if (!mv) return;
+      ex.name = mv.name;
+      delete ex.exerciseId;
+      delete ex.muscle;
+      delete ex.equipment;
+      delete ex.secondaryMuscles;
+      Object.assign(ex, identityFromMovement(mv));
+      renderRoutines();
+    };
+    const pickMuscle = (m: string): void => {
+      const first = movementsForMuscle(m as MuscleGroup)[0];
+      if (first) pick(first.id);
+    };
+    const pickMode = (m: string): void => {
+      rowMode.set(ex, m as SelectMode);
+      // Keep the selection valid for the new mode: Compound only lists compounds.
+      if (m === "compound" && (!selected || selected.secondaryMuscles.length === 0)) {
+        const first = compoundMovements()[0];
+        if (first) {
+          pick(first.id);
+          return;
+        }
+      }
+      renderRoutines();
+    };
+
+    const body =
+      mode === "compound"
+        ? [
+            chipToggle(
+              t("Compound lift"),
+              compoundMovements().map((mv) => mv.id),
+              (id) => findMovement(id)?.name ?? id,
+              movementId,
+              pick,
+            ),
+          ]
+        : [
+            chipToggle(
+              t("Muscle group"),
+              MUSCLE_GROUPS,
+              (m) => t(MUSCLE_LABELS[m as MuscleGroup]),
+              muscle,
+              pickMuscle,
+            ),
+            chipToggle(
+              t("Exercise"),
+              movementsForMuscle(muscle).map((mv) => mv.id),
+              (id) => findMovement(id)?.name ?? id,
+              movementId,
+              pick,
+            ),
+          ];
+
+    return h("div", { class: "rex-picker", aria: { label: t("exercise {0} movement").replace("{0}", String(exIndex + 1)) } }, [
+      chipToggle(
+        t("Mode"),
+        ["custom", "compound"],
+        (m) => (m === "compound" ? t("Compound") : t("Custom")),
+        mode,
+        pickMode,
+      ),
+      ...body,
+      ...(selected && selected.secondaryMuscles.length > 0 ? [renderMuscleShares(selected)] : []),
+    ]);
   };
 
   // ---- Exercise row ---------------------------------------------------------
@@ -470,7 +617,40 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
     list: RoutineExercise[],
     ex: RoutineExercise,
     exIndex: number,
+    kind: RoutineKind,
   ): HTMLElement => {
+    const removeBtn = h("button", {
+      class: "icon-btn danger rex-remove",
+      type: "button",
+      text: "✕",
+      aria: { label: t("remove exercise {0}").replace("{0}", String(exIndex + 1)) },
+      disabled: list.length <= 1,
+      on: {
+        click: () => {
+          if (list.length <= 1) return;
+          list.splice(exIndex, 1);
+          renderRoutines();
+        },
+      },
+    });
+
+    // Structured session: catalog-only. The name is read-only (it comes from the
+    // picked movement); the chip picker below the row chooses the movement.
+    if (kind === "session") {
+      const row = h("div", { class: "routine-ex-row" }, [
+        h("span", { class: "rex-index", text: String(exIndex + 1) }),
+        h("span", { class: "rex-name-static", text: ex.name || t("Pick an exercise") }),
+        removeBtn,
+      ]);
+      return h("div", { class: "routine-ex" }, [
+        row,
+        renderMovementPicker(ex, exIndex),
+        renderEditor(ex, exIndex, kind),
+      ]);
+    }
+
+    // Movement list: free-form. A free-text name, matched against the catalog on
+    // commit so it still picks up an identity when the trainer types a known name.
     const nameInput = h("input", {
       class: "rex-name",
       type: "text",
@@ -481,9 +661,6 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
     nameInput.addEventListener("input", () => {
       ex.name = nameInput.value;
     });
-    // On commit (blur / Enter), re-derive catalog identity from the name so the
-    // row picks up exerciseId/muscle/equipment when the trainer writes a curated
-    // movement name. Unknown names clear identity rather than stick stale.
     nameInput.addEventListener("change", () => {
       delete ex.exerciseId;
       delete ex.muscle;
@@ -495,23 +672,10 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
     const row = h("div", { class: "routine-ex-row" }, [
       h("span", { class: "rex-index", text: String(exIndex + 1) }),
       nameInput,
-      h("button", {
-        class: "icon-btn danger rex-remove",
-        type: "button",
-        text: "✕",
-        aria: { label: t("remove exercise {0}").replace("{0}", String(exIndex + 1)) },
-        disabled: list.length <= 1,
-        on: {
-          click: () => {
-            if (list.length <= 1) return;
-            list.splice(exIndex, 1);
-            renderRoutines();
-          },
-        },
-      }),
+      removeBtn,
     ]);
 
-    return h("div", { class: "routine-ex" }, [row, renderEditor(ex, exIndex)]);
+    return h("div", { class: "routine-ex" }, [row, renderEditor(ex, exIndex, kind)]);
   };
 
   // ---- Routine card ---------------------------------------------------------
@@ -543,44 +707,22 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
 
     const kind = routineKind(routine);
 
-    // Switch a routine between a loose movement list and a structured session.
-    // The conversion (wrap into one "Main" section / flatten back) lives in
-    // sheet.ts; replace the slot in the working sheet with the converted routine.
-    const setKind = (next: RoutineKind): void => {
-      if (next === kind) return;
-      sheet.routines[rIndex] =
-        next === "session" ? toSessionRoutine(routine) : toMovementsRoutine(routine);
-      renderRoutines();
-    };
-
-    const kindBtn = (label: string, value: RoutineKind): HTMLElement =>
-      h("button", {
-        class: kind === value ? "toggle-btn active" : "toggle-btn",
-        type: "button",
-        text: t(label),
-        aria: {
-          pressed: String(kind === value),
-          label: t("{0} type for routine {1}")
-            .replace("{0}", t(label))
-            .replace("{1}", String(rIndex + 1)),
-        },
-        on: { click: () => setKind(value) },
-      });
-
-    const kindToggle = h("div", { class: "field routine-kind" }, [
+    // The kind is fixed at creation (chosen via the two "+ …" buttons) and never
+    // switched in place — a movement list and a structured session are different
+    // documents (free-form vs catalog-driven), executed differently. So this is a
+    // read-only stamp, not a toggle.
+    const kindChip = h("div", { class: "field routine-kind" }, [
       h("span", { class: "field-label", text: t("Type") }),
-      h("div", { class: "toggle", role: "group", aria: { label: t("Type") } }, [
-        kindBtn("Movement list", "movements"),
-        kindBtn("Structured session", "session"),
-      ]),
+      h("span", {
+        class: "routine-kind-chip",
+        text: kind === "session" ? t("Structured session") : t("Movement list"),
+      }),
       h("p", {
         class: "rex-note-hint",
         text:
           kind === "session"
-            ? t("A session organised into sections (warm-up, main, accessory), each set spelled out.")
-            : t(
-                "A loose list of movements with free-text or rep-count targets — what an imported chart becomes.",
-              ),
+            ? t("A structured session in sections (warm-up, main, accessory) — every exercise prescribed set by set.")
+            : t("A loose list of movements — each with a total-rep goal, done in any number of sets."),
       }),
     ]);
 
@@ -595,7 +737,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
       h(
         "div",
         { class: "routine-ex-list" },
-        listExercises.map((ex, i) => renderExerciseRow(listExercises, ex, i)),
+        listExercises.map((ex, i) => renderExerciseRow(listExercises, ex, i, kind)),
       );
 
     const addExerciseBtn = (list: RoutineExercise[]): HTMLElement =>
@@ -605,7 +747,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
         text: t("+ Add exercise"),
         on: {
           click: () => {
-            list.push(blankRoutineExercise());
+            list.push(blankRoutineExercise(kind));
             renderRoutines();
           },
         },
@@ -699,7 +841,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
         h("span", { class: "field-label", text: t("Tags (comma separated)") }),
         tagsInput,
       ]),
-      kindToggle,
+      kindChip,
       ...body,
       // Per-routine actions — run, export, or save just this routine. Each
       // builds a fresh single-routine sheet on click, so it reflects live edits.
@@ -1200,17 +1342,26 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
   // default) and stops Import/Brand from crowding every visit on mobile. The
   // working copy lives in `sheet`, so switching tabs just toggles visibility —
   // no remount, no lost edits.
+  // The routine's kind is chosen here, at creation — one button per type — and is
+  // fixed thereafter (no in-place switch). A movement list is a free-form chart; a
+  // structured session is catalog-driven and run set-by-set.
+  const addRoutine = (kind: RoutineKind): void => {
+    track("routine_created");
+    sheet.routines.push(blankRoutine(kind));
+    renderRoutines();
+  };
   const addRoutineRow = h("div", { class: "btn-row" }, [
     h("button", {
       class: "btn btn-small",
       type: "button",
-      text: t("+ Add routine"),
-      on: {
-        click: () => {
-          sheet.routines.push(blankRoutine());
-          renderRoutines();
-        },
-      },
+      text: t("+ Movement list"),
+      on: { click: () => addRoutine("movements") },
+    }),
+    h("button", {
+      class: "btn btn-small",
+      type: "button",
+      text: t("+ Structured session"),
+      on: { click: () => addRoutine("session") },
     }),
     ...(SHOW_SHEET_ACTIONS
       ? [

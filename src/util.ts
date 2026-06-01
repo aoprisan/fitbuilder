@@ -10,6 +10,7 @@ import {
   type Equipment,
   type ExerciseTarget,
   type LoggedExercise,
+  type PerSetTarget,
   type Routine,
   type RoutineExercise,
   type RoutineKind,
@@ -60,6 +61,31 @@ export function cloneTarget(t: ExerciseTarget): ExerciseTarget {
     totalReps: t.totalReps,
     ...(t.loadKg !== undefined ? { loadKg: t.loadKg } : {}),
   };
+}
+
+/**
+ * Recast a target as a per-set scheme (the shape a structured session uses). A
+ * volume goal collapses to a single set of `totalReps`, carrying its load, so
+ * switching a routine to "Structured session" never silently drops work.
+ */
+export function toSetsTarget(cur: ExerciseTarget): PerSetTarget {
+  if (cur.kind === "sets") return cur;
+  return {
+    kind: "sets",
+    sets: [{ reps: cur.totalReps, ...(cur.loadKg !== undefined ? { loadKg: cur.loadKg } : {}) }],
+  };
+}
+
+/**
+ * Recast a target as a rep volume (the shape a movement list uses). A per-set
+ * scheme sums to a single total-rep goal, carrying the first prescribed load, so
+ * switching a routine to "Movement list" keeps the overall work intact.
+ */
+export function toVolumeTarget(cur: ExerciseTarget): VolumeTarget {
+  if (cur.kind === "volume") return cur;
+  const totalReps = cur.sets.reduce((a, t) => a + t.reps, 0) || 10;
+  const loadKg = cur.sets.find((t) => t.loadKg !== undefined)?.loadKg;
+  return { kind: "volume", totalReps, ...(loadKg !== undefined ? { loadKg } : {}) };
 }
 
 /** Deep clone a routine exercise so editing never mutates stored data. */

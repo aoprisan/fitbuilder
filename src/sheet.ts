@@ -1,14 +1,15 @@
 import { prescriptionToTarget } from "./execute";
-import { matchMovementByName } from "./movements";
+import { matchMovementByName, type Movement, movementsForMuscle } from "./movements";
 import {
   SHEET_SCHEMA_ID,
   SHEET_SCHEMA_VERSION,
   type Routine,
   type RoutineExercise,
+  type RoutineKind,
   type RoutineSection,
   type RoutineSheet,
 } from "./types";
-import { cloneRoutine, routineExercises, uuid } from "./util";
+import { cloneRoutine, uuid } from "./util";
 
 /**
  * Catalog-identity fields ready to spread onto a RoutineExercise when the name
@@ -16,9 +17,8 @@ import { cloneRoutine, routineExercises, uuid } from "./util";
  * Romanian rows, etc.) — the row keeps its name and consumers fall back to a
  * runtime match in `flattenSheet`.
  */
-export function catalogIdentityFor(name: string): Partial<RoutineExercise> {
-  const mv = matchMovementByName(name);
-  if (!mv) return {};
+/** Catalog identity (id, muscle, load, compound credit) for a curated movement. */
+export function identityFromMovement(mv: Movement): Partial<RoutineExercise> {
   return {
     exerciseId: mv.id,
     muscle: mv.primaryMuscle,
@@ -29,55 +29,54 @@ export function catalogIdentityFor(name: string): Partial<RoutineExercise> {
   };
 }
 
-/**
- * A blank exercise row for the builder's "add exercise" action. Opens in the
- * per-set mode (the "standard" scheme) with a single 10-rep set; the trainer can
- * tweak it or switch the row to a self-paced rep volume.
- */
-export function blankRoutineExercise(): RoutineExercise {
-  return { name: "", target: { kind: "sets", sets: [{ reps: 10 }] } };
+export function catalogIdentityFor(name: string): Partial<RoutineExercise> {
+  const mv = matchMovementByName(name);
+  return mv ? identityFromMovement(mv) : {};
 }
 
-/** A blank routine used by the sheet builder's "add routine" action. */
-export function blankRoutine(): Routine {
-  return { title: "New Routine", tags: [], exercises: [blankRoutineExercise()] };
+/** The default movement a fresh structured-session row is seeded with. */
+function defaultStructuredMovement(): Movement | undefined {
+  return movementsForMuscle("chest")[0];
+}
+
+/**
+ * A blank exercise row for the builder's "add exercise" action. The two kinds
+ * diverge: a movement list is free-form (empty name, a self-paced rep volume),
+ * while a structured session is catalog-only (seeded with a curated movement —
+ * carrying its muscle/load/compound identity — and a single 10-rep per-set scheme).
+ */
+export function blankRoutineExercise(kind: RoutineKind = "movements"): RoutineExercise {
+  if (kind !== "session") return { name: "", target: { kind: "volume", totalReps: 50 } };
+  const mv = defaultStructuredMovement();
+  return {
+    name: mv?.name ?? "",
+    ...(mv ? identityFromMovement(mv) : {}),
+    target: { kind: "sets", sets: [{ reps: 10 }] },
+  };
+}
+
+/**
+ * A blank routine for the builder's "add routine" action. The kind is fixed at
+ * creation (the builder offers one button per kind) and never switched in place:
+ * a movement list is a free-form flat list; a structured session opens with one
+ * "Main" section of catalog movements.
+ */
+export function blankRoutine(kind: RoutineKind = "movements"): Routine {
+  if (kind !== "session") {
+    return { title: "New Routine", tags: [], exercises: [blankRoutineExercise("movements")] };
+  }
+  return {
+    kind: "session",
+    title: "New Session",
+    tags: [],
+    exercises: [],
+    sections: [{ title: "Main", exercises: [blankRoutineExercise("session")] }],
+  };
 }
 
 /** A blank section for the structured-session builder's "add section" action. */
 export function blankSection(title = ""): RoutineSection {
-  return { title, exercises: [blankRoutineExercise()] };
-}
-
-/**
- * Switch a routine to a structured session: the trainer's flat exercise list is
- * wrapped into one "Main" section (kept editable), ready to split into Warm-up /
- * Accessory blocks. Idempotent — an already-structured routine is returned as-is.
- */
-export function toSessionRoutine(routine: Routine): Routine {
-  if (routine.kind === "session" && routine.sections) return routine;
-  const exercises = routine.exercises.length > 0 ? routine.exercises : [blankRoutineExercise()];
-  return {
-    ...routine,
-    kind: "session",
-    exercises: [],
-    sections: [{ title: "Main", exercises }],
-  };
-}
-
-/**
- * Switch a routine back to a loose movement list: its sections are flattened into
- * the flat exercise list (section labels are dropped) and `sections` is removed.
- */
-export function toMovementsRoutine(routine: Routine): Routine {
-  if (routine.kind !== "session") return routine;
-  const exercises = routineExercises(routine);
-  const next: Routine = {
-    ...routine,
-    kind: "movements",
-    exercises: exercises.length > 0 ? exercises : [blankRoutineExercise()],
-  };
-  delete next.sections;
-  return next;
+  return { title, exercises: [blankRoutineExercise("session")] };
 }
 
 /** A fresh, empty sheet for the "New sheet" action. */
