@@ -6,6 +6,7 @@ import { getSession, loadSessions } from "../logStorage";
 import type { Nav } from "../router";
 import { singleRoutineSheet, singleRoutineSheetId } from "../sheet";
 import { deleteSheet, loadSheets, saveSheet } from "../sheetStorage";
+import { routineExercises, routineKind } from "../util";
 
 registerTranslations({
   Train: "Antrenament",
@@ -37,6 +38,18 @@ registerTranslations({
   "Get a plan from Claude": "Obține un plan de la Claude",
   "Tap a routine to run it and tick off each set.":
     "Atinge o rutină pentru a o rula și bifează fiecare serie.",
+  "Tap a routine, then choose how to run it.":
+    "Atinge o rutină, apoi alege cum să o rulezi.",
+  "choose how to run {0}": "alege cum să rulezi {0}",
+  "How do you want to run it?": "Cum vrei să o rulezi?",
+  "Follow set-by-set": "Urmează serie cu serie",
+  "Prescribed reps & weights, logged live and benchmarked against the plan.":
+    "Repetări și greutăți prescrise, înregistrate live și comparate cu planul.",
+  "Tick off movements": "Bifează mișcările",
+  "Check off each exercise as you do it — no weights tracked.":
+    "Bifează fiecare exercițiu pe măsură ce îl faci — fără greutăți urmărite.",
+  Session: "Sesiune",
+  "Movement list": "Listă de mișcări",
 });
 
 /**
@@ -95,7 +108,7 @@ export function mountTrain(root: HTMLElement, nav: Nav): void {
     const rows: HTMLElement[] = [];
     sheets.forEach((sheet) => {
       sheet.routines.forEach((routine, i) => {
-        const exCount = routine.exercises.filter((e) => e.name.trim() !== "").length;
+        const exCount = routineExercises(routine).filter((e) => e.name.trim() !== "").length;
         if (exCount === 0) return;
         const title = routine.title || t("Untitled routine");
         const adherence = summarizeAdherence(singleRoutineSheetId(sheet, i), sessions);
@@ -111,43 +124,91 @@ export function mountTrain(root: HTMLElement, nav: Nav): void {
                   ? [t("{0}% on plan").replace("{0}", String(adherence.avgCompletionPct))]
                   : []),
               ].join(" · ");
+
+        // Each routine offers an explicit pick of how to execute it: follow the
+        // plan set-by-set (prescribed reps & weights, benchmarked live) or tick
+        // off the movements as a checklist. Freestyle is the separate card above.
+        const slice = (): ReturnType<typeof singleRoutineSheet> =>
+          singleRoutineSheet(sheet, routine, i);
+        const modePanel = h("div", { class: "train-mode", hidden: true }, [
+          h("p", { class: "train-mode-label", text: t("How do you want to run it?") }),
+          h("button", {
+            class: "btn btn-accent btn-small train-mode-btn",
+            type: "button",
+            on: { click: () => nav.startLive(slice()) },
+          }, [
+            h("span", { class: "train-mode-name", text: t("Follow set-by-set") }),
+            h("span", {
+              class: "train-mode-desc",
+              text: t("Prescribed reps & weights, logged live and benchmarked against the plan."),
+            }),
+          ]),
+          h("button", {
+            class: "btn btn-small train-mode-btn",
+            type: "button",
+            on: { click: () => nav.runSheet(slice()) },
+          }, [
+            h("span", { class: "train-mode-name", text: t("Tick off movements") }),
+            h("span", {
+              class: "train-mode-desc",
+              text: t("Check off each exercise as you do it — no weights tracked."),
+            }),
+          ]),
+        ]);
+
+        const kindChip = h("span", {
+          class: "train-plan-kind",
+          text: routineKind(routine) === "session" ? t("Session") : t("Movement list"),
+        });
+
+        const rowBtn = h("button", {
+          class: "btn train-plan-row",
+          type: "button",
+          aria: { label: t("choose how to run {0}").replace("{0}", title), expanded: "false" },
+          on: {
+            click: () => {
+              const open = modePanel.hidden;
+              modePanel.hidden = !open;
+              rowBtn.setAttribute("aria-expanded", String(open));
+            },
+          },
+        }, [
+          h("span", { class: "train-plan-title" }, [h("span", { text: title }), kindChip]),
+          h("span", {
+            class: "train-plan-meta",
+            text: t("{0} · {1} {2}")
+              .replace("{0}", sheet.name)
+              .replace("{1}", String(exCount))
+              .replace("{2}", exCount === 1 ? t("exercise") : t("exercises")),
+          }),
+          h("span", { class: "train-plan-meta", text: adherenceText }),
+        ]);
+
         rows.push(
           h("div", { class: "train-plan-item" }, [
-            h("button", {
-              class: "btn train-plan-row",
-              type: "button",
-              aria: { label: t("run routine {0}").replace("{0}", title) },
-              on: { click: () => nav.runSheet(singleRoutineSheet(sheet, routine, i)) },
-            }, [
-              h("span", { class: "train-plan-title", text: title }),
-              h("span", {
-                class: "train-plan-meta",
-                text: t("{0} · {1} {2}")
-                  .replace("{0}", sheet.name)
-                  .replace("{1}", String(exCount))
-                  .replace("{2}", exCount === 1 ? t("exercise") : t("exercises")),
-              }),
-              h("span", { class: "train-plan-meta", text: adherenceText }),
-            ]),
-            h("button", {
-              class: "icon-btn danger train-plan-delete",
-              type: "button",
-              text: t("Delete"),
-              aria: { label: t("delete routine {0}").replace("{0}", title) },
-              on: {
-                click: () => {
-                  if (!confirm(t('Delete "{0}"? This cannot be undone.').replace("{0}", title)))
-                    return;
-                  if (sheet.routines.length <= 1) {
-                    deleteSheet(sheet.id);
-                  } else {
-                    sheet.routines.splice(i, 1);
-                    saveSheet(sheet);
-                  }
-                  renderPlan();
+            h("div", { class: "train-plan-head" }, [
+              rowBtn,
+              h("button", {
+                class: "icon-btn danger train-plan-delete",
+                type: "button",
+                text: t("Delete"),
+                aria: { label: t("delete routine {0}").replace("{0}", title) },
+                on: {
+                  click: () => {
+                    if (!confirm(t('Delete "{0}"? This cannot be undone.').replace("{0}", title)))
+                      return;
+                    if (sheet.routines.length <= 1) {
+                      deleteSheet(sheet.id);
+                    } else {
+                      sheet.routines.splice(i, 1);
+                      saveSheet(sheet);
+                    }
+                    renderPlan();
+                  },
                 },
-              },
-            }),
+              }),
+            ]),
+            modePanel,
           ]),
         );
       });
@@ -170,7 +231,7 @@ export function mountTrain(root: HTMLElement, nav: Nav): void {
       );
     } else {
       planBody.push(
-        h("p", { class: "plan-meta", text: t("Tap a routine to run it and tick off each set.") }),
+        h("p", { class: "plan-meta", text: t("Tap a routine, then choose how to run it.") }),
         h("div", { class: "train-plan-list" }, rows),
       );
     }

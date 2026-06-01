@@ -5,7 +5,14 @@ import { ImportError, importRoutineFile } from "../import";
 import { renderRoutineQrCanvas } from "../qr";
 import { clearLogo, fileToLogoDataUrl, loadLogo, LogoError, saveLogo } from "../logo";
 import type { Cleanup, Nav } from "../router";
-import { blankRoutine, blankRoutineExercise, blankSheet, catalogIdentityFor, singleRoutineSheet } from "../sheet";
+import {
+  blankRoutine,
+  blankRoutineExercise,
+  blankSection,
+  blankSheet,
+  catalogIdentityFor,
+  singleRoutineSheet,
+} from "../sheet";
 import { deleteSheet, loadSheets, saveSheet } from "../sheetStorage";
 import { setSheetFlash, state, takeSheetFlash } from "../state";
 import { loadTrainer, saveTrainer } from "../trainer";
@@ -14,11 +21,13 @@ import type {
   PerSetTarget,
   Routine,
   RoutineExercise,
+  RoutineKind,
+  RoutineSection,
   RoutineSheet,
   SetTarget,
   VolumeTarget,
 } from "../types";
-import { cloneSheet, sheetToJson, slug } from "../util";
+import { cloneSheet, routineExercises, routineKind, sheetToJson, slug } from "../util";
 import { registerTranslations, t } from "../i18n";
 
 registerTranslations({
@@ -65,6 +74,20 @@ registerTranslations({
   "delete routine {0}": "șterge rutina {0}",
   "Tags (comma separated)": "Etichete (separate prin virgulă)",
   "+ Add exercise": "+ Adaugă exercițiu",
+  // — Routine type / structured sections —
+  Type: "Tip",
+  "Movement list": "Listă de mișcări",
+  "Structured session": "Sesiune structurată",
+  "{0} type for routine {1}": "tip {0} pentru rutina {1}",
+  "Section (e.g. Warm-up)": "Secțiune (ex. Încălzire)",
+  "section {0} title": "titlu secțiune {0}",
+  "remove section {0}": "elimină secțiunea {0}",
+  "+ Add section": "+ Adaugă secțiune",
+  "+ Exercise": "+ Exercițiu",
+  "A loose list of movements with free-text or rep-count targets — what an imported chart becomes.":
+    "O listă liberă de mișcări cu ținte text sau pe repetări — ce devine un tabel importat.",
+  "A session organised into sections (warm-up, main, accessory), each set spelled out.":
+    "O sesiune organizată pe secțiuni (încălzire, principal, accesoriu), fiecare serie detaliată.",
   "Run ▸": "Rulează ▸",
   "run routine {0}": "rulează rutina {0}",
   "Start live ▸": "Începe live ▸",
@@ -220,7 +243,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
   const routinesHost = h("div", { class: "routines" });
 
   const exerciseCount = (): number =>
-    sheet.routines.reduce((sum, r) => sum + r.exercises.length, 0);
+    sheet.routines.reduce((sum, r) => sum + routineExercises(r).length, 0);
 
   // ---- Structured target editor ---------------------------------------------
   // Every exercise carries a structured target in one of two modes, toggled per
@@ -438,7 +461,14 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
   };
 
   // ---- Exercise row ---------------------------------------------------------
-  const renderExerciseRow = (routine: Routine, ex: RoutineExercise, exIndex: number): HTMLElement => {
+  // `list` is the parent exercise array the row lives in — a routine's flat
+  // `exercises` for a movement list, or a section's `exercises` for a structured
+  // session — so add/remove stays local to whichever block holds the row.
+  const renderExerciseRow = (
+    list: RoutineExercise[],
+    ex: RoutineExercise,
+    exIndex: number,
+  ): HTMLElement => {
     const nameInput = h("input", {
       class: "rex-name",
       type: "text",
@@ -468,11 +498,11 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
         type: "button",
         text: "✕",
         aria: { label: t("remove exercise {0}").replace("{0}", String(exIndex + 1)) },
-        disabled: routine.exercises.length <= 1,
+        disabled: list.length <= 1,
         on: {
           click: () => {
-            if (routine.exercises.length <= 1) return;
-            routine.exercises.splice(exIndex, 1);
+            if (list.length <= 1) return;
+            list.splice(exIndex, 1);
             renderRoutines();
           },
         },
@@ -509,6 +539,154 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
         .filter((t) => t !== "");
     });
 
+    const kind = routineKind(routine);
+
+    // Switch a routine between a loose movement list and a structured session,
+    // mutating in place so the working sheet keeps the change. Movement→session
+    // wraps the flat list into one "Main" section; session→movements flattens
+    // every section back down (section labels are dropped).
+    const setKind = (next: RoutineKind): void => {
+      if (next === kind) return;
+      if (next === "session") {
+        const exercises =
+          routine.exercises.length > 0 ? routine.exercises : [blankRoutineExercise()];
+        routine.kind = "session";
+        routine.sections = [{ title: "Main", exercises }];
+        routine.exercises = [];
+      } else {
+        const flat = routineExercises(routine);
+        routine.exercises = flat.length > 0 ? flat : [blankRoutineExercise()];
+        routine.kind = "movements";
+        delete routine.sections;
+      }
+      renderRoutines();
+    };
+
+    const kindBtn = (label: string, value: RoutineKind): HTMLElement =>
+      h("button", {
+        class: kind === value ? "toggle-btn active" : "toggle-btn",
+        type: "button",
+        text: t(label),
+        aria: {
+          pressed: String(kind === value),
+          label: t("{0} type for routine {1}")
+            .replace("{0}", t(label))
+            .replace("{1}", String(rIndex + 1)),
+        },
+        on: { click: () => setKind(value) },
+      });
+
+    const kindToggle = h("div", { class: "field routine-kind" }, [
+      h("span", { class: "field-label", text: t("Type") }),
+      h("div", { class: "toggle", role: "group", aria: { label: t("Type") } }, [
+        kindBtn("Movement list", "movements"),
+        kindBtn("Structured session", "session"),
+      ]),
+      h("p", {
+        class: "rex-note-hint",
+        text:
+          kind === "session"
+            ? t("A session organised into sections (warm-up, main, accessory), each set spelled out.")
+            : t(
+                "A loose list of movements with free-text or rep-count targets — what an imported chart becomes.",
+              ),
+      }),
+    ]);
+
+    const colsHead = (): HTMLElement =>
+      h("div", { class: "routine-cols" }, [
+        h("span", { class: "rex-col-label rex-col-name", text: t("Exercise") }),
+        h("span", { class: "rex-col-label rex-col-pres", text: t("Target") }),
+      ]);
+
+    // Column rows for one block — a section's or the flat routine's exercises.
+    const exerciseList = (listExercises: RoutineExercise[]): HTMLElement =>
+      h(
+        "div",
+        { class: "routine-ex-list" },
+        listExercises.map((ex, i) => renderExerciseRow(listExercises, ex, i)),
+      );
+
+    const addExerciseBtn = (list: RoutineExercise[]): HTMLElement =>
+      h("button", {
+        class: "btn btn-small",
+        type: "button",
+        text: t("+ Add exercise"),
+        on: {
+          click: () => {
+            list.push(blankRoutineExercise());
+            renderRoutines();
+          },
+        },
+      });
+
+    // One named section of a structured session — label + its own exercise rows.
+    const renderSection = (
+      section: RoutineSection,
+      sIndex: number,
+      sections: RoutineSection[],
+    ): HTMLElement => {
+      const sectionTitle = h("input", {
+        class: "section-title-input",
+        type: "text",
+        value: section.title,
+        placeholder: t("Section (e.g. Warm-up)"),
+        aria: { label: t("section {0} title").replace("{0}", String(sIndex + 1)) },
+      });
+      sectionTitle.addEventListener("input", () => {
+        section.title = sectionTitle.value;
+      });
+      return h("div", { class: "routine-section" }, [
+        h("div", { class: "section-head" }, [
+          h("span", { class: "section-no", text: String(sIndex + 1) }),
+          sectionTitle,
+          h("button", {
+            class: "icon-btn danger",
+            type: "button",
+            text: "✕",
+            aria: { label: t("remove section {0}").replace("{0}", String(sIndex + 1)) },
+            disabled: sections.length <= 1,
+            on: {
+              click: () => {
+                if (sections.length <= 1) return;
+                sections.splice(sIndex, 1);
+                renderRoutines();
+              },
+            },
+          }),
+        ]),
+        exerciseList(section.exercises),
+        h("div", { class: "section-add" }, [addExerciseBtn(section.exercises)]),
+      ]);
+    };
+
+    // The card body swaps shape by kind: a flat exercise list, or stacked
+    // sections with an "add section" control.
+    const body: HTMLElement[] =
+      kind === "session"
+        ? [
+            colsHead(),
+            h(
+              "div",
+              { class: "routine-sections" },
+              (routine.sections ?? []).map((s, si) =>
+                renderSection(s, si, routine.sections ?? []),
+              ),
+            ),
+            h("button", {
+              class: "btn btn-small",
+              type: "button",
+              text: t("+ Add section"),
+              on: {
+                click: () => {
+                  (routine.sections ??= []).push(blankSection());
+                  renderRoutines();
+                },
+              },
+            }),
+          ]
+        : [colsHead(), exerciseList(routine.exercises), addExerciseBtn(routine.exercises)];
+
     return h("section", { class: "card routine-card" }, [
       h("div", { class: "routine-head" }, [
         h("span", { class: "routine-no", text: `R${rIndex + 1}` }),
@@ -530,26 +708,8 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
         h("span", { class: "field-label", text: t("Tags (comma separated)") }),
         tagsInput,
       ]),
-      h("div", { class: "routine-cols" }, [
-        h("span", { class: "rex-col-label rex-col-name", text: t("Exercise") }),
-        h("span", { class: "rex-col-label rex-col-pres", text: t("Target") }),
-      ]),
-      h(
-        "div",
-        { class: "routine-ex-list" },
-        routine.exercises.map((ex, i) => renderExerciseRow(routine, ex, i)),
-      ),
-      h("button", {
-        class: "btn btn-small",
-        type: "button",
-        text: t("+ Add exercise"),
-        on: {
-          click: () => {
-            routine.exercises.push(blankRoutineExercise());
-            renderRoutines();
-          },
-        },
-      }),
+      kindToggle,
+      ...body,
       // Per-routine actions — run, export, or save just this routine. Each
       // builds a fresh single-routine sheet on click, so it reflects live edits.
       h("div", { class: "btn-row routine-actions" }, [
@@ -934,7 +1094,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
       return;
     }
     for (const s of sheets) {
-      const exCount = s.routines.reduce((sum, r) => sum + r.exercises.length, 0);
+      const exCount = s.routines.reduce((sum, r) => sum + routineExercises(r).length, 0);
       savedHost.appendChild(
         h("section", { class: "card saved-item" }, [
           h("div", { class: "saved-info" }, [

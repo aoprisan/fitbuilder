@@ -9,6 +9,7 @@ import {
   type MuscleGroup,
   type Routine,
   type RoutineExercise,
+  type RoutineSection,
   type RoutineSheet,
   type SetTarget,
 } from "./types";
@@ -133,13 +134,35 @@ function validateExercise(value: unknown): RoutineExercise {
   };
 }
 
+function validateSection(value: unknown): RoutineSection {
+  const rec = isRecord(value) ? value : {};
+  const rawEx = rec["exercises"];
+  return {
+    title: asString(rec["title"]),
+    exercises: Array.isArray(rawEx) ? rawEx.map(validateExercise) : [],
+  };
+}
+
 function validateRoutine(value: unknown): Routine {
   if (!isRecord(value)) fail("Each routine must be an object.");
   const rawTags = value["tags"];
   const tags = Array.isArray(rawTags) ? rawTags.map(asString).filter((t) => t !== "") : [];
   const rawEx = value["exercises"];
   const exercises = Array.isArray(rawEx) ? rawEx.map(validateExercise) : [];
-  return { title: asString(value["title"]), tags, exercises };
+  // A structured session carries named sections; only honour them when the
+  // routine is marked `kind: "session"` so a stray field never reshapes a
+  // movement list. The flat `exercises` array still round-trips alongside.
+  const kind = value["kind"] === "session" ? "session" : undefined;
+  const rawSections = value["sections"];
+  const sections =
+    kind === "session" && Array.isArray(rawSections) ? rawSections.map(validateSection) : undefined;
+  return {
+    ...(kind !== undefined ? { kind } : {}),
+    title: asString(value["title"]),
+    tags,
+    exercises,
+    ...(sections !== undefined ? { sections } : {}),
+  };
 }
 
 /**

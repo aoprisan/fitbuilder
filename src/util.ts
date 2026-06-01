@@ -10,7 +10,10 @@ import {
   type Equipment,
   type ExerciseTarget,
   type LoggedExercise,
+  type Routine,
   type RoutineExercise,
+  type RoutineKind,
+  type RoutineSection,
   type RoutineSheet,
   type SessionArchive,
   type SetTarget,
@@ -42,7 +45,7 @@ export function uuid(): string {
 }
 
 /** Deep clone an exercise target (per-set scheme or rep volume). */
-function cloneTarget(t: ExerciseTarget): ExerciseTarget {
+export function cloneTarget(t: ExerciseTarget): ExerciseTarget {
   if (t.kind === "sets") {
     return {
       kind: "sets",
@@ -74,6 +77,46 @@ export function cloneRoutineExercise(e: RoutineExercise): RoutineExercise {
   };
 }
 
+/** Deep clone a routine section (named block of a structured session). */
+function cloneSection(s: RoutineSection): RoutineSection {
+  return { title: s.title, exercises: s.exercises.map(cloneRoutineExercise) };
+}
+
+/** Deep clone a routine — its kind, flat exercise list, and any sections. */
+export function cloneRoutine(r: Routine): Routine {
+  return {
+    ...(r.kind !== undefined ? { kind: r.kind } : {}),
+    title: r.title,
+    tags: [...r.tags],
+    exercises: r.exercises.map(cloneRoutineExercise),
+    ...(r.sections !== undefined ? { sections: r.sections.map(cloneSection) } : {}),
+  };
+}
+
+/** A routine's effective kind, defaulting to "movements" for back-compat. */
+export function routineKind(r: Routine): RoutineKind {
+  return r.kind === "session" ? "session" : "movements";
+}
+
+/**
+ * Every exercise in a routine, in order, regardless of kind — a session's
+ * sections flattened, or a movement list's flat array. The single read path so
+ * run / export / render code never has to branch on kind.
+ */
+export function routineExercises(r: Routine): RoutineExercise[] {
+  if (routineKind(r) === "session" && r.sections) return r.sections.flatMap((s) => s.exercises);
+  return r.exercises;
+}
+
+/**
+ * A section view of a routine for section-aware UIs: a structured session's own
+ * sections, or a single untitled section wrapping a movement list's exercises.
+ */
+export function routineSections(r: Routine): RoutineSection[] {
+  if (routineKind(r) === "session" && r.sections) return r.sections;
+  return [{ title: "", exercises: r.exercises }];
+}
+
 /** Deep clone a routine sheet so editing never mutates stored data. */
 export function cloneSheet(sheet: RoutineSheet): RoutineSheet {
   return {
@@ -81,11 +124,7 @@ export function cloneSheet(sheet: RoutineSheet): RoutineSheet {
     version: sheet.version,
     id: sheet.id,
     name: sheet.name,
-    routines: sheet.routines.map((r) => ({
-      title: r.title,
-      tags: [...r.tags],
-      exercises: r.exercises.map(cloneRoutineExercise),
-    })),
+    routines: sheet.routines.map(cloneRoutine),
     ...(sheet.updatedAt !== undefined ? { updatedAt: sheet.updatedAt } : {}),
   };
 }

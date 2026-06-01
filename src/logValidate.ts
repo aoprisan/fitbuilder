@@ -4,8 +4,10 @@ import {
   LOG_SCHEMA_VERSION,
   MUSCLE_GROUPS,
   type Equipment,
+  type ExerciseTarget,
   type LoggedExercise,
   type MuscleGroup,
+  type SetTarget,
   type TrainingSession,
   type WorkSet,
 } from "./types";
@@ -64,6 +66,41 @@ function coerceSet(value: unknown): WorkSet {
   };
 }
 
+/** A finite, positive number passes through; anything else drops to undefined. */
+function optionalPositive(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+/**
+ * Coerce a stored exercise target (the carried trainer guideline) back into a
+ * structured {@link ExerciseTarget}, dropping malformed rows. Returns undefined
+ * when the marker is missing/unknown or nothing usable remains, so a bad target
+ * never blocks recovery of the rest of the log.
+ */
+function coerceTarget(value: unknown): ExerciseTarget | undefined {
+  if (!isRecord(value)) return undefined;
+  if (value["kind"] === "sets") {
+    const raw = value["sets"];
+    if (!Array.isArray(raw)) return undefined;
+    const sets: SetTarget[] = raw
+      .filter(isRecord)
+      .map((s) => {
+        const reps = Math.floor(coerceNonNegative(s["reps"]));
+        const loadKg = optionalPositive(s["loadKg"]);
+        return { reps, ...(loadKg !== undefined ? { loadKg } : {}) };
+      })
+      .filter((s) => s.reps > 0);
+    return sets.length > 0 ? { kind: "sets", sets } : undefined;
+  }
+  if (value["kind"] === "volume") {
+    const totalReps = Math.floor(coerceNonNegative(value["totalReps"]));
+    if (totalReps <= 0) return undefined;
+    const loadKg = optionalPositive(value["loadKg"]);
+    return { kind: "volume", totalReps, ...(loadKg !== undefined ? { loadKg } : {}) };
+  }
+  return undefined;
+}
+
 function coerceExercise(value: unknown): LoggedExercise {
   const rec = isRecord(value) ? value : {};
   const rawSets = rec["sets"];
@@ -71,6 +108,8 @@ function coerceExercise(value: unknown): LoggedExercise {
   const pres = rec["prescription"];
   const exerciseId = rec["exerciseId"];
   const secondary = coerceSecondaryMuscles(rec["secondaryMuscles"]);
+  const target = coerceTarget(rec["target"]);
+  const section = rec["section"];
   const oneRm = rec["oneRmKg"];
   return {
     name: typeof rec["name"] === "string" ? rec["name"] : "",
@@ -79,6 +118,8 @@ function coerceExercise(value: unknown): LoggedExercise {
     ...(typeof exerciseId === "string" && exerciseId !== "" ? { exerciseId } : {}),
     ...(secondary.length > 0 ? { secondaryMuscles: secondary } : {}),
     ...(typeof pres === "string" && pres !== "" ? { prescription: pres } : {}),
+    ...(target ? { target } : {}),
+    ...(typeof section === "string" && section !== "" ? { section } : {}),
     ...(typeof oneRm === "number" && Number.isFinite(oneRm) && oneRm > 0 ? { oneRmKg: oneRm } : {}),
     sets,
   };

@@ -11,7 +11,7 @@ import {
   type RoutineSheet,
   type TrainingSession,
 } from "./types";
-import { formatSessionDate, uuid } from "./util";
+import { cloneTarget, formatSessionDate, uuid } from "./util";
 
 /** A fresh, empty session stamped with the current time. */
 export function newTrainingSession(): TrainingSession {
@@ -58,6 +58,8 @@ export function repeatSession(src: TrainingSession): TrainingSession {
       ...(ex.exerciseId !== undefined ? { exerciseId: ex.exerciseId } : {}),
       ...(ex.secondaryMuscles !== undefined ? { secondaryMuscles: [...ex.secondaryMuscles] } : {}),
       ...(ex.prescription !== undefined ? { prescription: ex.prescription } : {}),
+      ...(ex.target !== undefined ? { target: cloneTarget(ex.target) } : {}),
+      ...(ex.section !== undefined ? { section: ex.section } : {}),
       sets: [],
     })),
   };
@@ -96,6 +98,10 @@ export function sheetToSession(sheet: RoutineSheet): TrainingSession {
           ? { secondaryMuscles: [...item.secondaryMuscles] }
           : {}),
         ...(item.prescription.trim() !== "" ? { prescription: item.prescription } : {}),
+        ...(item.target ? { target: cloneTarget(item.target) } : {}),
+        ...(item.sectionTitle && item.sectionTitle.trim() !== ""
+          ? { section: item.sectionTitle }
+          : {}),
         sets: [],
       };
     }),
@@ -132,6 +138,10 @@ export function executeRunToSession(
         ? { secondaryMuscles: [...meta.secondaryMuscles] }
         : {}),
       ...(item.prescription.trim() !== "" ? { prescription: item.prescription } : {}),
+      ...(item.target ? { target: cloneTarget(item.target) } : {}),
+      ...(item.sectionTitle && item.sectionTitle.trim() !== ""
+        ? { section: item.sectionTitle }
+        : {}),
       sets: sets.map((s) => ({ ...s })),
     });
   });

@@ -5,9 +5,10 @@ import {
   SHEET_SCHEMA_VERSION,
   type Routine,
   type RoutineExercise,
+  type RoutineSection,
   type RoutineSheet,
 } from "./types";
-import { cloneRoutineExercise, uuid } from "./util";
+import { cloneRoutine, routineExercises, uuid } from "./util";
 
 /**
  * Catalog-identity fields ready to spread onto a RoutineExercise when the name
@@ -40,6 +41,43 @@ export function blankRoutineExercise(): RoutineExercise {
 /** A blank routine used by the sheet builder's "add routine" action. */
 export function blankRoutine(): Routine {
   return { title: "New Routine", tags: [], exercises: [blankRoutineExercise()] };
+}
+
+/** A blank section for the structured-session builder's "add section" action. */
+export function blankSection(title = ""): RoutineSection {
+  return { title, exercises: [blankRoutineExercise()] };
+}
+
+/**
+ * Switch a routine to a structured session: the trainer's flat exercise list is
+ * wrapped into one "Main" section (kept editable), ready to split into Warm-up /
+ * Accessory blocks. Idempotent — an already-structured routine is returned as-is.
+ */
+export function toSessionRoutine(routine: Routine): Routine {
+  if (routine.kind === "session" && routine.sections) return routine;
+  const exercises = routine.exercises.length > 0 ? routine.exercises : [blankRoutineExercise()];
+  return {
+    ...routine,
+    kind: "session",
+    exercises: [],
+    sections: [{ title: "Main", exercises }],
+  };
+}
+
+/**
+ * Switch a routine back to a loose movement list: its sections are flattened into
+ * the flat exercise list (section labels are dropped) and `sections` is removed.
+ */
+export function toMovementsRoutine(routine: Routine): Routine {
+  if (routine.kind !== "session") return routine;
+  const exercises = routineExercises(routine);
+  const next: Routine = {
+    ...routine,
+    kind: "movements",
+    exercises: exercises.length > 0 ? exercises : [blankRoutineExercise()],
+  };
+  delete next.sections;
+  return next;
 }
 
 /** A fresh, empty sheet for the "New sheet" action. */
@@ -94,13 +132,7 @@ export function singleRoutineSheet(
     version: SHEET_SCHEMA_VERSION,
     id: singleRoutineSheetId(parent, index),
     name: routineLabel(routine),
-    routines: [
-      {
-        title: routine.title,
-        tags: [...routine.tags],
-        exercises: routine.exercises.map(cloneRoutineExercise),
-      },
-    ],
+    routines: [cloneRoutine(routine)],
     updatedAt: new Date().toISOString(),
   };
 }
