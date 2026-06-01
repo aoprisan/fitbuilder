@@ -6,13 +6,16 @@ import {
   type AnalyzeResult,
   canShareFiles,
   copySessionsPrompt,
+  copyTargetPrompt,
   type CopyResult,
   exportStatsPdf,
   exportStatsPng,
   shareStats,
+  startTargetInClaude,
 } from "../exporters";
 import { loadSessions } from "../logStorage";
 import { loadOneRmMaxes } from "../oneRmStore";
+import { buildHypertrophyPrompt, type HypertrophyTarget, hypertrophyTarget } from "../progression";
 import type { Cleanup, Nav } from "../router";
 import {
   bestOneRm,
@@ -24,6 +27,8 @@ import {
   isCardioExerciseKey,
   presentExerciseKeys,
   type ProgressFilter,
+  type TypicalSession,
+  typicalSession,
 } from "../stats";
 import { MUSCLE_LABELS, type TrainingSession } from "../types";
 import { formatClock, round2 } from "../util";
@@ -69,6 +74,33 @@ registerTranslations({
   "Total moving time each session.": "Timpul total de mișcare în fiecare sesiune.",
   Climb: "Urcare",
   "Vertical metres climbed from incline.": "Metri verticali urcați din înclinare.",
+  // — Typical session (per-exercise "where am I usually at") —
+  "Typical session": "Antrenament tipic",
+  "Averaged across {0} {1}.": "Mediat pe {0} {1}.",
+  "Weight": "Greutate",
+  "usually {0}–{1} kg": "de obicei {0}–{1} kg",
+  "Last session · {0}": "Ultimul antrenament · {0}",
+  "{0} sets · {1} reps · top {2} kg": "{0} serii · {1} repetări · maxim {2} kg",
+  "{0} sets · {1} reps": "{0} serii · {1} repetări",
+  // — Target session (hypertrophy progression) —
+  "Target session": "Antrenament țintă",
+  "Suggested next session.": "Antrenamentul următor sugerat.",
+  "+ load": "+ încărcare",
+  "Train at {0}–{1} reps in reserve.": "Antrenează-te la {0}–{1} repetări în rezervă.",
+  "Volume is light — add a set to {0} before pushing reps or load.":
+    "Volumul este mic — adaugă o serie până la {0} înainte de a forța repetări sau greutate.",
+  "You hit {0}+ reps on every set — add {1} kg and rebuild from {2} reps.":
+    "Ai atins {0}+ repetări la fiecare serie — adaugă {1} kg și reia de la {2} repetări.",
+  "Bodyweight reps passed {0} — add light external load and rebuild from {1} reps.":
+    "Repetările cu greutatea corpului au depășit {0} — adaugă o încărcare externă ușoară și reia de la {1} repetări.",
+  "Beat last time — keep the load and aim for {0} reps on every set.":
+    "Depășește data trecută — păstrează greutatea și țintește {0} repetări la fiecare serie.",
+  "Prefer a coach's eye? Hand your training history to Claude.":
+    "Preferi ochiul unui antrenor? Oferă-i lui Claude istoricul tău de antrenament.",
+  "design my next session with Claude":
+    "proiectează antrenamentul meu următor cu Claude",
+  "copy my next-session prompt for any AI":
+    "copiază promptul pentru antrenamentul următor pentru orice AI",
   "Best one-rep max": "Cel mai bun 1RM",
   Logged: "Înregistrat",
   Estimated: "Estimat",
@@ -269,6 +301,15 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
       }),
     );
 
+    // A single-exercise scope answers "where am I usually at?" — the typical
+    // session shape and the last time it was trained, ahead of the trend charts.
+    if (filter !== "all") {
+      const typical = typicalSession(sessions, filter);
+      if (typical) container.append(renderTypicalSession(typical));
+      const target = hypertrophyTarget(sessions, filter);
+      if (target) container.append(renderTargetSession(target, sessions, filter));
+    }
+
     if (best.logged > 0 || best.estimated > 0) container.append(renderOneRmHeadline(best));
 
     container.append(
@@ -405,6 +446,187 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
     );
 
     container.append(renderExportPanel(sessions));
+  }
+
+  /**
+   * The "typical session" card for a single-exercise scope: how many sets, reps
+   * and load you usually bring to this movement, the working-weight range you
+   * tend to sit in, and a snapshot of the last time you trained it. The headline
+   * answer to "where am I at on barbell curls?" before the trend charts below.
+   */
+  function renderTypicalSession(p: TypicalSession): HTMLElement {
+    const cell = (label: string, value: string): HTMLElement =>
+      h("div", { class: "onerm-cell" }, [
+        h("span", { class: "field-label", text: label }),
+        h("span", { class: "onerm-calc", text: value }),
+      ]);
+
+    const children: HTMLElement[] = [
+      h("span", { class: "effort-eyebrow", text: t("Typical session") }),
+      h("p", {
+        class: "effort-meta",
+        text: t("Averaged across {0} {1}.")
+          .replace("{0}", String(p.sessions))
+          .replace("{1}", p.sessions === 1 ? t("session") : t("sessions")),
+      }),
+      h("div", { class: "typical-grid" }, [
+        cell(t("sets"), String(p.avgSets)),
+        cell(t("reps"), String(p.avgReps)),
+        cell(t("Weight"), p.avgWeightKg > 0 ? `${round2(p.avgWeightKg)} kg` : t("Bodyweight")),
+      ]),
+    ];
+
+    // The working-weight band, only when it actually spans a range.
+    if (p.maxWeightKg > 0 && p.minWeightKg !== p.maxWeightKg) {
+      children.push(
+        h("p", {
+          class: "typical-range",
+          text: t("usually {0}–{1} kg")
+            .replace("{0}", String(p.minWeightKg))
+            .replace("{1}", String(p.maxWeightKg)),
+        }),
+      );
+    }
+
+    if (p.last) {
+      const summary =
+        p.last.topWeight > 0
+          ? t("{0} sets · {1} reps · top {2} kg")
+              .replace("{0}", String(p.last.sets))
+              .replace("{1}", String(p.last.totalReps))
+              .replace("{2}", String(p.last.topWeight))
+          : t("{0} sets · {1} reps")
+              .replace("{0}", String(p.last.sets))
+              .replace("{1}", String(p.last.totalReps));
+      children.push(
+        h("div", { class: "typical-last" }, [
+          h("span", { class: "field-label", text: t("Last session · {0}").replace("{0}", p.last.label) }),
+          h("span", { class: "typical-last-summary", text: summary }),
+          h("span", { class: "typical-last-sets", text: p.last.setLabels.join("   ") }),
+        ]),
+      );
+    }
+
+    return h("section", { class: "card typical-session" }, children);
+  }
+
+  /** One-line, plain-language rationale for why the heuristic suggests this move. */
+  function targetRationale(target: HypertrophyTarget): string {
+    const { repWindow: w } = target;
+    switch (target.move) {
+      case "sets":
+        return t("Volume is light — add a set to {0} before pushing reps or load.").replace(
+          "{0}",
+          String(target.sets),
+        );
+      case "load":
+        return t("You hit {0}+ reps on every set — add {1} kg and rebuild from {2} reps.")
+          .replace("{0}", String(w.high))
+          .replace("{1}", String(target.loadStepKg))
+          .replace("{2}", String(w.low));
+      case "add-load":
+        return t("Bodyweight reps passed {0} — add light external load and rebuild from {1} reps.")
+          .replace("{0}", String(w.high))
+          .replace("{1}", String(w.low));
+      case "reps":
+        return t("Beat last time — keep the load and aim for {0} reps on every set.").replace(
+          "{0}",
+          String(target.reps),
+        );
+    }
+  }
+
+  /**
+   * The hypertrophy "target session" card for a single-exercise scope: a concrete,
+   * growth-oriented prescription for next time (sets × reps × load + proximity to
+   * failure), worked out by double-progression from the last session — with an
+   * "Ask Claude" handoff for a richer coached suggestion off the same history.
+   */
+  function renderTargetSession(
+    target: HypertrophyTarget,
+    sessions: TrainingSession[],
+    key: string,
+  ): HTMLElement {
+    const cell = (label: string, value: string): HTMLElement =>
+      h("div", { class: "onerm-cell" }, [
+        h("span", { class: "field-label", text: label }),
+        h("span", { class: "onerm-calc", text: value }),
+      ]);
+
+    const weightText =
+      target.move === "add-load"
+        ? t("+ load")
+        : target.weightKg > 0
+          ? `${round2(target.weightKg)} kg`
+          : t("Bodyweight");
+
+    // A dedicated status line + runner so this card's feedback stays beside its
+    // buttons (the export panel below owns the shared `statusEl`); `busy` is
+    // shared, so only one export/handoff runs at a time across the view.
+    const status = h("p", { class: "status", role: "status", aria: { live: "polite" } });
+    const run = async (label: string, fn: () => Promise<string>): Promise<void> => {
+      if (busy) return;
+      busy = true;
+      status.textContent = t("{0}…").replace("{0}", t(label));
+      status.className = "status status-info";
+      try {
+        status.textContent = await fn();
+        status.className = "status status-ok";
+      } catch {
+        status.textContent = t("Could not {0}. Try again.").replace("{0}", t(label.toLowerCase()));
+        status.className = "status status-err";
+      } finally {
+        busy = false;
+      }
+    };
+
+    return h("section", { class: "card target-session" }, [
+      h("span", { class: "effort-eyebrow", text: `${t("Target session")} · ${t("Hypertrophy")}` }),
+      h("p", { class: "effort-meta", text: t("Suggested next session.") }),
+      h("div", { class: "typical-grid" }, [
+        cell(t("sets"), String(target.sets)),
+        cell(t("reps"), String(target.reps)),
+        cell(t("Weight"), weightText),
+      ]),
+      h("p", {
+        class: "target-rir",
+        text: t("Train at {0}–{1} reps in reserve.")
+          .replace("{0}", String(target.rir.min))
+          .replace("{1}", String(target.rir.max)),
+      }),
+      h("p", { class: "target-rationale", text: targetRationale(target) }),
+      h("p", {
+        class: "plan-meta",
+        text: t("Prefer a coach's eye? Hand your training history to Claude."),
+      }),
+      h("div", { class: "btn-row" }, [
+        h("button", {
+          class: "btn btn-small btn-accent",
+          type: "button",
+          text: t("Ask Claude ▸"),
+          aria: { label: t("design my next session with Claude") },
+          on: {
+            click: () =>
+              run("Ask Claude", async () =>
+                analyzeMsg(await startTargetInClaude(buildHypertrophyPrompt(sessions, key, target))),
+              ),
+          },
+        }),
+        h("button", {
+          class: "btn btn-small",
+          type: "button",
+          text: t("Copy prompt"),
+          aria: { label: t("copy my next-session prompt for any AI") },
+          on: {
+            click: () =>
+              run("Copy prompt", async () =>
+                copyMsg(await copyTargetPrompt(buildHypertrophyPrompt(sessions, key, target))),
+              ),
+          },
+        }),
+      ]),
+      status,
+    ]);
   }
 
   /**

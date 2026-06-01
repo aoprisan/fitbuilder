@@ -220,6 +220,120 @@ export function buildProgress(
 }
 
 /* =============================================================================
+   Typical session per exercise — the "where am I usually at" read. While
+   buildProgress charts each session over time, this collapses every session a
+   movement appears in into one representative shape (average sets, reps and
+   load) plus the lightest/heaviest you've handled and a snapshot of the most
+   recent time you trained it. Strength-shaped, so the Stats view only shows it
+   for a single non-cardio scope.
+   ========================================================================== */
+
+/** The most recent session a movement appears in, reduced to a quick read. */
+export interface LastSession {
+  /** ISO timestamp the session started. */
+  date: string;
+  /** Short label, e.g. "22 May". */
+  label: string;
+  /** Sets logged for the movement that session. */
+  sets: number;
+  /** Total reps across those sets. */
+  totalReps: number;
+  /** Heaviest single set, kg (0 for bodyweight). */
+  topWeight: number;
+  /** Per-set "reps×kg" reads in order, e.g. ["10×40", "8×40", "8×35"]. */
+  setLabels: string[];
+}
+
+/** A movement's representative session, averaged across its whole history. */
+export interface TypicalSession {
+  /** Sessions the movement appears in with at least one set. */
+  sessions: number;
+  /** Mean sets per session. */
+  avgSets: number;
+  /** Mean reps per set. */
+  avgReps: number;
+  /** Mean load across loaded sets, kg (0 when every set was bodyweight). */
+  avgWeightKg: number;
+  /** Lightest loaded set seen, kg (0 when none was loaded). */
+  minWeightKg: number;
+  /** Heaviest loaded set seen, kg (0 when none was loaded). */
+  maxWeightKg: number;
+  /** The most recent session in scope, when there is one. */
+  last?: LastSession;
+}
+
+/**
+ * Collapse one movement's whole logged history into its typical session and a
+ * snapshot of the last time it was trained. Returns `undefined` when the
+ * movement has no logged sets. Averages reps per *set* (not per session) so a
+ * movement read as "3 sets · 10 reps · 40 kg" regardless of how its sessions
+ * varied in length.
+ */
+export function typicalSession(
+  sessions: TrainingSession[],
+  key: ExerciseKey,
+): TypicalSession | undefined {
+  const ordered = [...sessions].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+  let sessionCount = 0;
+  let totalSets = 0;
+  let totalReps = 0;
+  let loadedSets = 0;
+  let loadedWeight = 0;
+  let minWeight = Infinity;
+  let maxWeight = 0;
+  let last: LastSession | undefined;
+
+  for (const session of ordered) {
+    let setsThis = 0;
+    let repsThis = 0;
+    let topThis = 0;
+    const setLabels: string[] = [];
+
+    for (const ex of session.exercises) {
+      if (exerciseKey(ex) !== key) continue;
+      for (const s of ex.sets) {
+        setsThis += 1;
+        repsThis += s.reps;
+        topThis = Math.max(topThis, s.weightKg);
+        if (s.weightKg > 0) {
+          loadedSets += 1;
+          loadedWeight += s.weightKg;
+          minWeight = Math.min(minWeight, s.weightKg);
+          maxWeight = Math.max(maxWeight, s.weightKg);
+        }
+        setLabels.push(s.weightKg > 0 ? `${s.reps}×${round2(s.weightKg)}` : `${s.reps}`);
+      }
+    }
+
+    if (setsThis === 0) continue;
+    sessionCount += 1;
+    totalSets += setsThis;
+    totalReps += repsThis;
+    // `ordered` is ascending, so the final qualifying session is the latest one.
+    last = {
+      date: session.startedAt,
+      label: shortDate(session.startedAt),
+      sets: setsThis,
+      totalReps: repsThis,
+      topWeight: round2(topThis),
+      setLabels,
+    };
+  }
+
+  if (sessionCount === 0) return undefined;
+
+  return {
+    sessions: sessionCount,
+    avgSets: round2(totalSets / sessionCount),
+    avgReps: round2(totalReps / totalSets),
+    avgWeightKg: loadedSets > 0 ? round2(loadedWeight / loadedSets) : 0,
+    minWeightKg: minWeight === Infinity ? 0 : round2(minWeight),
+    maxWeightKg: round2(maxWeight),
+    ...(last ? { last } : {}),
+  };
+}
+
+/* =============================================================================
    Cardio progress — distance, pace, time and climb per session. Cardio sets
    carry no reps or load, so the strength series above read flat zero for them;
    this is the parallel read the Stats view shows when the scope is a cardio
