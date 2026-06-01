@@ -1,5 +1,6 @@
 import { exerciseKey, exerciseKeyLabel, type ExerciseKey } from "./stats";
-import type { TrainingSession, WorkSet } from "./types";
+import { findMovement } from "./movements";
+import { MUSCLE_LABELS, type MuscleGroup, type TrainingSession, type WorkSet } from "./types";
 import { clamp, formatSessionDate, round2 } from "./util";
 
 /**
@@ -143,8 +144,18 @@ export function formatTargetLine(t: HypertrophyTarget): string {
   return `${t.sets} sets × ${t.reps} reps ${load}`;
 }
 
-/** Recent per-exercise history as compact markdown lines, oldest → newest. */
-function exerciseHistoryLines(sessions: TrainingSession[], key: ExerciseKey): string[] {
+// How many recent sessions of each movement to include in the prompt: a deep
+// history for the target movement itself, a shallower one for each sibling
+// movement that shares a muscle (enough to gauge total volume without bloat).
+const TARGET_HISTORY_SESSIONS = 12;
+const MUSCLE_CONTEXT_SESSIONS = 4;
+
+/** Recent per-exercise history as compact markdown lines, oldest → newest (last `limit`). */
+function exerciseHistoryLines(
+  sessions: TrainingSession[],
+  key: ExerciseKey,
+  limit: number,
+): string[] {
   const ordered = [...sessions].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
   const lines: string[] = [];
   for (const session of ordered) {
@@ -156,6 +167,53 @@ function exerciseHistoryLines(sessions: TrainingSession[], key: ExerciseKey): st
       return `${s.reps}×${load}${rir}`;
     });
     lines.push(`- ${formatSessionDate(session.startedAt)}: ${parts.join(", ")}`);
+  }
+  return limit > 0 && lines.length > limit ? lines.slice(-limit) : lines;
+}
+
+/** The muscles a movement key trains: primary first, then any secondaries. */
+function keyMuscles(key: ExerciseKey): MuscleGroup[] {
+  if (key.includes("::")) {
+    const muscle = key.split("::")[0];
+    return muscle ? [muscle as MuscleGroup] : [];
+  }
+  const mv = findMovement(key);
+  return mv ? [mv.primaryMuscle, ...mv.secondaryMuscles] : [];
+}
+
+/**
+ * Recent history of the *other* movements that share a muscle with the target,
+ * grouped by muscle (primary first). Gives the coach the total-volume and
+ * recovery picture for the muscle — not just the one lift. Each sibling movement
+ * is printed once (under the first muscle it matches) and capped to its most
+ * recent sessions so the prompt stays bounded.
+ */
+function muscleHistorySections(sessions: TrainingSession[], targetKey: ExerciseKey): string[] {
+  const muscles = keyMuscles(targetKey);
+  if (muscles.length === 0) return [];
+
+  const lines: string[] = [];
+  const seen = new Set<ExerciseKey>([targetKey]);
+  for (const muscle of muscles) {
+    const keys = new Set<ExerciseKey>();
+    for (const session of sessions) {
+      for (const ex of session.exercises) {
+        if (ex.sets.length === 0) continue;
+        const trains = ex.muscle === muscle || (ex.secondaryMuscles ?? []).includes(muscle);
+        if (!trains) continue;
+        const key = exerciseKey(ex);
+        if (!seen.has(key)) keys.add(key);
+      }
+    }
+    if (keys.size === 0) continue;
+    lines.push("", `Other ${MUSCLE_LABELS[muscle]} work (for total muscle volume & recovery):`);
+    for (const key of [...keys].sort()) {
+      seen.add(key);
+      lines.push(`${exerciseKeyLabel(key)}:`);
+      for (const line of exerciseHistoryLines(sessions, key, MUSCLE_CONTEXT_SESSIONS)) {
+        lines.push(`  ${line}`);
+      }
+    }
   }
   return lines;
 }
@@ -171,7 +229,8 @@ export function buildHypertrophyPrompt(
   key: ExerciseKey,
   target?: HypertrophyTarget,
 ): string {
-  const history = exerciseHistoryLines(sessions, key);
+  const history = exerciseHistoryLines(sessions, key, TARGET_HISTORY_SESSIONS);
+  const muscleSections = muscleHistorySections(sessions, key);
   const lines: string[] = [
     "You are an experienced strength & hypertrophy coach.",
     "Using my recent training history for ONE exercise below, design my NEXT session for that exercise to best drive muscle growth (hypertrophy).",
@@ -185,6 +244,13 @@ export function buildHypertrophyPrompt(
     lines.push(
       "",
       `For reference, a simple double-progression heuristic suggests: ${formatTargetLine(target)}, training at ${target.rir.min}–${target.rir.max} reps in reserve.`,
+    );
+  }
+  if (muscleSections.length > 0) {
+    lines.push(
+      ...muscleSections,
+      "",
+      "Use the same-muscle work above to keep total weekly volume and recovery balanced.",
     );
   }
   lines.push(
