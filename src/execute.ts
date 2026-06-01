@@ -1,6 +1,14 @@
 import { findMovement, matchMovementByName, type Movement, movementsForMuscle } from "./movements";
-import type { Equipment, ExerciseTarget, MuscleGroup, RoutineSheet, SetTarget, WorkSet } from "./types";
-import { cloneTarget, formatTarget } from "./util";
+import type {
+  Equipment,
+  ExerciseTarget,
+  MuscleGroup,
+  RoutineExercise,
+  RoutineSheet,
+  SetTarget,
+  WorkSet,
+} from "./types";
+import { cloneTarget, formatTarget, routineSections } from "./util";
 
 /** One runnable line in an execute run — a single exercise within a routine. */
 export interface RunItem {
@@ -8,8 +16,14 @@ export interface RunItem {
   routineIndex: number;
   /** The parent routine's title, denormalized for display. */
   routineTitle: string;
-  /** 0-based position of this exercise within its routine. */
+  /** 0-based position of this exercise within its routine (across all sections). */
   exerciseIndex: number;
+  /**
+   * The section this exercise belongs to in a structured session (e.g. "Warm-up").
+   * Absent / "" for a loose movement list — those flatten to a single unlabelled
+   * block. Lets the runner group rows under their session phase.
+   */
+  sectionTitle?: string;
   name: string;
   /** Human display label derived from the exercise's target (e.g. "3×10 @ 20kg", "50 reps") or its note. */
   prescription: string;
@@ -136,63 +150,90 @@ export function prescriptionToTarget(prescription: string): {
  * is only "real" once it has a name; an unnamed row would otherwise show as a
  * phantom "—" exercise in the run and exports.
  */
+/** Context locating a flattened exercise within its parent routine / section. */
+interface FlattenContext {
+  routineIndex: number;
+  routineTitle: string;
+  exerciseIndex: number;
+  sectionTitle: string;
+}
+
+/** Build a single RunItem from a routine exercise, or null for an unnamed row. */
+function runItemFor(ex: RoutineExercise, ctx: FlattenContext): RunItem | null {
+  const target = ex.target;
+  if (ex.name.trim() === "") return null;
+  // A per-set scheme drives the row set-by-set; a volume target gives a rep
+  // total to count down; a note-only row has no countable target (manual done).
+  const setTargets = target?.kind === "sets" && target.sets.length > 0 ? target.sets : undefined;
+  const targetReps =
+    target?.kind === "sets"
+      ? target.sets.reduce((a, t) => a + t.reps, 0)
+      : target?.kind === "volume"
+        ? target.totalReps
+        : null;
+  // Identity: prefer fields carried on the RoutineExercise; otherwise try
+  // a runtime name-match. Either source produces the same shape downstream.
+  const carried =
+    ex.exerciseId !== undefined && ex.muscle !== undefined && ex.equipment !== undefined;
+  const identity = carried
+    ? {
+        exerciseId: ex.exerciseId,
+        muscle: ex.muscle,
+        equipment: ex.equipment,
+        ...(ex.secondaryMuscles && ex.secondaryMuscles.length > 0
+          ? { secondaryMuscles: [...ex.secondaryMuscles] }
+          : {}),
+      }
+    : ((mv) =>
+        mv
+          ? {
+              exerciseId: mv.id,
+              muscle: mv.primaryMuscle,
+              equipment: mv.equipment,
+              ...(mv.secondaryMuscles.length > 0
+                ? { secondaryMuscles: [...mv.secondaryMuscles] }
+                : {}),
+            }
+          : {})(matchMovementByName(ex.name));
+  return {
+    routineIndex: ctx.routineIndex,
+    routineTitle: ctx.routineTitle,
+    exerciseIndex: ctx.exerciseIndex,
+    ...(ctx.sectionTitle.trim() !== "" ? { sectionTitle: ctx.sectionTitle } : {}),
+    name: ex.name,
+    prescription: formatTarget(ex),
+    targetReps,
+    ...(setTargets
+      ? {
+          setTargets: setTargets.map((t) => ({
+            reps: t.reps,
+            ...(t.loadKg !== undefined ? { loadKg: t.loadKg } : {}),
+          })),
+        }
+      : {}),
+    ...(target ? { target: cloneTarget(target) } : {}),
+    ...identity,
+  };
+}
+
 export function flattenSheet(sheet: RoutineSheet): RunItem[] {
   const items: RunItem[] = [];
   sheet.routines.forEach((routine, routineIndex) => {
-    routine.exercises.forEach((ex, exerciseIndex) => {
-      const target = ex.target;
-      if (ex.name.trim() === "") return;
-      // A per-set scheme drives the row set-by-set; a volume target gives a rep
-      // total to count down; a note-only row has no countable target (manual done).
-      const setTargets =
-        target?.kind === "sets" && target.sets.length > 0 ? target.sets : undefined;
-      const targetReps =
-        target?.kind === "sets"
-          ? target.sets.reduce((a, t) => a + t.reps, 0)
-          : target?.kind === "volume"
-            ? target.totalReps
-            : null;
-      // Identity: prefer fields carried on the RoutineExercise; otherwise try
-      // a runtime name-match. Either source produces the same shape downstream.
-      const carried =
-        ex.exerciseId !== undefined && ex.muscle !== undefined && ex.equipment !== undefined;
-      const identity = carried
-        ? {
-            exerciseId: ex.exerciseId,
-            muscle: ex.muscle,
-            equipment: ex.equipment,
-            ...(ex.secondaryMuscles && ex.secondaryMuscles.length > 0
-              ? { secondaryMuscles: [...ex.secondaryMuscles] }
-              : {}),
-          }
-        : ((mv) =>
-            mv
-              ? {
-                  exerciseId: mv.id,
-                  muscle: mv.primaryMuscle,
-                  equipment: mv.equipment,
-                  ...(mv.secondaryMuscles.length > 0
-                    ? { secondaryMuscles: [...mv.secondaryMuscles] }
-                    : {}),
-                }
-              : {})(matchMovementByName(ex.name));
-      items.push({
-        routineIndex,
-        routineTitle: routine.title,
-        exerciseIndex,
-        name: ex.name,
-        prescription: formatTarget(ex),
-        targetReps,
-        ...(setTargets
-          ? {
-              setTargets: setTargets.map((t) => ({
-                reps: t.reps,
-                ...(t.loadKg !== undefined ? { loadKg: t.loadKg } : {}),
-              })),
-            }
-          : {}),
-        ...(target ? { target: cloneTarget(target) } : {}),
-        ...identity,
+    // Iterate sections so a structured session's phase labels ride along; a
+    // movement list reads as one unlabelled section. `exerciseIndex` runs across
+    // the whole routine (matching `routineExercises` order) so views that map a
+    // run item back to its routine still line up.
+    let exerciseIndex = 0;
+    routineSections(routine).forEach((section) => {
+      section.exercises.forEach((ex) => {
+        const item = runItemFor(ex, {
+          routineIndex,
+          routineTitle: routine.title,
+          exerciseIndex,
+          sectionTitle: section.title,
+        });
+        exerciseIndex++;
+        if (item) items.push(item);
       });
     });
   });

@@ -3370,6 +3370,74 @@ textarea {
   gap: 8px;
 }
 
+/* ── Structured-session authoring — kind toggle + named sections ───────────── */
+.routine-kind {
+  margin-top: 4px;
+}
+
+.routine-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.routine-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-left: 3px solid var(--brick);
+  background: var(--paper-deep);
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-no {
+  flex: 0 0 auto;
+  min-width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 11px;
+  background: var(--brick-fill);
+  color: var(--on-press);
+}
+
+.section-title-input {
+  flex: 1 1 auto;
+  font-family: var(--font-stamp);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.section-add {
+  display: flex;
+}
+
+/* Structured-session phase header inside the checklist runner. */
+.exec-section-head {
+  margin: 6px 0 2px;
+  padding-left: 2px;
+}
+
+.exec-section-title {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--brick);
+}
+
 .routine-ex {
   display: flex;
   flex-direction: column;
@@ -3508,6 +3576,12 @@ textarea {
 
 .train-plan-item {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.train-plan-head {
+  display: flex;
   align-items: stretch;
   gap: 8px;
 }
@@ -3527,7 +3601,21 @@ textarea {
 }
 
 .train-plan-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 700;
+}
+
+.train-plan-kind {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--navy);
+  border: 1.5px solid var(--navy);
+  padding: 1px 5px;
 }
 
 .train-plan-meta {
@@ -3536,6 +3624,50 @@ textarea {
   letter-spacing: 0;
   text-transform: none;
   color: var(--ink-soft);
+}
+
+/* The explicit how-to-run chooser revealed under a routine row. */
+.train-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 2px dashed var(--ink-faint);
+  background: var(--paper-deep);
+}
+
+.train-mode-label {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.train-mode-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  height: auto;
+  padding: 10px 12px;
+}
+
+.train-mode-name {
+  font-weight: 700;
+}
+
+.train-mode-desc {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 10px;
+  letter-spacing: 0;
+  text-transform: none;
+  opacity: 0.85;
+  white-space: normal;
 }
 
 .rex-index {

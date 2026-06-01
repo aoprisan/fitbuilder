@@ -307,9 +307,11 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
     clear(checklist);
     const selected = ctl.selectedIndex();
     let lastRoutine = -1;
+    let lastSection = "";
     ctl.items.forEach((item, i) => {
       if (item.routineIndex !== lastRoutine) {
         lastRoutine = item.routineIndex;
+        lastSection = "";
         const routine = sheet.routines[item.routineIndex];
         checklist.appendChild(
           h("div", { class: "exec-routine-head" }, [
@@ -326,6 +328,19 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
               : []),
           ]),
         );
+      }
+
+      // Structured-session phase header (Warm-up / Main / …) when it changes.
+      const section = item.sectionTitle ?? "";
+      if (section !== lastSection) {
+        lastSection = section;
+        if (section !== "") {
+          checklist.appendChild(
+            h("div", { class: "exec-section-head" }, [
+              h("span", { class: "exec-section-title", text: section }),
+            ]),
+          );
+        }
       }
 
       const done = ctl.isDone(i);

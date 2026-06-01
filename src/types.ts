@@ -168,12 +168,49 @@ export interface RoutineExercise {
   secondaryMuscles?: readonly MuscleGroup[];
 }
 
+/**
+ * Whether a {@link Routine} is a loose movement list (`"movements"`, what an
+ * imported wall-chart produces) or a structured, section-organised training
+ * session (`"session"`). The discriminator the builder's type switch toggles.
+ */
+export type RoutineKind = "movements" | "session";
+
+/**
+ * One named block of a structured session — e.g. "Warm-up", "Main", "Accessory" —
+ * holding its own ordered exercises. A `title` of "" renders as an unlabelled
+ * block (and is what a movement list collapses to when read section-wise).
+ */
+export interface RoutineSection {
+  title: string;
+  exercises: RoutineExercise[];
+}
+
 export interface Routine {
+  /**
+   * What kind of training document this routine is:
+   *  - `"movements"` — a loose movement list with free-text/volume prescriptions,
+   *    what an imported wall-chart (Excel/PDF) produces. The flat {@link exercises}
+   *    array is the source of truth.
+   *  - `"session"` — a structured session organised into named {@link sections}
+   *    (e.g. Warm-up → Main → Accessory), each exercise carrying an explicit
+   *    sets×reps×load scheme. {@link sections} is the source of truth.
+   * Absent on older routines and treated as `"movements"`, so legacy sheets and
+   * imports are unchanged.
+   */
+  kind?: RoutineKind;
   /** e.g. "RUTINA IMPINS". */
   title: string;
   /** Free-text labels rendered as chips, e.g. ["INTERMEDIAR+", "PARC", "60-100 antrenamente"]. */
   tags: string[];
+  /** The flat exercise list — the source of truth for a `"movements"` routine. */
   exercises: RoutineExercise[];
+  /**
+   * Named sections — the source of truth for a `"session"` routine. Each section
+   * groups its own ordered exercises under a label (Warm-up, Main, …). Absent for
+   * a movement-list routine. Read uniformly via `routineExercises` /
+   * `routineSections` so run / export / render code stays section-agnostic.
+   */
+  sections?: RoutineSection[];
 }
 
 export interface RoutineSheet {
