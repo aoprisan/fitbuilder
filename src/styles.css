@@ -2166,6 +2166,53 @@ textarea {
   color: var(--ink-soft);
 }
 
+/* Stats "typical session" card — the per-exercise "where am I usually at" read. */
+.typical-session {
+  border-left: 8px solid var(--navy);
+}
+
+.typical-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  align-items: end;
+  margin-top: 12px;
+}
+
+.typical-range {
+  margin: 12px 0 0;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+
+.typical-last {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 2px dashed var(--ink-faint);
+}
+
+.typical-last-summary {
+  font-family: var(--font-display);
+  font-size: clamp(18px, 5vw, 24px);
+  line-height: 1;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.typical-last-sets {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ─────────────────────── EFFORT GAUGE + HYDRATION ─────────────────────── */
 
 .live-effort {

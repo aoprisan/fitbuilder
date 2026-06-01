@@ -24,6 +24,8 @@ import {
   isCardioExerciseKey,
   presentExerciseKeys,
   type ProgressFilter,
+  type TypicalSession,
+  typicalSession,
 } from "../stats";
 import { MUSCLE_LABELS, type TrainingSession } from "../types";
 import { formatClock, round2 } from "../util";
@@ -69,6 +71,14 @@ registerTranslations({
   "Total moving time each session.": "Timpul total de mișcare în fiecare sesiune.",
   Climb: "Urcare",
   "Vertical metres climbed from incline.": "Metri verticali urcați din înclinare.",
+  // — Typical session (per-exercise "where am I usually at") —
+  "Typical session": "Antrenament tipic",
+  "Averaged across {0} {1}.": "Mediat pe {0} {1}.",
+  "Weight": "Greutate",
+  "usually {0}–{1} kg": "de obicei {0}–{1} kg",
+  "Last session · {0}": "Ultimul antrenament · {0}",
+  "{0} sets · {1} reps · top {2} kg": "{0} serii · {1} repetări · maxim {2} kg",
+  "{0} sets · {1} reps": "{0} serii · {1} repetări",
   "Best one-rep max": "Cel mai bun 1RM",
   Logged: "Înregistrat",
   Estimated: "Estimat",
@@ -269,6 +279,13 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
       }),
     );
 
+    // A single-exercise scope answers "where am I usually at?" — the typical
+    // session shape and the last time it was trained, ahead of the trend charts.
+    if (filter !== "all") {
+      const typical = typicalSession(sessions, filter);
+      if (typical) container.append(renderTypicalSession(typical));
+    }
+
     if (best.logged > 0 || best.estimated > 0) container.append(renderOneRmHeadline(best));
 
     container.append(
@@ -405,6 +422,68 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
     );
 
     container.append(renderExportPanel(sessions));
+  }
+
+  /**
+   * The "typical session" card for a single-exercise scope: how many sets, reps
+   * and load you usually bring to this movement, the working-weight range you
+   * tend to sit in, and a snapshot of the last time you trained it. The headline
+   * answer to "where am I at on barbell curls?" before the trend charts below.
+   */
+  function renderTypicalSession(p: TypicalSession): HTMLElement {
+    const cell = (label: string, value: string): HTMLElement =>
+      h("div", { class: "onerm-cell" }, [
+        h("span", { class: "field-label", text: label }),
+        h("span", { class: "onerm-calc", text: value }),
+      ]);
+
+    const children: HTMLElement[] = [
+      h("span", { class: "effort-eyebrow", text: t("Typical session") }),
+      h("p", {
+        class: "effort-meta",
+        text: t("Averaged across {0} {1}.")
+          .replace("{0}", String(p.sessions))
+          .replace("{1}", p.sessions === 1 ? t("session") : t("sessions")),
+      }),
+      h("div", { class: "typical-grid" }, [
+        cell(t("sets"), String(p.avgSets)),
+        cell(t("reps"), String(p.avgReps)),
+        cell(t("Weight"), p.avgWeightKg > 0 ? `${round2(p.avgWeightKg)} kg` : t("Bodyweight")),
+      ]),
+    ];
+
+    // The working-weight band, only when it actually spans a range.
+    if (p.maxWeightKg > 0 && p.minWeightKg !== p.maxWeightKg) {
+      children.push(
+        h("p", {
+          class: "typical-range",
+          text: t("usually {0}–{1} kg")
+            .replace("{0}", String(p.minWeightKg))
+            .replace("{1}", String(p.maxWeightKg)),
+        }),
+      );
+    }
+
+    if (p.last) {
+      const summary =
+        p.last.topWeight > 0
+          ? t("{0} sets · {1} reps · top {2} kg")
+              .replace("{0}", String(p.last.sets))
+              .replace("{1}", String(p.last.totalReps))
+              .replace("{2}", String(p.last.topWeight))
+          : t("{0} sets · {1} reps")
+              .replace("{0}", String(p.last.sets))
+              .replace("{1}", String(p.last.totalReps));
+      children.push(
+        h("div", { class: "typical-last" }, [
+          h("span", { class: "field-label", text: t("Last session · {0}").replace("{0}", p.last.label) }),
+          h("span", { class: "typical-last-summary", text: summary }),
+          h("span", { class: "typical-last-sets", text: p.last.setLabels.join("   ") }),
+        ]),
+      );
+    }
+
+    return h("section", { class: "card typical-session" }, children);
   }
 
   /**
