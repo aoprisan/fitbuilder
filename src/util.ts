@@ -117,6 +117,14 @@ export function routineSections(r: Routine): RoutineSection[] {
   return [{ title: "", exercises: r.exercises }];
 }
 
+/** Count a routine's exercises without materialising the flattened list. */
+export function routineExerciseCount(r: Routine): number {
+  if (routineKind(r) === "session" && r.sections) {
+    return r.sections.reduce((n, s) => n + s.exercises.length, 0);
+  }
+  return r.exercises.length;
+}
+
 /** Deep clone a routine sheet so editing never mutates stored data. */
 export function cloneSheet(sheet: RoutineSheet): RoutineSheet {
   return {
