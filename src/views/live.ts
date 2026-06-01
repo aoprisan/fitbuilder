@@ -1,4 +1,12 @@
 import { track } from "../analytics";
+import {
+  type ExerciseBenchmark,
+  exerciseBenchmark,
+  nextSetTarget,
+  type SessionAdherence,
+  sessionAdherence,
+  type SetComparison,
+} from "../benchmark";
 import { clear, h } from "../dom";
 import {
   estimateCalories,
@@ -50,6 +58,7 @@ import {
   type Equipment,
   type LoggedExercise,
   type MuscleGroup,
+  type SetTarget,
   type TrainingSession,
   type WorkSet,
 } from "../types";
@@ -208,6 +217,18 @@ registerTranslations({
   "{0} · {1}": "{0} · {1}",
   "Target progress": "Progres țintă",
   reps: "repetări",
+  // — Plan benchmark / adherence —
+  Plan: "Plan",
+  "Adherence to plan": "Aderență la plan",
+  "{0}% to plan": "{0}% din plan",
+  "{0} of {1} planned exercises": "{0} din {1} exerciții planificate",
+  "On plan": "Conform planului",
+  "set {0} — planned {1}, logged {2}": "seria {0} — planificat {1}, înregistrat {2}",
+  "set {0} — planned {1}, not logged yet": "seria {0} — planificat {1}, neînregistrat încă",
+  "set {0} — off-plan, logged {1}": "seria {0} — în afara planului, înregistrat {1}",
+  "not logged": "neînregistrat",
+  "off-plan": "în afara planului",
+  "{0} kg": "{0} kg",
   "▶ Start set": "▶ Start serie",
   "✓ Done — finish exercise": "✓ Gata — termină exercițiul",
   SET: "SERIE",
@@ -239,6 +260,138 @@ function svgEl(tag: string, attrs: Record<string, string>): SVGElement {
 /** Total reps logged across an exercise's sets — used for the routine target tally. */
 function sumReps(sets: readonly WorkSet[]): number {
   return sets.reduce((a, s) => a + s.reps, 0);
+}
+
+/** A prescribed set as "10 @ 20 kg" (or "10 reps" when bodyweight / no load). */
+function fmtPlanSet(st: SetTarget): string {
+  return st.loadKg !== undefined && st.loadKg > 0
+    ? `${st.reps} @ ${round2(st.loadKg)} kg`
+    : `${st.reps} ${t("reps")}`;
+}
+
+/** A logged set as "11 @ 22.5 kg" (load via formatLoad so bodyweight reads right). */
+function fmtLoggedSet(equipment: Equipment, s: WorkSet): string {
+  if (isBodyweight(equipment) && s.weightKg === 0) return `${s.reps} ${t("reps")}`;
+  return `${s.reps} @ ${formatLoad(equipment, s.weightKg)}`;
+}
+
+/**
+ * One prescribed-vs-logged row of the per-set benchmark: the planned set, an
+ * arrow, what was logged, and a signed reps/load delta tinted by whether the set
+ * hit (or beat) the prescription. `data-state` distinguishes done / pending (not
+ * logged yet) / extra (an off-plan set beyond the prescribed count).
+ */
+function renderBenchRow(equipment: Equipment, c: SetComparison): HTMLElement {
+  const planText = c.target ? fmtPlanSet(c.target) : t("off-plan");
+  const doneText = c.logged ? fmtLoggedSet(equipment, c.logged) : t("not logged");
+
+  let state: "done" | "pending" | "extra" = c.logged ? (c.target ? "done" : "extra") : "pending";
+  let deltaEl: HTMLElement | null = null;
+  let aria = "";
+
+  if (c.target && c.logged) {
+    const repsD = c.logged.reps - c.target.reps;
+    const loadD =
+      c.target.loadKg !== undefined ? round2(c.logged.weightKg - c.target.loadKg) : null;
+    const ok = repsD >= 0 && (loadD === null || loadD >= 0);
+    const parts: string[] = [repsD === 0 ? "±0" : repsD > 0 ? `+${repsD}` : String(repsD)];
+    if (loadD !== null && loadD !== 0) parts.push(`${loadD > 0 ? "+" : ""}${loadD} kg`);
+    const allOnPlan = repsD === 0 && (loadD === null || loadD === 0);
+    deltaEl = h("span", {
+      class: "bench-delta",
+      dataset: { ok: String(ok) },
+      text: allOnPlan ? t("On plan") : parts.join(" · "),
+    });
+    aria = t("set {0} — planned {1}, logged {2}")
+      .replace("{0}", String(c.index + 1))
+      .replace("{1}", planText)
+      .replace("{2}", doneText);
+  } else if (c.target) {
+    aria = t("set {0} — planned {1}, not logged yet")
+      .replace("{0}", String(c.index + 1))
+      .replace("{1}", planText);
+  } else {
+    aria = t("set {0} — off-plan, logged {1}")
+      .replace("{0}", String(c.index + 1))
+      .replace("{1}", doneText);
+  }
+
+  return h("div", { class: "bench-set", dataset: { state }, aria: { label: aria } }, [
+    h("span", { class: "set-no", text: String(c.index + 1) }),
+    h("span", { class: "bench-plan", text: planText }),
+    h("span", { class: "bench-arrow", text: "→", aria: { hidden: "true" } }),
+    h("span", { class: "bench-done", text: doneText }),
+    ...(deltaEl ? [deltaEl] : []),
+  ]);
+}
+
+/**
+ * The plan benchmark for the exercise being logged: the trainer's guideline
+ * label, a reps tally + progress bar toward the prescribed total, and (for a
+ * per-set scheme) the prescribed-vs-logged set list. Replaces the free-text
+ * tally for routine-loaded exercises; freestyle rows have no benchmark.
+ */
+function renderBenchmark(ex: LoggedExercise, bm: ExerciseBenchmark): HTMLElement {
+  const pct = Math.round(bm.fraction * 100);
+  const fill = h("div", { class: "progress-fill" });
+  fill.style.width = `${pct}%`;
+  const children: HTMLElement[] = [
+    h("p", { class: "now-eyebrow", text: t("Plan") }),
+    h("p", { class: "now-target", text: bm.label }),
+    h("p", { class: "now-tally" }, [
+      h("span", { class: "tally-done", text: String(bm.doneReps) }),
+      h("span", { class: "tally-sep", text: "/" }),
+      h("span", { class: "tally-target", text: String(bm.prescribedReps) }),
+      h("span", { class: "tally-unit", text: t("reps") }),
+    ]),
+    h(
+      "div",
+      {
+        class: "progress now-progress",
+        role: "progressbar",
+        aria: { valuemin: "0", valuemax: "100", valuenow: String(pct), label: t("Target progress") },
+      },
+      [fill],
+    ),
+  ];
+  if (bm.kind === "sets" && bm.sets.length > 0) {
+    children.push(h("div", { class: "bench-sets" }, bm.sets.map((c) => renderBenchRow(ex.equipment, c))));
+  }
+  return h("section", { class: "card live-bench" }, children);
+}
+
+/** Session "adherence to plan" panel — overall % bar + per-exercise prescribed-vs-done. */
+function renderAdherence(a: SessionAdherence): HTMLElement {
+  const pct = Math.min(100, a.pct);
+  const fill = h("div", { class: "effort-bar-fill" });
+  fill.style.width = `${pct}%`;
+  const rows = a.rows.map((r) => {
+    const bm = r.benchmark;
+    const stat =
+      bm.targetLoadKg !== null
+        ? `${bm.doneReps}/${bm.prescribedReps} ${t("reps")} · ${bm.loggedLoadKg ?? 0}/${bm.targetLoadKg} kg`
+        : `${bm.doneReps}/${bm.prescribedReps} ${t("reps")}`;
+    return h("div", { class: "muscle-row" }, [
+      h("span", { class: "muscle-name", text: r.name }),
+      h("span", { class: "muscle-stat", text: stat }),
+    ]);
+  });
+  return h("div", { class: "summary-adherence" }, [
+    h("div", { class: "adherence-head" }, [
+      h("span", { class: "summary-label", text: t("Adherence to plan") }),
+      h("span", { class: "adherence-pct", text: t("{0}% to plan").replace("{0}", String(a.pct)) }),
+    ]),
+    h(
+      "div",
+      {
+        class: "effort-bar",
+        role: "progressbar",
+        aria: { valuemin: "0", valuemax: "100", valuenow: String(pct), label: t("Adherence to plan") },
+      },
+      [fill],
+    ),
+    ...rows,
+  ]);
 }
 
 /** Reps-in-reserve chips shown when logging a set. "4+" stores 4 (fresh — minimal stimulus). */
@@ -665,8 +818,25 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       setInclinePct = last?.inclinePct ?? setInclinePct;
       setDistanceKm = round2((setSpeedKmh * setElapsedMs) / 3_600_000) || (last?.distanceKm ?? setDistanceKm);
     } else {
-      setReps = last ? last.reps : 10;
-      setWeight = last ? last.weightKg : isBodyweight(equipment) ? 0 : 10;
+      // Seed the dials from the trainer's prescription for this set when the
+      // exercise carries a per-set guideline — so following the plan is a tap, and
+      // ramps/pyramids advance set-by-set. Fall back to carrying the last set
+      // forward (or the bodyweight/default) for off-plan or volume work.
+      const planned = currentEx ? nextSetTarget(currentEx) : null;
+      if (planned) {
+        setReps = planned.reps;
+        setWeight =
+          planned.loadKg !== undefined
+            ? planned.loadKg
+            : last
+              ? last.weightKg
+              : isBodyweight(equipment)
+                ? 0
+                : 10;
+      } else {
+        setReps = last ? last.reps : 10;
+        setWeight = last ? last.weightKg : isBodyweight(equipment) ? 0 : 10;
+      }
     }
     pendingRir = null; // proximity to failure is logged fresh per set
     sub = "logging";
@@ -738,6 +908,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     const effort = readEffort(session, allSessions);
     const hydration = readHydration(effort);
     const muscles = muscleBreakdown(session);
+    const adherence = sessionAdherence(session);
     const protein = estimateProteinG(effort, muscles.length);
     const calories = estimateCalories(effort);
     const pct = Math.round(Math.min(1, effort.ratio) * 100);
@@ -780,6 +951,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         [fill],
       ),
       h("p", { class: "effort-meta", text: meta }),
+      ...(adherence ? [renderAdherence(adherence)] : []),
       h("div", { class: "summary-muscles" }, [
         h("span", { class: "summary-label", text: t("Muscles worked") }),
         ...muscleRows,
@@ -1328,33 +1500,41 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
 
     container.append(h("h1", { class: "view-title", text: t("Live Session") }), head, renderSetList());
 
-    // Routine target: when this exercise carries a prescription that parses to a
-    // rep count, show how far the logged reps have filled it (reuses Execute's UI).
-    const pres = currentEx?.prescription;
-    const target = pres !== undefined ? parseTargetReps(pres) : null;
-    if (currentEx && pres !== undefined && target !== null && target > 0) {
-      const logged = sumReps(currentEx.sets);
-      const pct = Math.round(Math.min(1, logged / target) * 100);
-      const fill = h("div", { class: "progress-fill" });
-      fill.style.width = `${pct}%`;
-      container.append(
-        h("p", { class: "now-target", text: pres }),
-        h("p", { class: "now-tally" }, [
-          h("span", { class: "tally-done", text: String(logged) }),
-          h("span", { class: "tally-sep", text: "/" }),
-          h("span", { class: "tally-target", text: String(target) }),
-          h("span", { class: "tally-unit", text: t("reps") }),
-        ]),
-        h(
-          "div",
-          {
-            class: "progress now-progress",
-            role: "progressbar",
-            aria: { valuemin: "0", valuemax: "100", valuenow: String(pct), label: t("Target progress") },
-          },
-          [fill],
-        ),
-      );
+    // Plan benchmark: when this exercise carries the trainer's structured
+    // guideline (started from a routine), show the prescribed-vs-logged read —
+    // a per-set comparison for set schemes, a rep tally for volume targets.
+    const bm = currentEx ? exerciseBenchmark(currentEx) : null;
+    if (currentEx && bm) {
+      container.append(renderBenchmark(currentEx, bm));
+    } else {
+      // Legacy / free-text fallback: parse the prescription to a rep total and
+      // show how far the logged reps have filled it (reuses Execute's UI).
+      const pres = currentEx?.prescription;
+      const target = pres !== undefined ? parseTargetReps(pres) : null;
+      if (currentEx && pres !== undefined && target !== null && target > 0) {
+        const logged = sumReps(currentEx.sets);
+        const pct = Math.round(Math.min(1, logged / target) * 100);
+        const fill = h("div", { class: "progress-fill" });
+        fill.style.width = `${pct}%`;
+        container.append(
+          h("p", { class: "now-target", text: pres }),
+          h("p", { class: "now-tally" }, [
+            h("span", { class: "tally-done", text: String(logged) }),
+            h("span", { class: "tally-sep", text: "/" }),
+            h("span", { class: "tally-target", text: String(target) }),
+            h("span", { class: "tally-unit", text: t("reps") }),
+          ]),
+          h(
+            "div",
+            {
+              class: "progress now-progress",
+              role: "progressbar",
+              aria: { valuemin: "0", valuemax: "100", valuenow: String(pct), label: t("Target progress") },
+            },
+            [fill],
+          ),
+        );
+      }
     }
 
     if (sub === "idle") {

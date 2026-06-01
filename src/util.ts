@@ -42,7 +42,7 @@ export function uuid(): string {
 }
 
 /** Deep clone an exercise target (per-set scheme or rep volume). */
-function cloneTarget(t: ExerciseTarget): ExerciseTarget {
+export function cloneTarget(t: ExerciseTarget): ExerciseTarget {
   if (t.kind === "sets") {
     return {
       kind: "sets",

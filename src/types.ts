@@ -263,6 +263,15 @@ export interface LoggedExercise {
   secondaryMuscles?: readonly MuscleGroup[];
   /** Free-text target carried from a routine (e.g. "30-50 repetari"); absent for ad-hoc exercises. */
   prescription?: string;
+  /**
+   * The trainer's *structured* guideline for this exercise, carried verbatim from
+   * the source routine when a session is started from one (`sheetToSession` /
+   * Execute runs). Drives the live per-set benchmark (prescribed reps/load vs what
+   * you log) and the session adherence read. Absent for freestyle/off-plan
+   * exercises and for older logs — in which case the benchmark falls back to the
+   * free-text {@link prescription}, leaving legacy logs unchanged.
+   */
+  target?: ExerciseTarget;
   /** User-logged one-rep max in kg; the calculated estimate is derived from the sets. */
   oneRmKg?: number;
   sets: WorkSet[];

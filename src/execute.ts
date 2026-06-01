@@ -1,6 +1,6 @@
 import { findMovement, matchMovementByName, type Movement, movementsForMuscle } from "./movements";
 import type { Equipment, ExerciseTarget, MuscleGroup, RoutineSheet, SetTarget, WorkSet } from "./types";
-import { formatTarget } from "./util";
+import { cloneTarget, formatTarget } from "./util";
 
 /** One runnable line in an execute run — a single exercise within a routine. */
 export interface RunItem {
@@ -25,6 +25,13 @@ export interface RunItem {
    * `fraction` count *sets* rather than total reps.
    */
   setTargets?: SetTarget[];
+  /**
+   * The exercise's structured target, carried verbatim from the RoutineExercise.
+   * Unlike {@link setTargets} (per-set scheme only) this also preserves a volume
+   * target's load, so a session started from this row keeps the full guideline
+   * for the live benchmark and adherence read. Absent for note-only rows.
+   */
+  target?: ExerciseTarget;
   /**
    * Catalog identity, preferring the RoutineExercise's carried fields, falling
    * back to a runtime `matchMovementByName(name)`. Absent only when the row
@@ -184,6 +191,7 @@ export function flattenSheet(sheet: RoutineSheet): RunItem[] {
               })),
             }
           : {}),
+        ...(target ? { target: cloneTarget(target) } : {}),
         ...identity,
       });
     });

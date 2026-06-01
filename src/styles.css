@@ -2872,6 +2872,117 @@ textarea {
   margin: 4px 0;
 }
 
+/* ── Plan benchmark — prescribed vs. logged on the live exercise screen ─────── */
+.live-bench {
+  margin-top: 10px;
+}
+
+.bench-sets {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 2px dashed var(--ink-faint);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bench-set {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Local override — the shared .set-no wraps full-width in the set list, but here
+   it's an inline lane number. */
+.bench-set .set-no {
+  flex: 0 0 auto;
+  min-width: 1.4em;
+}
+
+.bench-plan {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+.bench-arrow {
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+
+.bench-done {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--ink-soft);
+}
+
+.bench-delta {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-align: right;
+  color: var(--mustard);
+}
+
+/* Hit or beat the prescription → cool stamp; under it → caution ochre. */
+.bench-delta[data-ok="true"] {
+  color: var(--navy);
+}
+
+/* Not logged yet — dim the whole row so the eye lands on what's done. */
+.bench-set[data-state="pending"] .bench-plan,
+.bench-set[data-state="pending"] .bench-done {
+  color: var(--ink-faint);
+}
+
+/* An off-plan extra set beyond the prescribed count. */
+.bench-set[data-state="extra"] .bench-plan {
+  color: var(--ink-faint);
+  font-style: italic;
+}
+
+/* ── Session adherence — overall % to plan + per-exercise read ──────────────── */
+.summary-adherence {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 2px dashed var(--ink-faint);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.adherence-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.adherence-pct {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--brick);
+  font-variant-numeric: tabular-nums;
+}
+
+.summary-adherence .effort-bar {
+  margin-top: 4px;
+  margin-bottom: 2px;
+}
+
+.summary-adherence .effort-bar-fill {
+  background: var(--navy);
+}
+
 .now-sets {
   font-family: var(--font-mono);
   font-weight: 600;
