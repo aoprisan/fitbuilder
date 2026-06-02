@@ -74,6 +74,7 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
     { id: "larsen-press", name: "Larsen Press", primaryMuscle: "chest", secondaryMuscles: ["triceps", "shoulders"], equipment: "barbell", aliases: ["Larson Press", "Legs-Up Bench Press"] },
     { id: "dips", name: "Dips", primaryMuscle: "chest", secondaryMuscles: ["triceps"], equipment: "calisthenics", aliases: ["Triceps Dips", "Straight Bar Dips"] },
     { id: "push-up", name: "Push-Up", primaryMuscle: "chest", secondaryMuscles: ["triceps", "shoulders"], equipment: "calisthenics", aliases: ["Push-Ups", "Push Ups", "Pushup", "Pushups", "Flotari", "Flotari pe Sol", "Flotari Sol"] },
+    { id: "decline-push-up", name: "Decline Push-Up", primaryMuscle: "chest", secondaryMuscles: ["shoulders", "triceps"], equipment: "calisthenics", aliases: ["Decline Push-Ups", "Decline Push Ups", "Feet-Elevated Push-Up", "Flotari Inclinate", "Flotari cu Picioarele Sus"] },
     { id: "diamond-push-up", name: "Diamond Push-Up", primaryMuscle: "triceps", secondaryMuscles: ["chest", "shoulders"], equipment: "calisthenics", aliases: ["Diamond Push-Ups", "Diamond Push Ups", "Flotari Diamant"] },
     { id: "chest-press-machine", name: "Chest Press Machine", primaryMuscle: "chest", secondaryMuscles: ["triceps", "shoulders"], equipment: "machine" },
     { id: "incline-chest-press-machine", name: "Incline Chest Press Machine", primaryMuscle: "chest", secondaryMuscles: ["shoulders", "triceps"], equipment: "machine" },
@@ -135,6 +136,7 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
   ],
   cardio: [
     { id: "treadmill", name: "Treadmill", primaryMuscle: "cardio", secondaryMuscles: [], equipment: "treadmill", aliases: ["Run", "Running", "Jog", "Jogging", "Walk", "Alergare", "Banda", "Banda de Alergat"] },
+    { id: "boxing", name: "Boxing", primaryMuscle: "cardio", secondaryMuscles: ["shoulders", "core"], equipment: "calisthenics", aliases: ["Box", "Boxing Rounds", "Shadow Boxing", "Bag Work", "Heavy Bag", "Sparring", "Box Fitness"] },
   ],
 };
 
