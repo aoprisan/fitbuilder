@@ -117,6 +117,9 @@ registerTranslations({
   "Share ▸": "Distribuie ▸",
   Share: "Distribuie",
   "share routine {0}": "distribuie rutina {0}",
+  "Export ▾": "Export ▾",
+  "Export ▴": "Export ▴",
+  "export and share routine {0}": "exportă și distribuie rutina {0}",
   "Opened the share sheet — pick WhatsApp.": "S-a deschis fereastra de distribuire — alege WhatsApp.",
   "Sharing isn't available here, so the PNG was downloaded instead.":
     "Distribuirea nu e disponibilă aici, așa că PNG-ul a fost descărcat în schimb.",
@@ -843,91 +846,120 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
       ]),
       kindChip,
       ...body,
-      // Per-routine actions — run, export, or save just this routine. Each
-      // builds a fresh single-routine sheet on click, so it reflects live edits.
-      h("div", { class: "btn-row routine-actions" }, [
-        h("button", {
-          class: "btn btn-small btn-accent",
-          type: "button",
-          text: t("Run ▸"),
-          aria: { label: t("run routine {0}").replace("{0}", String(rIndex + 1)) },
-          on: { click: () => nav.runSheet(singleRoutineSheet(sheet, routine, rIndex)) },
-        }),
-        h("button", {
-          class: "btn btn-small btn-accent",
-          type: "button",
-          text: t("Start live ▸"),
-          aria: { label: t("start a live session from routine {0}").replace("{0}", String(rIndex + 1)) },
-          on: { click: () => nav.startLive(singleRoutineSheet(sheet, routine, rIndex)) },
-        }),
-        h("button", {
-          class: "btn btn-small",
-          type: "button",
-          text: t("Share ▸"),
-          aria: { label: t("share routine {0}").replace("{0}", String(rIndex + 1)) },
-          on: {
-            click: () =>
-              runExport(t("Share"), async () => {
-                const result = await shareSheet(singleRoutineSheet(sheet, routine, rIndex));
-                setStatus(
-                  result === "shared"
-                    ? t("Opened the share sheet — pick WhatsApp.")
-                    : t("Sharing isn't available here, so the PNG was downloaded instead."),
-                  "ok",
-                );
-              }),
-          },
-        }),
-        h("button", {
-          class: "btn btn-small",
-          type: "button",
-          text: t("Link ▸"),
-          aria: { label: t("share an importable link to routine {0}").replace("{0}", String(rIndex + 1)) },
-          on: { click: () => void shareLinkFor(singleRoutineSheet(sheet, routine, rIndex)) },
-        }),
-        h("button", {
-          class: "btn btn-small",
-          type: "button",
-          text: t("QR"),
-          aria: { label: t("show a scannable QR code for routine {0}").replace("{0}", String(rIndex + 1)) },
-          on: { click: () => void showQrFor(singleRoutineSheet(sheet, routine, rIndex)) },
-        }),
-        h("button", {
-          class: "btn btn-small",
-          type: "button",
-          text: t("PNG"),
-          aria: { label: t("save routine {0} as PNG").replace("{0}", String(rIndex + 1)) },
-          on: {
-            click: () =>
-              runExport(t("Save PNG"), () => exportSheetPng(singleRoutineSheet(sheet, routine, rIndex))),
-          },
-        }),
-        h("button", {
-          class: "btn btn-small",
-          type: "button",
-          text: t("PDF"),
-          aria: { label: t("save routine {0} as PDF").replace("{0}", String(rIndex + 1)) },
-          on: {
-            click: () =>
-              runExport(t("Save PDF"), () => exportSheetPdf(singleRoutineSheet(sheet, routine, rIndex))),
-          },
-        }),
-        h("button", {
-          class: "btn btn-small btn-primary",
-          type: "button",
-          text: t("Save"),
-          aria: { label: t("save routine {0} to library").replace("{0}", String(rIndex + 1)) },
-          on: {
-            click: () => {
-              const saved = saveSheet(singleRoutineSheet(sheet, routine, rIndex));
-              setStatus(t("Saved \"{0}\" to your library.").replace("{0}", String(saved.name)), "ok");
-              renderSaved();
-            },
-          },
-        }),
-      ]),
+      // Per-routine actions — save, export, or run just this routine. Each builds
+      // a fresh single-routine sheet on click, so it reflects live edits. The five
+      // "get it out" buttons (Share/Link/QR/PNG/PDF) collapse behind one Export ▾
+      // disclosure so Save reads as the primary action and the row stays a single
+      // line on mobile; Run/Start-live are demoted to a quieter run group.
+      routineActions(routine, rIndex),
     ]);
   };
+
+  /** The grouped action block at the foot of each routine card (see renderRoutine). */
+  function routineActions(routine: Routine, rIndex: number): HTMLElement {
+    const slice = (): RoutineSheet => singleRoutineSheet(sheet, routine, rIndex);
+    const no = String(rIndex + 1);
+
+    const saveBtn = h("button", {
+      class: "btn btn-small btn-primary",
+      type: "button",
+      text: t("Save"),
+      aria: { label: t("save routine {0} to library").replace("{0}", no) },
+      on: {
+        click: () => {
+          const saved = saveSheet(slice());
+          setStatus(t("Saved \"{0}\" to your library.").replace("{0}", String(saved.name)), "ok");
+          renderSaved();
+        },
+      },
+    });
+
+    // The "get it out" cluster — revealed by the Export ▾ toggle below.
+    const exportPanel = h("div", { class: "btn-row routine-export", hidden: true }, [
+      h("button", {
+        class: "btn btn-small",
+        type: "button",
+        text: t("Share ▸"),
+        aria: { label: t("share routine {0}").replace("{0}", no) },
+        on: {
+          click: () =>
+            runExport(t("Share"), async () => {
+              const result = await shareSheet(slice());
+              setStatus(
+                result === "shared"
+                  ? t("Opened the share sheet — pick WhatsApp.")
+                  : t("Sharing isn't available here, so the PNG was downloaded instead."),
+                "ok",
+              );
+            }),
+        },
+      }),
+      h("button", {
+        class: "btn btn-small",
+        type: "button",
+        text: t("Link ▸"),
+        aria: { label: t("share an importable link to routine {0}").replace("{0}", no) },
+        on: { click: () => void shareLinkFor(slice()) },
+      }),
+      h("button", {
+        class: "btn btn-small",
+        type: "button",
+        text: t("QR"),
+        aria: { label: t("show a scannable QR code for routine {0}").replace("{0}", no) },
+        on: { click: () => void showQrFor(slice()) },
+      }),
+      h("button", {
+        class: "btn btn-small",
+        type: "button",
+        text: t("PNG"),
+        aria: { label: t("save routine {0} as PNG").replace("{0}", no) },
+        on: { click: () => runExport(t("Save PNG"), () => exportSheetPng(slice())) },
+      }),
+      h("button", {
+        class: "btn btn-small",
+        type: "button",
+        text: t("PDF"),
+        aria: { label: t("save routine {0} as PDF").replace("{0}", no) },
+        on: { click: () => runExport(t("Save PDF"), () => exportSheetPdf(slice())) },
+      }),
+    ]);
+
+    const exportToggle = h("button", {
+      class: "btn btn-small",
+      type: "button",
+      text: t("Export ▾"),
+      aria: { label: t("export and share routine {0}").replace("{0}", no), expanded: "false" },
+    });
+    exportToggle.addEventListener("click", () => {
+      const open = exportPanel.hidden;
+      exportPanel.hidden = !open;
+      exportToggle.textContent = open ? t("Export ▴") : t("Export ▾");
+      exportToggle.setAttribute("aria-expanded", String(open));
+    });
+
+    const runRow = h("div", { class: "btn-row routine-run" }, [
+      h("button", {
+        class: "btn btn-small btn-accent",
+        type: "button",
+        text: t("Run ▸"),
+        aria: { label: t("run routine {0}").replace("{0}", no) },
+        on: { click: () => nav.runSheet(slice()) },
+      }),
+      h("button", {
+        class: "btn btn-small btn-accent",
+        type: "button",
+        text: t("Start live ▸"),
+        aria: { label: t("start a live session from routine {0}").replace("{0}", no) },
+        on: { click: () => nav.startLive(slice()) },
+      }),
+    ]);
+
+    return h("div", { class: "routine-actions" }, [
+      h("div", { class: "btn-row routine-actions-primary" }, [saveBtn, exportToggle]),
+      exportPanel,
+      runRow,
+    ]);
+  }
 
   function renderRoutines(): void {
     clear(routinesHost);

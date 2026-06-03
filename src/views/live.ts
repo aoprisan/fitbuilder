@@ -1377,8 +1377,11 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         h("p", { class: "session-date", text: formatSessionDate(session.startedAt) }),
       ]),
     );
+    // The effort dashboard stays up top as a read-out; its Share/PNG/PDF export
+    // controls move to the session footer (next to "end session") so the top of
+    // the screen stays focused on pick-exercise → Start, not mid-flow exporting.
     if (summary) {
-      container.append(summary, sessionExportRow(session), statusEl);
+      container.append(summary);
     }
 
     // Toggle picks update the view-level selection, and — when confirming a
@@ -1532,6 +1535,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         ]),
         doneHost,
       ]),
+      // Session footer: export this session, then end it. Both are end-of-session
+      // actions, so they sit together below the picker rather than mid-screen.
+      ...(summary ? [sessionExportRow(session), statusEl] : []),
       h("div", { class: "btn-row live-actions" }, [
         h("button", {
           class: "btn btn-accent",

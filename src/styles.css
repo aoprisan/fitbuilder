@@ -443,6 +443,10 @@ textarea {
   color: var(--ink-soft);
 }
 
+.settings-build {
+  margin: 9px 0 0;
+}
+
 .settings-links {
   display: flex;
   gap: 18px;
@@ -3859,8 +3863,24 @@ textarea {
 }
 
 .routine-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   padding-top: 12px;
   border-top: 2px dashed var(--ink-faint);
+}
+
+/* Save sits first as the primary action; Export ▾ reveals the share/export
+   cluster below it so the row stays one line on mobile. */
+.routine-export {
+  padding: 10px 0 2px 12px;
+  border-left: 2px dashed var(--ink-faint);
+}
+
+/* Run / Start live are preview actions here — set off from Save/Export above. */
+.routine-run {
+  padding-top: 10px;
+  border-top: 2px dotted var(--ink-faint);
 }
 
 /* Branding card */

@@ -1,7 +1,7 @@
 import "./styles.css";
 import { track } from "./analytics";
 import { clear, h } from "./dom";
-import { registerServiceWorker } from "./pwa";
+import { forceAppUpdate, registerServiceWorker } from "./pwa";
 import { sheetToSession } from "./log";
 import { clearProgress } from "./liveProgress";
 import { saveSession } from "./logStorage";
@@ -11,8 +11,8 @@ import { saveSheet } from "./sheetStorage";
 import { setActiveLog, setEditingSheet, setExecuting, setSheetFlash, state } from "./state";
 import { type AppMode, loadMode, saveMode } from "./mode";
 import { getTheme, setTheme, type Theme, THEMES } from "./theme";
-import { getLang, type Lang, onLangChange, setLang, t } from "./i18n";
-import { cloneSheet } from "./util";
+import { getLang, type Lang, onLangChange, registerTranslations, setLang, t } from "./i18n";
+import { cloneSheet, formatSessionDate } from "./util";
 import { mountClaudeStart } from "./views/claudeStart";
 import { mountExecute } from "./views/execute";
 import { mountHome } from "./views/home";
@@ -22,6 +22,22 @@ import { mountSheet } from "./views/sheet";
 import { mountStats } from "./views/stats";
 import { mountTrain } from "./views/train";
 import { mountWeekly } from "./views/weekly";
+
+// Device-maintenance strings — these controls live in the Settings sheet (moved
+// out of Home so daily screens lead with training actions, not app admin).
+registerTranslations({
+  "Update app": "Actualizează aplicația",
+  "Update app to the latest version": "Actualizează aplicația la cea mai recentă versiune",
+  "Updating…": "Se actualizează…",
+  Updates: "Actualizări",
+  "Build {0}": "Versiune {0}",
+  Data: "Date",
+  "Clear all saved data": "Șterge toate datele salvate",
+  "Permanently delete every routine, logged session, personal record and setting stored on this device. This cannot be undone.":
+    "Șterge definitiv fiecare rutină, sesiune înregistrată, record personal și setare stocate pe acest dispozitiv. Această acțiune nu poate fi anulată.",
+  "Delete all saved data on this device? This permanently removes every routine, logged session, personal record and setting, and cannot be undone.":
+    "Ștergi toate datele salvate pe acest dispozitiv? Aceasta elimină definitiv fiecare rutină, sesiune înregistrată, record personal și setare și nu poate fi anulată.",
+});
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -423,6 +439,52 @@ function boot(): void {
     rel: "noopener",
     text: t("Terms"),
   });
+  // Updates — pull the latest build and refresh this installed copy.
+  const updatesLabel = h("span", { class: "settings-label", text: t("Updates") });
+  const updateBtn = h("button", {
+    class: "btn btn-small",
+    type: "button",
+    text: t("Update app"),
+    aria: { label: t("Update app to the latest version") },
+  });
+  updateBtn.addEventListener("click", () => {
+    updateBtn.disabled = true;
+    updateBtn.textContent = t("Updating…");
+    void forceAppUpdate();
+  });
+  const buildStamp = h("p", {
+    class: "settings-disclaimer settings-build",
+    text: t("Build {0}").replace("{0}", formatSessionDate(__BUILD_TIME__)),
+  });
+
+  // Data — wipe everything this app stored on the device (all gymlog.* keys).
+  const dataLabel = h("span", { class: "settings-label", text: t("Data") });
+  const clearDataDesc = h("p", {
+    class: "settings-disclaimer",
+    text: t(
+      "Permanently delete every routine, logged session, personal record and setting stored on this device. This cannot be undone.",
+    ),
+  });
+  const clearDataBtn = h("button", {
+    class: "btn btn-small danger",
+    type: "button",
+    text: t("Clear all saved data"),
+  });
+  clearDataBtn.addEventListener("click", () => {
+    if (
+      !confirm(
+        t(
+          "Delete all saved data on this device? This permanently removes every routine, logged session, personal record and setting, and cannot be undone.",
+        ),
+      )
+    )
+      return;
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith("gymlog.")) localStorage.removeItem(key);
+    }
+    window.location.reload();
+  });
+
   const dialog = h(
     "div",
     {
@@ -435,6 +497,8 @@ function boot(): void {
       h("div", { class: "settings-head" }, [settingsTitle, closeBtn]),
       h("div", { class: "settings-row" }, [langLabel, langToggle]),
       h("div", { class: "settings-row" }, [themeLabel, themeToggle]),
+      h("div", { class: "settings-row" }, [updatesLabel, updateBtn, buildStamp]),
+      h("div", { class: "settings-row" }, [dataLabel, clearDataDesc, clearDataBtn]),
       h("div", { class: "settings-row" }, [
         aboutLabel,
         disclaimer,
@@ -489,6 +553,16 @@ function boot(): void {
     settingsTitle.textContent = t("Settings");
     langLabel.textContent = t("Language");
     themeLabel.textContent = t("Theme");
+    updatesLabel.textContent = t("Updates");
+    // Leave the button reading "Updating…" if an update is mid-flight.
+    if (!updateBtn.disabled) updateBtn.textContent = t("Update app");
+    updateBtn.setAttribute("aria-label", t("Update app to the latest version"));
+    buildStamp.textContent = t("Build {0}").replace("{0}", formatSessionDate(__BUILD_TIME__));
+    dataLabel.textContent = t("Data");
+    clearDataDesc.textContent = t(
+      "Permanently delete every routine, logged session, personal record and setting stored on this device. This cannot be undone.",
+    );
+    clearDataBtn.textContent = t("Clear all saved data");
     aboutLabel.textContent = t("About");
     disclaimer.textContent = t(DISCLAIMER);
     privacyLink.textContent = t("Privacy");
