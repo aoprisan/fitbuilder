@@ -1337,6 +1337,22 @@ textarea {
   color: var(--ink-soft);
 }
 
+/* "Last time" recall on the live select screen — what this movement was last
+   loaded with, so the user picks a weight to beat. */
+.live-last {
+  border-left: 8px solid var(--navy);
+  display: grid;
+  gap: 4px;
+}
+
+.live-last .now-eyebrow {
+  margin: 0;
+}
+
+.live-last .typical-last-sets {
+  font-size: 13px;
+}
+
 /* Pre-training "muscle not recovered" caution on the live select screen. */
 .live-recovery-warn {
   border-color: var(--mustard);

@@ -46,6 +46,7 @@ import {
   muscleShares,
 } from "../movements";
 import { muscleRecovery, type MuscleRecovery, recoveryColor } from "../recovery";
+import { exerciseKey, type ExerciseKey } from "../stats";
 import type { Cleanup, Nav } from "../router";
 import { saveSheet } from "../sheetStorage";
 import { setActiveLog, setEditingSheet, setSheetFlash, state } from "../state";
@@ -213,6 +214,8 @@ registerTranslations({
   "Reps in reserve": "Repetări în rezervă",
   "trained to failure": "antrenat până la cădere",
   "{0} reps in reserve": "{0} repetări în rezervă",
+  // — Last-time recall —
+  "Last time · {0}": "Ultima dată · {0}",
   // — Exercise head / target —
   "{0} · {1}": "{0} · {1}",
   "Target progress": "Progres țintă",
@@ -495,6 +498,49 @@ function renderRecoveryWarning(
       }),
     ],
   );
+}
+
+/**
+ * The most recent *prior* logged instance of an exercise key, with the date of
+ * the session it came from — the data behind the "last time" recall on the
+ * select screen. Sessions are scanned for the latest one carrying a logged set
+ * for this exact movement; returns null when it's never been trained before.
+ */
+function lastPerformance(
+  sessions: readonly TrainingSession[],
+  key: ExerciseKey,
+): { date: string; exercise: LoggedExercise } | null {
+  let best: { date: string; exercise: LoggedExercise } | null = null;
+  for (const s of sessions) {
+    for (const ex of s.exercises) {
+      if (ex.sets.length === 0 || exerciseKey(ex) !== key) continue;
+      if (!best || s.startedAt.localeCompare(best.date) > 0) {
+        best = { date: s.startedAt, exercise: ex };
+      }
+    }
+  }
+  return best;
+}
+
+/**
+ * "Last time" recall for the movement about to be picked: the most recent prior
+ * session's logged sets (reps × load, or the cardio bout) so you walk up to the
+ * rack already knowing what you did — and what to beat. The active session is
+ * excluded by the caller, so this always reads as a true reference point rather
+ * than what was just logged this workout.
+ */
+function renderLastPerformance(date: string, ex: LoggedExercise): HTMLElement {
+  const cardio = isCardio(ex.equipment);
+  const setText = ex.sets
+    .map((s) => (cardio ? formatCardioSet(s) : fmtLoggedSet(ex.equipment, s)))
+    .join("   ");
+  return h("section", { class: "card live-last" }, [
+    h("p", {
+      class: "now-eyebrow",
+      text: t("Last time · {0}").replace("{0}", formatSessionDate(date)),
+    }),
+    h("p", { class: "typical-last-sets", text: setText }),
+  ]);
 }
 
 /** Top-level place in the live flow. */
@@ -1376,6 +1422,14 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
             ),
           ];
 
+    // The last time this exact movement was trained, so the user picks a load to
+    // beat. Drawn from prior sessions only (the active one excluded), matching the
+    // recovery-warning scope so a within-session repeat still recalls last week.
+    const lastPerf = lastPerformance(
+      allSessions.filter((s) => s.id !== session.id),
+      exerciseKey({ muscle, equipment, exerciseId: movementId }),
+    );
+
     // Caution if the picked movement's muscles haven't recovered from earlier
     // sessions — the active session is excluded so within-session repeats are fine.
     const selectedMovement = findMovement(movementId);
@@ -1408,6 +1462,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           pickMode,
         ),
         ...picker,
+        ...(lastPerf ? [renderLastPerformance(lastPerf.date, lastPerf.exercise)] : []),
         ...(recWarn ? [recWarn] : []),
         h("div", { class: "btn-row" }, [
           h("button", {
