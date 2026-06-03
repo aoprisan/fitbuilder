@@ -2044,9 +2044,24 @@ textarea {
 
 .live-done-row {
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   font-family: var(--font-mono);
   font-size: 13px;
   color: var(--ink-soft);
+}
+
+.live-done-muscle {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.live-done-name {
+  font-size: 13px;
 }
 
 .live-ex-head {

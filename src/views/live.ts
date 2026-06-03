@@ -1339,16 +1339,26 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           doneHost.append(h("p", { class: "live-section-label", text: run.section }));
         }
         run.items.forEach((ex) => {
+          // Lead each row with the muscle group so it's clear what was trained —
+          // generic-gear rows otherwise read as just the equipment (e.g. "Dumbbell").
+          const muscleLabel = t(MUSCLE_LABELS[ex.muscle]);
+          const setsText = (ex.sets.length === 1 ? t("{0} — {1} set") : t("{0} — {1} sets"))
+            .replace("{0}", ex.name)
+            .replace("{1}", String(ex.sets.length));
           doneHost.append(
-            h("button", {
-              class: "btn btn-small live-done-row",
-              type: "button",
-              text: (ex.sets.length === 1 ? t("{0} — {1} set") : t("{0} — {1} sets"))
-                .replace("{0}", ex.name)
-                .replace("{1}", String(ex.sets.length)),
-              aria: { label: t("log sets for {0}").replace("{0}", ex.name) },
-              on: { click: () => resumeExercise(ex) },
-            }),
+            h(
+              "button",
+              {
+                class: "btn btn-small live-done-row",
+                type: "button",
+                aria: { label: t("log sets for {0}").replace("{0}", `${muscleLabel} · ${ex.name}`) },
+                on: { click: () => resumeExercise(ex) },
+              },
+              [
+                h("span", { class: "live-done-muscle", text: muscleLabel }),
+                h("span", { class: "live-done-name", text: setsText }),
+              ],
+            ),
           );
         });
       });
