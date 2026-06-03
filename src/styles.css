@@ -2091,6 +2091,35 @@ textarea {
   align-self: center;
 }
 
+.live-set-edit-btn {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+/* Inline reps/weight editor row for an already-logged set. */
+.live-set-edit {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  border-left-color: var(--signal);
+}
+
+.live-set-edit .set-no {
+  align-self: flex-start;
+}
+
+.live-set-edit-dials {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.live-set-edit-actions {
+  justify-content: center;
+}
+
 .live-dials {
   display: flex;
   flex-wrap: wrap;
