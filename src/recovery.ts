@@ -19,6 +19,9 @@ function isCompound(ex: LoggedExercise): boolean {
 export const RECOVERY_HOURS: Record<MuscleGroup, number> = {
   chest: 48,
   back: 60,
+  // Erectors are endurance-oriented postural muscles — lighter back-extension /
+  // hyperextension work clears faster than the lats' heavier pulling volume.
+  "lower-back": 48,
   shoulders: 48,
   traps: 48,
   biceps: 36,

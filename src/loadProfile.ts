@@ -110,6 +110,7 @@ export const MUSCLE_REFERENCE_LOAD_KG: Record<MuscleGroup, number> = {
   traps: 95,
   calves: 90,
   back: 75,
+  "lower-back": 70,
   chest: 65,
   shoulders: 45,
   triceps: 32,
