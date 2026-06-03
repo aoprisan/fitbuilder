@@ -1593,7 +1593,22 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       }),
     ]);
 
-    container.append(h("h1", { class: "view-title", text: t("Live Session") }), head, renderSetList());
+    // Same "last time" recall as the select screen, kept on screen while the
+    // exercise is in progress — so the load to beat is in view as you dial in
+    // reps and weight. Active session excluded, so it's last week's reference.
+    const lastPerf = lastPerformance(
+      loadSessions().filter((s) => s.id !== state.activeLog?.id),
+      currentEx
+        ? exerciseKey(currentEx)
+        : exerciseKey({ muscle, equipment, exerciseId: movementId }),
+    );
+
+    container.append(
+      h("h1", { class: "view-title", text: t("Live Session") }),
+      head,
+      ...(lastPerf ? [renderLastPerformance(lastPerf.date, lastPerf.exercise)] : []),
+      renderSetList(),
+    );
 
     // Plan benchmark: when this exercise carries the trainer's structured
     // guideline (started from a routine), show the prescribed-vs-logged read —
