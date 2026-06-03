@@ -76,6 +76,12 @@ registerTranslations({
   "Pull the latest version and refresh this installed copy.":
     "Descarcă cea mai recentă versiune și reîmprospătează această copie instalată.",
   "Build {0}": "Versiune {0}",
+  Data: "Date",
+  "Clear all saved data": "Șterge toate datele salvate",
+  "Permanently delete every routine, logged session, personal record and setting stored on this device. This cannot be undone.":
+    "Șterge definitiv fiecare rutină, sesiune înregistrată, record personal și setare stocate pe acest dispozitiv. Această acțiune nu poate fi anulată.",
+  "Delete all saved data on this device? This permanently removes every routine, logged session, personal record and setting, and cannot be undone.":
+    "Ștergi toate datele salvate pe acest dispozitiv? Aceasta elimină definitiv fiecare rutină, sesiune înregistrată, record personal și setare și nu poate fi anulată.",
 });
 
 export function mountHome(root: HTMLElement, nav: Nav): void {
@@ -352,13 +358,47 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
     }),
   ]);
 
+  // ── Data — wipe everything stored on this device ──────────────────────────
+  const clearDataBtn = h("button", {
+    class: "btn btn-small danger",
+    type: "button",
+    text: t("Clear all saved data"),
+  });
+  clearDataBtn.addEventListener("click", () => {
+    if (
+      !confirm(
+        t(
+          "Delete all saved data on this device? This permanently removes every routine, logged session, personal record and setting, and cannot be undone.",
+        ),
+      )
+    )
+      return;
+    // Every key this app writes is namespaced under "gymlog." — drop them all,
+    // then reload so views remount from a clean (re-seeded) state.
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith("gymlog.")) localStorage.removeItem(key);
+    }
+    window.location.reload();
+  });
+
+  const dataCard = h("section", { class: "card" }, [
+    h("h2", { class: "section-title", text: t("Data") }),
+    h("p", {
+      class: "plan-meta",
+      text: t(
+        "Permanently delete every routine, logged session, personal record and setting stored on this device. This cannot be undone.",
+      ),
+    }),
+    h("div", { class: "btn-row" }, [clearDataBtn]),
+  ]);
+
   // Hard gate: Home shows only the active mode's lane. Student = train/track,
   // recovery, personal records, and the Claude getting-started draft (so a
   // student without a coach can still get a starting plan); Trainer = authoring.
   const cards =
     loadMode() === "trainer"
-      ? [hero, routinesLane, updateCard]
-      : [hero, trainingLane, claudeStartCard, renderRecoveryCard(), renderOneRmCard(), updateCard];
+      ? [hero, routinesLane, updateCard, dataCard]
+      : [hero, trainingLane, claudeStartCard, renderRecoveryCard(), renderOneRmCard(), updateCard, dataCard];
 
   root.appendChild(h("div", { class: "view view-home" }, cards));
 }
