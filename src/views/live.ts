@@ -203,6 +203,9 @@ registerTranslations({
   "delete set {0}": "șterge seria {0}",
   "Delete set {0}? This cannot be undone.":
     "Ștergi seria {0}? Această acțiune nu poate fi anulată.",
+  "edit set {0}": "editează seria {0}",
+  "✓ Save": "✓ Salvează",
+  Cancel: "Anulează",
   // — RIR field —
   "Tap how many reps you had left — skip to leave intensity unweighted.":
     "Atinge câte repetări ți-au rămas — sari peste pentru a lăsa intensitatea neponderată.",
@@ -563,6 +566,11 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   // Which exercise picker the select screen shows: muscle+gear ("custom") or compound lifts.
   let selectMode: SelectMode = "custom";
   let currentEx: LoggedExercise | null = null;
+  // Which logged set is open for inline reps/weight editing (null = none), plus
+  // the in-flight edit values held until the user taps Save.
+  let editingSetIndex: number | null = null;
+  let editReps = 0;
+  let editWeight = 0;
 
   /** Point the selection at a movement id, syncing the derived muscle + load type. */
   function selectMovement(id: string): void {
@@ -960,7 +968,36 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     if (!currentEx) return;
     if (!confirm(t("Delete set {0}? This cannot be undone.").replace("{0}", String(i + 1)))) return;
     currentEx.sets.splice(i, 1);
+    if (editingSetIndex !== null) editingSetIndex = null;
     persist();
+    render();
+  }
+
+  /** Open the inline reps/weight editor for an already-logged strength set. */
+  function startEditSet(i: number): void {
+    const set = currentEx?.sets[i];
+    if (!set) return;
+    editingSetIndex = i;
+    editReps = set.reps;
+    editWeight = set.weightKg;
+    render();
+  }
+
+  /** Persist the edited reps/weight back onto the logged set. */
+  function saveEditSet(): void {
+    if (!currentEx || editingSetIndex === null) return;
+    const set = currentEx.sets[editingSetIndex];
+    if (set) {
+      set.reps = editReps;
+      set.weightKg = editWeight;
+      persist();
+    }
+    editingSetIndex = null;
+    render();
+  }
+
+  function cancelEditSet(): void {
+    editingSetIndex = null;
     render();
   }
 
@@ -1506,6 +1543,56 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       return host;
     }
     sets.forEach((s, i) => {
+      // Inline reps/weight editor for a previously-logged strength set. Cardio
+      // bouts (distance/speed/incline) aren't editable here — only reps + load.
+      if (!isCardio(equipment) && editingSetIndex === i) {
+        host.appendChild(
+          h("div", { class: "live-set live-set-edit" }, [
+            h("span", { class: "set-no", text: t("Set {0}").replace("{0}", String(i + 1)) }),
+            h("div", { class: "live-set-edit-dials" }, [
+              dialField({
+                label: t("Reps"),
+                value: editReps,
+                step: 1,
+                min: 0,
+                integer: true,
+                unit: t("reps"),
+                tone: "signal",
+                onCommit: (n) => {
+                  editReps = n;
+                },
+              }),
+              dialField({
+                label: isBodyweight(equipment) ? t("Added (kg)") : t("Weight (kg)"),
+                value: editWeight,
+                step: 2.5,
+                min: 0,
+                integer: false,
+                unit: "kg",
+                tone: "navy",
+                onCommit: (n) => {
+                  editWeight = n;
+                },
+              }),
+            ]),
+            h("div", { class: "btn-row live-set-edit-actions" }, [
+              h("button", {
+                class: "btn btn-primary btn-small",
+                type: "button",
+                text: t("✓ Save"),
+                on: { click: saveEditSet },
+              }),
+              h("button", {
+                class: "btn btn-small",
+                type: "button",
+                text: t("Cancel"),
+                on: { click: cancelEditSet },
+              }),
+            ]),
+          ]),
+        );
+        return;
+      }
       const bits = isCardio(equipment)
         ? [formatCardioSet(s)]
         : [t("{0} reps").replace("{0}", String(s.reps)), formatLoad(equipment, s.weightKg)];
@@ -1516,6 +1603,17 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         h("div", { class: "live-set" }, [
           h("span", { class: "set-no", text: t("Set {0}").replace("{0}", String(i + 1)) }),
           h("span", { class: "live-set-meta", text: bits.join(" · ") }),
+          ...(isCardio(equipment)
+            ? []
+            : [
+                h("button", {
+                  class: "icon-btn live-set-edit-btn",
+                  type: "button",
+                  text: "✎",
+                  aria: { label: t("edit set {0}").replace("{0}", String(i + 1)) },
+                  on: { click: () => startEditSet(i) },
+                }),
+              ]),
           h("button", {
             class: "icon-btn danger live-set-del",
             type: "button",
