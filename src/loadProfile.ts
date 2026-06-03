@@ -113,6 +113,24 @@ export function muscleDemandFactor(equipment: Equipment, isCompound: boolean): n
   return profileFor(equipment).muscle * (isCompound ? COMPOUND_MUSCLE : 1);
 }
 
+/**
+ * Fatigue cost per unit of effective load, for the effort gauge — how taxing a
+ * kilogram of this load type actually is, blending its systemic ({@link LoadProfile.cns})
+ * and local ({@link LoadProfile.muscle}) demand. A free-weight compound (an 86 kg
+ * deadlift) costs the full reference; a guided machine isolation (an 86 kg back
+ * extension) costs far less for the same indicated kg, so its volume stops
+ * dominating the effort total. This layers on top of `loadFidelity` exactly as
+ * the recovery factors do: `loadFidelity` says the machine moves *less* real
+ * resistance, while this says each unit of that resistance is *gentler* — two
+ * separate, compounding mechanisms, not a double count.
+ */
+export function effortLoadFactor(equipment: Equipment, isCompound: boolean): number {
+  const p = profileFor(equipment);
+  const perUnit = (p.cns + p.muscle) / 2;
+  const compound = isCompound ? (COMPOUND_CNS + COMPOUND_MUSCLE) / 2 : 1;
+  return perUnit * compound;
+}
+
 /** Maximal-strength transfer multiplier for a set (equipment × compound). */
 export function strengthFactor(equipment: Equipment, isCompound: boolean): number {
   return profileFor(equipment).strength * (isCompound ? COMPOUND_STRENGTH : 1);

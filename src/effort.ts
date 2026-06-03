@@ -1,4 +1,4 @@
-import { effectiveLoadKg } from "./loadProfile";
+import { effectiveLoadKg, effortLoadFactor } from "./loadProfile";
 import { SECONDARY_MUSCLE_SHARE } from "./movements";
 import type { Equipment, MuscleGroup, TrainingSession, WorkSet } from "./types";
 import { isCardio } from "./types";
@@ -109,13 +109,36 @@ export function fatigueProximity(rir?: number): number {
 }
 
 /**
- * Effort points contributed by a single logged set. The volume term is driven
- * by *effective* load (see {@link effectiveLoadKg}), so cable / leverage-machine
- * work — whose stack number overstates the real resistance — contributes less
- * than the same indicated kg on a free weight, while its reps and time under
- * tension still count in full.
+ * Per-set effort options.
+ *
+ * `fatigueWeighted` turns on the equipment/compound fatigue weighting of the
+ * volume term (see {@link setEffort}) — what the effort gauge wants. It is
+ * **off by default** so the raw-work callers that apply their own equipment
+ * factors afterwards (recovery's `muscleDemandFactor` / `cnsFactor`) keep getting
+ * unweighted work and don't double-count. `isCompound` only matters when weighted.
  */
-export function setEffort(set: WorkSet, equipment?: Equipment): number {
+export interface SetEffortOpts {
+  /** Lift taxes secondary muscles (deadlift, press) — earns the compound fatigue premium. */
+  isCompound?: boolean;
+  /** Weight the volume term by {@link effortLoadFactor}. Default false (raw work). */
+  fatigueWeighted?: boolean;
+}
+
+/**
+ * Effort points contributed by a single logged set: a base for the set itself,
+ * plus reps, volume load, and time under tension.
+ *
+ * The volume term always runs off *effective* load (see {@link effectiveLoadKg}),
+ * so a cable / leverage-machine stack number — which overstates the real
+ * resistance — already contributes less than the same indicated kg on a free
+ * weight. With `fatigueWeighted` it is *additionally* scaled by
+ * {@link effortLoadFactor}, so each unit of that resistance costs less on a guided
+ * machine isolation than on a free-weight compound (the two corrections compound,
+ * the same layering recovery uses). That's what makes an 86 kg machine back
+ * extension fill the gauge far less than an 86 kg deadlift, rather than nearly
+ * matching it. The base credit, reps and time under tension stay modality-agnostic.
+ */
+export function setEffort(set: WorkSet, equipment?: Equipment, opts: SetEffortOpts = {}): number {
   const duration = set.durationSec ?? 0;
   // Cardio: no reps or load — bill the bout by distance (incline-weighted), or by
   // time when distance is missing. Strength terms below would all read 0 anyway,
@@ -129,7 +152,9 @@ export function setEffort(set: WorkSet, equipment?: Equipment): number {
     return 1 + duration / CARDIO_SECONDS_PER_POINT;
   }
   const load = equipment ? effectiveLoadKg(set.weightKg, equipment) : Math.max(0, set.weightKg);
-  const volume = set.reps * load;
+  const fatigue =
+    opts.fatigueWeighted && equipment ? effortLoadFactor(equipment, opts.isCompound ?? false) : 1;
+  const volume = set.reps * load * fatigue;
   return (
     1 +
     set.reps / REPS_PER_POINT +
@@ -138,11 +163,17 @@ export function setEffort(set: WorkSet, equipment?: Equipment): number {
   );
 }
 
+/** A lift counts as compound — earning the fatigue premium — when it taxes secondary muscles. */
+function isCompoundExercise(ex: { secondaryMuscles?: readonly MuscleGroup[] }): boolean {
+  return (ex.secondaryMuscles?.length ?? 0) > 0;
+}
+
 /** Accumulated effort points across every logged set in a session — work done. */
 export function sessionEffort(session: TrainingSession): number {
   let total = 0;
   for (const ex of session.exercises) {
-    for (const s of ex.sets) total += setEffort(s, ex.equipment);
+    const isCompound = isCompoundExercise(ex);
+    for (const s of ex.sets) total += setEffort(s, ex.equipment, { isCompound, fatigueWeighted: true });
   }
   return total;
 }
@@ -155,7 +186,9 @@ export function sessionEffort(session: TrainingSession): number {
 function sessionEffortIntensity(session: TrainingSession): number {
   let total = 0;
   for (const ex of session.exercises) {
-    for (const s of ex.sets) total += setEffort(s, ex.equipment) * fatigueProximity(s.rir);
+    const isCompound = isCompoundExercise(ex);
+    for (const s of ex.sets)
+      total += setEffort(s, ex.equipment, { isCompound, fatigueWeighted: true }) * fatigueProximity(s.rir);
   }
   return total;
 }
@@ -265,23 +298,25 @@ function accumulateMuscleWork(sessions: Iterable<TrainingSession>): MuscleWork[]
     set: WorkSet,
     share: number,
     equipment: Equipment,
+    isCompound: boolean,
   ): void => {
     const entry =
       byMuscle.get(muscle) ?? { muscle, volume: 0, timeSec: 0, sets: 0, effort: 0 };
     entry.volume += set.reps * Math.max(0, set.weightKg) * share;
     entry.timeSec += (set.durationSec ?? 0) * share;
     entry.sets += share;
-    entry.effort += setEffort(set, equipment) * share;
+    entry.effort += setEffort(set, equipment, { isCompound, fatigueWeighted: true }) * share;
     byMuscle.set(muscle, entry);
   };
   for (const session of sessions) {
     for (const ex of session.exercises) {
+      const isCompound = isCompoundExercise(ex);
       for (const s of ex.sets) {
         // Primary muscle takes full credit; a compound lift's secondary muscles
         // each take a fixed share so they register as worked in the breakdown.
-        credit(ex.muscle, s, 1, ex.equipment);
+        credit(ex.muscle, s, 1, ex.equipment, isCompound);
         for (const sec of ex.secondaryMuscles ?? [])
-          credit(sec, s, SECONDARY_MUSCLE_SHARE, ex.equipment);
+          credit(sec, s, SECONDARY_MUSCLE_SHARE, ex.equipment, isCompound);
         // A treadmill/run bout also fatigues the legs — credit the lower body a
         // fraction of the bout (its effort/time/sets) on top of the cardio line,
         // so the breakdown reflects the leg work a run actually does.
@@ -289,7 +324,7 @@ function accumulateMuscleWork(sessions: Iterable<TrainingSession>): MuscleWork[]
           const dose = cardioLegDose(s);
           if (dose > 0)
             for (const { muscle, share } of CARDIO_LEG_CREDIT)
-              credit(muscle, s, share * dose, ex.equipment);
+              credit(muscle, s, share * dose, ex.equipment, isCompound);
         }
       }
     }
