@@ -238,6 +238,7 @@ export const SHEET_SCHEMA_VERSION = 1 as const;
 export type MuscleGroup =
   | "chest"
   | "back"
+  | "lower-back"
   | "shoulders"
   | "traps"
   | "biceps"
@@ -252,6 +253,7 @@ export type MuscleGroup =
 export const MUSCLE_GROUPS: readonly MuscleGroup[] = [
   "chest",
   "back",
+  "lower-back",
   "shoulders",
   "traps",
   "biceps",
@@ -273,6 +275,7 @@ export const MUSCLE_GROUPS: readonly MuscleGroup[] = [
 export const MUSCLE_LABELS: Record<MuscleGroup, string> = {
   chest: "Chest",
   back: "Back",
+  "lower-back": "Lower Back",
   shoulders: "Shoulders",
   traps: "Traps",
   biceps: "Biceps",

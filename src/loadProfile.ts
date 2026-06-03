@@ -1,4 +1,4 @@
-import type { Equipment } from "./types";
+import type { Equipment, MuscleGroup } from "./types";
 
 /**
  * Equipment- and compound-aware load model.
@@ -95,6 +95,50 @@ export function profileFor(equipment: Equipment): LoadProfile {
 }
 
 /**
+ * Per-muscle reference working load (kg, free-weight equivalent) — roughly what a
+ * muscle group moves in one hard working set for an intermediate trainee. It's the
+ * "56 kg shrug ≠ 56 kg curl" knob: traps/legs/glutes shift big loads, so a given
+ * kg there is a *small* fraction of capacity; biceps/forearms/shoulders move much
+ * less, so the same kg is a *large* fraction. Effort runs off how hard a set is,
+ * not raw tonnage, so the volume term is normalised against this reference (a kg
+ * counts more on a low-capacity muscle, less on a high-capacity one). Deliberately
+ * rough and easy to retune; cardio carries no external load so its value is inert.
+ */
+export const MUSCLE_REFERENCE_LOAD_KG: Record<MuscleGroup, number> = {
+  legs: 110,
+  glutes: 90,
+  traps: 95,
+  calves: 90,
+  back: 75,
+  "lower-back": 70,
+  chest: 65,
+  shoulders: 45,
+  triceps: 32,
+  biceps: 28,
+  forearms: 30,
+  core: 30,
+  cardio: 60,
+};
+
+// Capacity normalisation is centred on this load: a muscle whose reference equals
+// the baseline is neutral (factor 1). The factor is clamped so an extreme-capacity
+// muscle can't swing a set's volume term more than ~2× either way.
+const BASELINE_LOAD_KG = 60;
+const MUSCLE_LOAD_FACTOR_MIN = 0.5;
+const MUSCLE_LOAD_FACTOR_MAX = 2;
+
+/**
+ * Capacity normaliser for a muscle's volume in the effort gauge: `baseline ÷ the
+ * muscle's reference load`. >1 for low-capacity muscles (a curl's 20 kg is a hard
+ * set, so it counts up), <1 for high-capacity ones (a shrug's 80 kg is routine, so
+ * it counts down). Clamped to keep the swing bounded.
+ */
+export function muscleLoadFactor(muscle: MuscleGroup): number {
+  const factor = BASELINE_LOAD_KG / MUSCLE_REFERENCE_LOAD_KG[muscle];
+  return Math.min(MUSCLE_LOAD_FACTOR_MAX, Math.max(MUSCLE_LOAD_FACTOR_MIN, factor));
+}
+
+/**
  * Indicated kg translated to a barbell-equivalent effective load — the
  * "70 on a cable ≠ 70 on a bench" conversion. Used wherever load drives a
  * metric (effort volume, strength estimate, hypertrophy volume).
@@ -111,6 +155,24 @@ export function cnsFactor(equipment: Equipment, isCompound: boolean): number {
 /** Local muscle recovery-demand multiplier for a set (equipment × compound). */
 export function muscleDemandFactor(equipment: Equipment, isCompound: boolean): number {
   return profileFor(equipment).muscle * (isCompound ? COMPOUND_MUSCLE : 1);
+}
+
+/**
+ * Fatigue cost per unit of effective load, for the effort gauge — how taxing a
+ * kilogram of this load type actually is, blending its systemic ({@link LoadProfile.cns})
+ * and local ({@link LoadProfile.muscle}) demand. A free-weight compound (an 86 kg
+ * deadlift) costs the full reference; a guided machine isolation (an 86 kg back
+ * extension) costs far less for the same indicated kg, so its volume stops
+ * dominating the effort total. This layers on top of `loadFidelity` exactly as
+ * the recovery factors do: `loadFidelity` says the machine moves *less* real
+ * resistance, while this says each unit of that resistance is *gentler* — two
+ * separate, compounding mechanisms, not a double count.
+ */
+export function effortLoadFactor(equipment: Equipment, isCompound: boolean): number {
+  const p = profileFor(equipment);
+  const perUnit = (p.cns + p.muscle) / 2;
+  const compound = isCompound ? (COMPOUND_CNS + COMPOUND_MUSCLE) / 2 : 1;
+  return perUnit * compound;
 }
 
 /** Maximal-strength transfer multiplier for a set (equipment × compound). */
