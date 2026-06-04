@@ -120,6 +120,8 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
   legs: [
     { id: "deadlift", name: "Deadlift", primaryMuscle: "legs", secondaryMuscles: ["glutes", "lower-back"], equipment: "barbell" },
     { id: "romanian-deadlift", name: "Romanian Deadlift", primaryMuscle: "legs", secondaryMuscles: ["glutes", "lower-back"], equipment: "barbell" },
+    { id: "barbell-squat", name: "Barbell Squat", primaryMuscle: "legs", secondaryMuscles: ["glutes", "lower-back"], equipment: "barbell", aliases: ["Back Squat", "Genuflexiuni cu Bara"] },
+    { id: "dumbbell-squat", name: "Dumbbell Squat", primaryMuscle: "legs", secondaryMuscles: ["glutes"], equipment: "dumbbell", aliases: ["Goblet Squat", "Goblet Squats", "Genuflexiuni cu Gantere"] },
     { id: "bodyweight-squat", name: "Bodyweight Squat", primaryMuscle: "legs", secondaryMuscles: ["glutes"], equipment: "calisthenics", aliases: ["Squat", "Squats", "Genuflexiuni"] },
     { id: "leg-press", name: "Leg Press", primaryMuscle: "legs", secondaryMuscles: [], equipment: "machine" },
     { id: "leg-extension", name: "Leg Extension", primaryMuscle: "legs", secondaryMuscles: [], equipment: "machine" },
@@ -129,13 +131,16 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
     genericMovement("legs", "cable"),
   ],
   calves: [
-    { id: "calf-raise", name: "Calf Raise", primaryMuscle: "calves", secondaryMuscles: [], equipment: "machine" },
+    { id: "calf-raise", name: "Standing Calf Raise", primaryMuscle: "calves", secondaryMuscles: [], equipment: "machine", aliases: ["Calf Raise", "Standing Calf Raise", "Standing Calf Raises"] },
+    { id: "seated-calf-raise", name: "Seated Calf Raise", primaryMuscle: "calves", secondaryMuscles: [], equipment: "machine", aliases: ["Seated Calf Raises", "Sitting Calf Raise"] },
     genericMovement("calves", "dumbbell"),
     genericMovement("calves", "barbell"),
   ],
   core: [
     { id: "plank", name: "Plank", primaryMuscle: "core", secondaryMuscles: [], equipment: "calisthenics" },
     { id: "bench-crunches", name: "Bench Crunches", primaryMuscle: "core", secondaryMuscles: [], equipment: "calisthenics" },
+    { id: "knee-raises", name: "Knee Raises", primaryMuscle: "core", secondaryMuscles: [], equipment: "calisthenics", aliases: ["Knee Raise", "Lying Knee Raises", "Captain's Chair Knee Raises"] },
+    { id: "hanging-knee-raises", name: "Hanging Knee Raises", primaryMuscle: "core", secondaryMuscles: ["forearms"], equipment: "calisthenics", aliases: ["Hanging Knee Raise", "Hanging Leg Raises", "Hanging Leg Raise"] },
     { id: "lateral-abs-machine", name: "Lateral Abs Machine", primaryMuscle: "core", secondaryMuscles: [], equipment: "lateral-abs-machine" },
     genericMovement("core", "cable"),
     genericMovement("core", "dumbbell"),
