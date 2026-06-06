@@ -4307,6 +4307,79 @@ textarea:focus-visible {
   justify-content: center;
 }
 
+/* Routine-steps overlay (views/savedRoutines.ts) — a wider, left-aligned card
+   whose list scrolls when a routine has many steps. Reuses the .qr-overlay base. */
+.steps-overlay__card {
+  align-items: stretch;
+  width: min(94vw, 460px);
+}
+
+.steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  max-height: 60vh;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.steps-routine {
+  margin: 10px 0 2px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.steps-routine:first-child {
+  margin-top: 0;
+}
+
+.steps-section {
+  margin: 6px 0 2px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.steps-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--ink-faint);
+}
+
+.steps-no {
+  flex: 0 0 auto;
+  min-width: 1.4em;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.steps-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.steps-name {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.steps-pres {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
 /* ─────────────────────────── BODY MAP ───────────────────────────
    The rotatable 3D muscle figure (views/body.ts). The metric toggle reuses the
    segmented .mode-toggle; the stage hosts the WebGL canvas (or a flat fallback

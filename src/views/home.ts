@@ -384,10 +384,12 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
       : [
           hero,
           trainingLane,
-          savedRoutinesCard,
           claudeStartCard,
           renderRecoveryCard(),
           renderOneRmCard(),
+          // Saved routines sit at the foot of the student home — the library is a
+          // "go find a plan" destination, below the day-to-day train/track flow.
+          savedRoutinesCard,
         ];
 
   root.appendChild(h("div", { class: "view view-home" }, cards));
