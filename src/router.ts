@@ -10,7 +10,8 @@ export type ViewName =
   | "weekly"
   | "recovery"
   | "body"
-  | "claudeStart";
+  | "claudeStart"
+  | "claudeRoutine";
 
 export type Cleanup = () => void;
 

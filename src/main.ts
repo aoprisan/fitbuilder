@@ -14,6 +14,7 @@ import { getTheme, setTheme, type Theme, THEMES } from "./theme";
 import { getLang, type Lang, onLangChange, registerTranslations, setLang, t } from "./i18n";
 import { cloneSheet, formatSessionDate } from "./util";
 import { mountBody } from "./views/body";
+import { mountClaudeRoutine } from "./views/claudeRoutine";
 import { mountClaudeStart } from "./views/claudeStart";
 import { mountExecute } from "./views/execute";
 import { mountHome } from "./views/home";
@@ -115,6 +116,7 @@ function tabForView(view: ViewName): ViewName {
   if (view === "live" || view === "execute") return "train";
   if (view === "weekly" || view === "body") return "stats";
   if (view === "claudeStart") return "home";
+  if (view === "claudeRoutine") return "stats";
   return view;
 }
 
@@ -232,6 +234,9 @@ function boot(): void {
         break;
       case "claudeStart":
         result = mountClaudeStart(viewHost, nav);
+        break;
+      case "claudeRoutine":
+        result = mountClaudeRoutine(viewHost, nav);
         break;
     }
     cleanup = typeof result === "function" ? result : null;

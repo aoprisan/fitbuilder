@@ -197,6 +197,18 @@ export function copyTargetPrompt(prompt: string): Promise<CopyResult> {
   return copyForAnalysis(prompt, "fitbuilder-next-session.md");
 }
 
+/** Hand a "build a set-based block" prompt to Claude (share sheet on phones, clipboard + new chat on desktop). */
+export function startRoutineInClaude(prompt: string): Promise<AnalyzeResult> {
+  track("claude_routine", { via: "share" });
+  return shareForAnalysis(prompt, "fitbuilder-routine.md", "Build my training block");
+}
+
+/** Copy a "build a set-based block" prompt to the clipboard so it can be pasted into any AI; download as a backstop. */
+export function copyRoutinePrompt(prompt: string): Promise<CopyResult> {
+  track("claude_routine", { via: "copy" });
+  return copyForAnalysis(prompt, "fitbuilder-routine.md");
+}
+
 /** Download a rendered canvas as a PNG. */
 async function downloadCanvasPng(canvas: HTMLCanvasElement, filename: string): Promise<void> {
   const blob = await canvasToBlob(canvas, "image/png");
