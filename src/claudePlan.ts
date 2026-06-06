@@ -1,5 +1,17 @@
-import { SHEET_SCHEMA_ID, SHEET_SCHEMA_VERSION, type RoutineSheet } from "./types";
+import {
+  EQUIPMENT,
+  MUSCLE_GROUPS,
+  SHEET_SCHEMA_ID,
+  SHEET_SCHEMA_VERSION,
+  type RoutineSheet,
+} from "./types";
 import { SheetValidationError, validateSheet } from "./sheetValidate";
+
+// The exact enum vocabularies Claude must choose from when tagging an exercise's
+// muscle / load type, surfaced verbatim in the prompt so the values round-trip
+// through `asMuscle`/`asEquipment` (anything off-list is dropped on import).
+const MUSCLE_VALUES = MUSCLE_GROUPS.join(", ");
+const EQUIPMENT_VALUES = EQUIPMENT.join(", ");
 
 export type Goal = "muscle" | "fat-loss" | "strength" | "calisthenics";
 export type Level = "beginner" | "intermediate" | "advanced";
@@ -36,6 +48,9 @@ const EXAMPLE_SHEET = {
       exercises: [
         {
           name: "Bench Press",
+          muscle: "chest",
+          equipment: "barbell",
+          secondaryMuscles: ["triceps", "shoulders"],
           target: {
             kind: "sets",
             sets: [
@@ -48,9 +63,18 @@ const EXAMPLE_SHEET = {
         },
         {
           name: "Overhead Press",
+          muscle: "shoulders",
+          equipment: "barbell",
+          secondaryMuscles: ["triceps"],
           target: { kind: "sets", sets: [{ reps: 10 }, { reps: 10 }, { reps: 10 }] },
         },
-        { name: "Push-Ups", target: { kind: "volume", totalReps: 50 } },
+        {
+          name: "Push-Ups",
+          muscle: "chest",
+          equipment: "calisthenics",
+          secondaryMuscles: ["triceps", "shoulders"],
+          target: { kind: "volume", totalReps: 50 },
+        },
       ],
     },
   ],
@@ -80,6 +104,7 @@ export function buildPlanPrompt(inputs: PlanInputs): string {
     '- "name": a short title for the whole plan.',
     '- "routines": one entry per training day. Each has a "title", a few short "tags" (focus or level labels), and "exercises".',
     '- Each exercise has a "name" and a structured "target". Use { "kind": "sets", "sets": [{ "reps": 8, "loadKg": 60 }, ...] } for a fixed per-set scheme (omit "loadKg" for bodyweight), or { "kind": "volume", "totalReps": 50 } for a self-paced total-rep goal. You may add a short "note" for a cue.',
+    `- Also tag every exercise with "muscle" (its primary muscle group) and "equipment" (how it's loaded), plus "secondaryMuscles" (an array) for compound lifts that also work other muscles. Use these exact "muscle"/"secondaryMuscles" values: ${MUSCLE_VALUES}. Use these exact "equipment" values: ${EQUIPMENT_VALUES}. Pick the closest match for each.`,
     `- Make exactly ${days} ${routineWord}, one per training day, matched to my goal and level.`,
     "",
     "Reply with ONLY one ```json code block containing the plan, and no other text.",

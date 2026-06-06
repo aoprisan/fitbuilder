@@ -2,6 +2,7 @@ import { findMovement } from "./movements";
 import { exerciseHistoryLines } from "./progression";
 import { bestOneRm, exerciseKey, exerciseKeyLabel, type ExerciseKey, presentExerciseKeys } from "./stats";
 import {
+  EQUIPMENT,
   MUSCLE_GROUPS,
   MUSCLE_LABELS,
   type MuscleGroup,
@@ -10,6 +11,12 @@ import {
   type TrainingSession,
 } from "./types";
 import { round2 } from "./util";
+
+// The exact enum vocabularies Claude must choose from when tagging an exercise's
+// muscle / load type, surfaced verbatim in the prompt so the values round-trip
+// through `asMuscle`/`asEquipment` (anything off-list is dropped on import).
+const MUSCLE_VALUES = MUSCLE_GROUPS.join(", ");
+const EQUIPMENT_VALUES = EQUIPMENT.join(", ");
 
 /**
  * "Build a set-based strength routine with Claude" — the history-driven cousin of
@@ -101,6 +108,9 @@ const EXAMPLE_SHEET = {
           exercises: [
             {
               name: "Bench Press",
+              muscle: "chest",
+              equipment: "barbell",
+              secondaryMuscles: ["triceps", "shoulders"],
               target: {
                 kind: "sets",
                 sets: [
@@ -116,8 +126,8 @@ const EXAMPLE_SHEET = {
         {
           title: "Accessory",
           exercises: [
-            { name: "Overhead Press", target: { kind: "sets", sets: [{ reps: 8, loadKg: 40 }, { reps: 8, loadKg: 40 }, { reps: 8, loadKg: 40 }] } },
-            { name: "Dips", target: { kind: "sets", sets: [{ reps: 10 }, { reps: 10 }, { reps: 10 }] } },
+            { name: "Overhead Press", muscle: "shoulders", equipment: "barbell", secondaryMuscles: ["triceps"], target: { kind: "sets", sets: [{ reps: 8, loadKg: 40 }, { reps: 8, loadKg: 40 }, { reps: 8, loadKg: 40 }] } },
+            { name: "Dips", muscle: "chest", equipment: "calisthenics", secondaryMuscles: ["triceps"], target: { kind: "sets", sets: [{ reps: 10 }, { reps: 10 }, { reps: 10 }] } },
           ],
         },
       ],
@@ -132,6 +142,9 @@ const EXAMPLE_SHEET = {
           exercises: [
             {
               name: "Bench Press",
+              muscle: "chest",
+              equipment: "barbell",
+              secondaryMuscles: ["triceps", "shoulders"],
               target: {
                 kind: "sets",
                 sets: [
@@ -255,15 +268,15 @@ const WHOLE_EXAMPLE_SHEET = {
         {
           title: "Push",
           exercises: [
-            { name: "Bench Press", target: { kind: "sets", sets: [{ reps: 8, loadKg: 70 }, { reps: 8, loadKg: 70 }, { reps: 8, loadKg: 70 }] }, note: "~70% 1RM · 1 RIR" },
-            { name: "Overhead Press", target: { kind: "sets", sets: [{ reps: 10, loadKg: 35 }, { reps: 10, loadKg: 35 }, { reps: 10, loadKg: 35 }] } },
+            { name: "Bench Press", muscle: "chest", equipment: "barbell", secondaryMuscles: ["triceps", "shoulders"], target: { kind: "sets", sets: [{ reps: 8, loadKg: 70 }, { reps: 8, loadKg: 70 }, { reps: 8, loadKg: 70 }] }, note: "~70% 1RM · 1 RIR" },
+            { name: "Overhead Press", muscle: "shoulders", equipment: "barbell", secondaryMuscles: ["triceps"], target: { kind: "sets", sets: [{ reps: 10, loadKg: 35 }, { reps: 10, loadKg: 35 }, { reps: 10, loadKg: 35 }] } },
           ],
         },
         {
           title: "Pull",
           exercises: [
-            { name: "Pull-Up", target: { kind: "sets", sets: [{ reps: 8 }, { reps: 8 }, { reps: 8 }] } },
-            { name: "Cable Row Machine", target: { kind: "sets", sets: [{ reps: 12, loadKg: 45 }, { reps: 12, loadKg: 45 }, { reps: 12, loadKg: 45 }] } },
+            { name: "Pull-Up", muscle: "back", equipment: "calisthenics", secondaryMuscles: ["biceps"], target: { kind: "sets", sets: [{ reps: 8 }, { reps: 8 }, { reps: 8 }] } },
+            { name: "Cable Row Machine", muscle: "back", equipment: "cable", secondaryMuscles: ["biceps", "traps"], target: { kind: "sets", sets: [{ reps: 12, loadKg: 45 }, { reps: 12, loadKg: 45 }, { reps: 12, loadKg: 45 }] } },
           ],
         },
       ],
@@ -276,13 +289,13 @@ const WHOLE_EXAMPLE_SHEET = {
         {
           title: "Main",
           exercises: [
-            { name: "Barbell Squat", target: { kind: "sets", sets: [{ reps: 8, loadKg: 90 }, { reps: 8, loadKg: 90 }, { reps: 8, loadKg: 90 }] }, note: "~72% 1RM · 1–2 RIR" },
-            { name: "Romanian Deadlift", target: { kind: "sets", sets: [{ reps: 10, loadKg: 80 }, { reps: 10, loadKg: 80 }, { reps: 10, loadKg: 80 }] } },
+            { name: "Barbell Squat", muscle: "legs", equipment: "barbell", secondaryMuscles: ["glutes", "lower-back"], target: { kind: "sets", sets: [{ reps: 8, loadKg: 90 }, { reps: 8, loadKg: 90 }, { reps: 8, loadKg: 90 }] }, note: "~72% 1RM · 1–2 RIR" },
+            { name: "Romanian Deadlift", muscle: "legs", equipment: "barbell", secondaryMuscles: ["glutes", "lower-back"], target: { kind: "sets", sets: [{ reps: 10, loadKg: 80 }, { reps: 10, loadKg: 80 }, { reps: 10, loadKg: 80 }] } },
           ],
         },
         {
           title: "Accessory",
-          exercises: [{ name: "Standing Calf Raise", target: { kind: "sets", sets: [{ reps: 15, loadKg: 40 }, { reps: 15, loadKg: 40 }, { reps: 15, loadKg: 40 }] } }],
+          exercises: [{ name: "Standing Calf Raise", muscle: "calves", equipment: "machine", target: { kind: "sets", sets: [{ reps: 15, loadKg: 40 }, { reps: 15, loadKg: 40 }, { reps: 15, loadKg: 40 }] } }],
         },
       ],
     },
@@ -409,6 +422,7 @@ function sheetSpecLines(example: unknown, anchor: string): string[] {
     '- "name": a short title for the whole block (mention the goal).',
     '- "routines": one entry per training day. Set "kind" to "session" and organise each day into named "sections" (e.g. "Main", "Accessory"). Give each a short "title" and a couple of "tags".',
     '- Each exercise has a "name" and a structured "target". Use { "kind": "sets", "sets": [{ "reps": 5, "loadKg": 90 }, ...] } so each working set carries its own reps and load in kg. Omit "loadKg" only for true bodyweight movements. You may add a short "note" for the intensity cue (e.g. "~85% 1RM · 2 RIR").',
+    `- Also tag every exercise with "muscle" (its primary muscle group) and "equipment" (how it's loaded), plus "secondaryMuscles" (an array) for compound lifts that also work other muscles. Use these exact "muscle"/"secondaryMuscles" values: ${MUSCLE_VALUES}. Use these exact "equipment" values: ${EQUIPMENT_VALUES}. Pick the closest match for each.`,
     `- Anchor every loadKg to ${anchor} (convert any %1RM to kg) and round to a realistic gym increment (nearest 2.5 kg for barbells).`,
     "",
     "Reply with ONLY one ```json code block containing the block, and no other text.",
