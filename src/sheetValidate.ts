@@ -189,6 +189,7 @@ export function validateSheet(input: unknown): RoutineSheet {
 
   const rawId = input["id"];
   const id = typeof rawId === "string" && rawId.trim() !== "" ? rawId : uuid();
+  const createdAt = input["createdAt"];
   const updatedAt = input["updatedAt"];
 
   return {
@@ -197,6 +198,7 @@ export function validateSheet(input: unknown): RoutineSheet {
     id,
     name,
     routines: routines.map(validateRoutine),
+    ...(typeof createdAt === "string" ? { createdAt } : {}),
     ...(typeof updatedAt === "string" ? { updatedAt } : {}),
   };
 }

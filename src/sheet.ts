@@ -87,6 +87,7 @@ export function blankSheet(): RoutineSheet {
     id: uuid(),
     name: "New Routine Sheet",
     routines: [blankRoutine()],
+    createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -228,6 +229,7 @@ export function defaultSheet(): RoutineSheet {
     id: uuid(),
     name: "Rutina Impins — Calisthenics",
     routines,
+    createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -393,6 +395,7 @@ export function defaultPullSheet(): RoutineSheet {
     id: PULL_SHEET_ID,
     name: "Rutina Tras — Calisthenics",
     routines,
+    createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
 }

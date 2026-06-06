@@ -45,11 +45,18 @@ function writeAll(sheets: RoutineSheet[]): void {
   }
 }
 
-/** Insert or update a sheet by id, stamping updatedAt. Returns the stored copy. */
+/**
+ * Insert or update a sheet by id, stamping updatedAt. The createdAt date is set
+ * once on first save and preserved on every later save (preferring the sheet's
+ * own, then the stored copy's, then now), so the creation date never drifts.
+ * Returns the stored copy.
+ */
 export function saveSheet(sheet: RoutineSheet): RoutineSheet & { updatedAt: string } {
-  const stored = { ...sheet, updatedAt: new Date().toISOString() };
+  const now = new Date().toISOString();
   const sheets = loadSheets();
-  const idx = sheets.findIndex((s) => s.id === stored.id);
+  const idx = sheets.findIndex((s) => s.id === sheet.id);
+  const createdAt = sheet.createdAt ?? (idx >= 0 ? sheets[idx]?.createdAt : undefined) ?? now;
+  const stored = { ...sheet, createdAt, updatedAt: now };
   if (idx >= 0) sheets[idx] = stored;
   else sheets.push(stored);
   writeAll(sheets);

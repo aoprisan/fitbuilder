@@ -159,6 +159,7 @@ export function cloneSheet(sheet: RoutineSheet): RoutineSheet {
     id: sheet.id,
     name: sheet.name,
     routines: sheet.routines.map(cloneRoutine),
+    ...(sheet.createdAt !== undefined ? { createdAt: sheet.createdAt } : {}),
     ...(sheet.updatedAt !== undefined ? { updatedAt: sheet.updatedAt } : {}),
   };
 }
@@ -357,6 +358,17 @@ export function formatSessionDate(iso: string): string {
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
+  });
+}
+
+/** Format an ISO timestamp as a short, time-less date like "22 May 2026". */
+export function formatShortDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
   });
 }
 

@@ -39,6 +39,7 @@ import {
 } from "../types";
 import {
   cloneSheet,
+  formatShortDate,
   routineExerciseCount,
   routineKind,
   sheetToJson,
@@ -201,6 +202,7 @@ registerTranslations({
   "+ Add routine": "+ Adaugă rutină",
   Edit: "Editează",
   Library: "Bibliotecă",
+  "Created {0}": "Creat {0}",
   Brand: "Marcă",
   Routines: "Rutine",
   "Routines sections": "Secțiuni rutine",
@@ -1270,6 +1272,14 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
                 .replace("{0}", String(s.routines.length))
                 .replace("{1}", String(exCount)),
             }),
+            ...(s.createdAt
+              ? [
+                  h("p", {
+                    class: "plan-meta saved-created",
+                    text: t("Created {0}").replace("{0}", formatShortDate(s.createdAt)),
+                  }),
+                ]
+              : []),
           ]),
           h("div", { class: "btn-row saved-actions" }, [
             h("button", {
