@@ -50,8 +50,8 @@ const TAP_SLOP = 6; // px of movement still counted as a tap, not a drag
 /** Build the full set of body parts. Front faces +z; the group is auto-centred. */
 function buildParts(): PartSpec[] {
   const cap = (r: number, len: number): THREE.CapsuleGeometry =>
-    new THREE.CapsuleGeometry(r, len, 6, 14);
-  const ball = (r: number): THREE.SphereGeometry => new THREE.SphereGeometry(r, 20, 16);
+    new THREE.CapsuleGeometry(r, len, 10, 20);
+  const ball = (r: number): THREE.SphereGeometry => new THREE.SphereGeometry(r, 24, 18);
   const box = (w: number, h: number, d: number): THREE.BoxGeometry =>
     new THREE.BoxGeometry(w, h, d);
 
@@ -61,12 +61,14 @@ function buildParts(): PartSpec[] {
     { geo: cap(0.13, 0.16), pos: [0, 2.74, 0] }, // neck
     { geo: cap(0.42, 0.95), pos: [0, 1.95, 0] }, // trunk core
     { geo: cap(0.34, 0.16), pos: [0, 1.16, 0] }, // pelvis
+    { geo: ball(0.12), pos: [-0.8, 1.62, 0.0] }, // left elbow
+    { geo: ball(0.12), pos: [0.8, 1.62, 0.0] }, // right elbow
     { geo: ball(0.11), pos: [-0.9, 0.95, 0.04] }, // left hand
     { geo: ball(0.11), pos: [0.9, 0.95, 0.04] }, // right hand
-    { geo: ball(0.13), pos: [-0.3, 0.2, 0.03] }, // left knee
-    { geo: ball(0.13), pos: [0.3, 0.2, 0.03] }, // right knee
-    { geo: box(0.24, 0.16, 0.5), pos: [-0.3, -1.62, 0.12] }, // left foot
-    { geo: box(0.24, 0.16, 0.5), pos: [0.3, -1.62, 0.12] }, // right foot
+    { geo: ball(0.13), pos: [-0.3, 0.05, 0.03] }, // left knee
+    { geo: ball(0.13), pos: [0.3, 0.05, 0.03] }, // right knee
+    { geo: box(0.24, 0.16, 0.5), pos: [-0.3, -1.12, 0.12] }, // left foot
+    { geo: box(0.24, 0.16, 0.5), pos: [0.3, -1.12, 0.12] }, // right foot
 
     // — torso muscles (plates on the trunk's front/back faces) —
     { geo: box(0.72, 0.22, 0.36), pos: [0, 2.48, -0.05], muscle: "traps" },
@@ -92,8 +94,8 @@ function buildParts(): PartSpec[] {
     { geo: ball(0.22), pos: [0.18, 1.02, -0.16], muscle: "glutes" },
     { geo: cap(0.2, 0.55), pos: [-0.3, 0.55, 0.02], muscle: "legs" },
     { geo: cap(0.2, 0.55), pos: [0.3, 0.55, 0.02], muscle: "legs" },
-    { geo: cap(0.14, 0.42), pos: [-0.3, -0.32, -0.04], muscle: "calves" },
-    { geo: cap(0.14, 0.42), pos: [0.3, -0.32, -0.04], muscle: "calves" },
+    { geo: cap(0.14, 0.8), pos: [-0.3, -0.45, -0.04], muscle: "calves" },
+    { geo: cap(0.14, 0.8), pos: [0.3, -0.45, -0.04], muscle: "calves" },
   ];
 }
 
@@ -105,17 +107,29 @@ export function createBodyScene(initialSize = 320): BodyScene {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(initialSize, initialSize);
+  // A soft contact shadow under the figure grounds it; PCFSoft keeps the edge gentle.
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
 
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.1));
-  const key = new THREE.DirectionalLight(0xffffff, 1.4);
-  key.position.set(2, 4, 3);
+  // Soft sky/ground ambient, a warm key that casts the shadow, a cool back rim for
+  // edge separation, and a gentle front fill so the muscles facing us aren't flat.
+  scene.add(new THREE.HemisphereLight(0xfff6e8, 0x3a3833, 0.95));
+  const key = new THREE.DirectionalLight(0xfff4e2, 1.35);
+  key.position.set(2.5, 5, 3);
+  key.castShadow = true;
+  key.shadow.mapSize.set(1024, 1024);
+  key.shadow.radius = 4;
+  key.shadow.bias = -0.0008;
   scene.add(key);
-  const rim = new THREE.DirectionalLight(0xffffff, 0.5);
-  rim.position.set(-3, 1, -2);
+  const rim = new THREE.DirectionalLight(0xdce6ff, 0.55);
+  rim.position.set(-3, 1.5, -2.5);
   scene.add(rim);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.3);
+  fill.position.set(-1, -0.5, 4);
+  scene.add(fill);
 
   const body = new THREE.Group();
   scene.add(body);
@@ -137,6 +151,7 @@ export function createBodyScene(initialSize = 320): BodyScene {
     }
     const mesh = new THREE.Mesh(part.geo, material);
     mesh.position.set(part.pos[0], part.pos[1], part.pos[2]);
+    mesh.castShadow = true;
     if (part.muscle) {
       meshMuscle.set(mesh, part.muscle);
       pickable.push(mesh);
@@ -154,6 +169,29 @@ export function createBodyScene(initialSize = 320): BodyScene {
   const fitDist = (sphere.radius * 1.15) / Math.sin((camera.fov * Math.PI) / 180 / 2);
   camera.position.set(0, 0, fitDist);
   camera.lookAt(0, 0, 0);
+
+  // Fit the key light's shadow frustum to the figure so the contact shadow is crisp.
+  const shadowCam = key.shadow.camera;
+  const span = sphere.radius * 1.4;
+  shadowCam.left = -span;
+  shadowCam.right = span;
+  shadowCam.top = span;
+  shadowCam.bottom = -span;
+  shadowCam.near = 0.1;
+  shadowCam.far = fitDist + sphere.radius * 2;
+  shadowCam.updateProjectionMatrix();
+
+  // A transparent floor just under the feet that catches only the shadow — over the
+  // paper background (canvas alpha) it reads as a soft contact shadow, nothing more.
+  const floorY = box.min.y - center.y - 0.02;
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(span * 4, span * 4),
+    new THREE.ShadowMaterial({ opacity: 0.16 }),
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = floorY;
+  floor.receiveShadow = true;
+  scene.add(floor);
 
   // — interaction state —
   let rotY = 0.35; // start turned slightly so it reads as 3D
@@ -267,6 +305,8 @@ export function createBodyScene(initialSize = 320): BodyScene {
       for (const g of owned) g.dispose();
       for (const m of regionMats.values()) m.dispose();
       neutralMat.dispose();
+      floor.geometry.dispose();
+      (floor.material as THREE.Material).dispose();
       renderer.dispose();
     },
   };
