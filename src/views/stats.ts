@@ -13,6 +13,8 @@ import {
   shareStats,
   startTargetInClaude,
 } from "../exporters";
+import { isCompoundKey } from "../claudeRoutine";
+import { seedRoutineKey } from "./claudeRoutine";
 import { loadSessions } from "../logStorage";
 import { loadOneRmMaxes } from "../oneRmStore";
 import { buildHypertrophyPrompt, type HypertrophyTarget, hypertrophyTarget } from "../progression";
@@ -39,6 +41,10 @@ registerTranslations({
   Stats: "Statistici",
   "How your live sessions trend over time — reps, weight, their combined volume, plus strength and hypertrophy progress. Filter to one exercise to track progressive overload.":
     "Cum evoluează antrenamentele tale în timp — repetări, greutate, volumul lor combinat, plus progresul la forță și hipertrofie. Filtrează un singur exercițiu pentru a urmări supraîncărcarea progresivă.",
+  "Build a routine": "Construiește o rutină",
+  "Turn this lift's history into a set-based block — strength, hypertrophy or a 1RM peak.":
+    "Transformă istoricul acestui exercițiu într-un bloc bazat pe serii — forță, hipertrofie sau un vârf 1RM.",
+  "Build a routine ▸": "Construiește o rutină ▸",
   "Weekly volume →": "Volum săptămânal →",
   "weekly training volume per muscle": "volum săptămânal de antrenament pe mușchi",
   "Body map →": "Hartă corporală →",
@@ -317,6 +323,7 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
       if (typical) container.append(renderTypicalSession(typical));
       const target = hypertrophyTarget(sessions, filter);
       if (target) container.append(renderTargetSession(target, sessions, filter));
+      if (isCompoundKey(filter)) container.append(renderRoutineCta(filter));
     }
 
     if (best.logged > 0 || best.estimated > 0) container.append(renderOneRmHeadline(best));
@@ -635,6 +642,35 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
         }),
       ]),
       status,
+    ]);
+  }
+
+  /**
+   * Discovery card for the set-based routine builder: a compound lift with logged
+   * history is the ideal seed for it, so offer to hand this exercise's history to
+   * Claude for a periodised strength/hypertrophy/1RM block. Seeds the builder's
+   * lift selection so it opens on the exercise the user is already viewing.
+   */
+  function renderRoutineCta(key: ProgressFilter): HTMLElement {
+    return h("section", { class: "card target-session" }, [
+      h("span", { class: "effort-eyebrow", text: t("Build a routine") }),
+      h("p", {
+        class: "effort-meta",
+        text: t("Turn this lift's history into a set-based block — strength, hypertrophy or a 1RM peak."),
+      }),
+      h("div", { class: "btn-row" }, [
+        h("button", {
+          class: "btn btn-small btn-accent",
+          type: "button",
+          text: t("Build a routine ▸"),
+          on: {
+            click: () => {
+              if (key !== "all") seedRoutineKey(key);
+              nav.go("claudeRoutine");
+            },
+          },
+        }),
+      ]),
     ]);
   }
 

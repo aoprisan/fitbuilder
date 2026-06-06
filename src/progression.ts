@@ -151,7 +151,7 @@ const TARGET_HISTORY_SESSIONS = 12;
 const MUSCLE_CONTEXT_SESSIONS = 4;
 
 /** Recent per-exercise history as compact markdown lines, oldest → newest (last `limit`). */
-function exerciseHistoryLines(
+export function exerciseHistoryLines(
   sessions: TrainingSession[],
   key: ExerciseKey,
   limit: number,
