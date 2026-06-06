@@ -4343,33 +4343,45 @@ textarea:focus-visible {
   user-select: none;
 }
 
-/* Fallback list (no WebGL): the same colours as flat swatched rows. */
+/* Fallback (no WebGL): a flat SVG front/back diagram, shaded by the same ramp. */
 .bodymap-stage.is-fallback {
   padding: 14px;
   gap: 10px;
 }
 
-.bodymap-fallback {
+.bodysvg {
   width: 100%;
+  max-width: 320px;
+  height: auto;
+  display: block;
 }
 
-.bodymap-fallback-row {
-  align-items: center;
-  gap: 10px;
+.bodysvg-region {
+  fill: var(--paper-ash);
+  stroke: var(--ink);
+  stroke-width: 1.5;
   cursor: pointer;
+  transition: fill 0.15s ease;
 }
 
-.bodymap-swatch {
-  flex: 0 0 auto;
-  width: 18px;
-  height: 18px;
-  border: 2px solid var(--ink);
-  background: var(--paper-ash);
+.bodysvg-region:hover {
+  stroke-width: 2.5;
 }
 
-.bodymap-fallback-stat {
-  margin-left: auto;
-  text-align: right;
+.bodysvg-inert {
+  fill: var(--paper-ash);
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+
+.bodysvg-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  fill: var(--ink-soft);
+  text-anchor: middle;
 }
 
 .bodymap-readout {

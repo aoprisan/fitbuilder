@@ -2,7 +2,6 @@ import type { BodyScene } from "../body3d";
 import {
   BODY_METRIC_LABELS,
   BODY_METRICS,
-  BODY_MUSCLES,
   type BodyMetric,
   METRIC_LEGEND,
   metricColor,
@@ -15,6 +14,7 @@ import { registerTranslations, t } from "../i18n";
 import { loadSessions } from "../logStorage";
 import type { Cleanup, Nav } from "../router";
 import { MUSCLE_LABELS, type MuscleGroup } from "../types";
+import { buildBodySvg } from "./bodySvg";
 
 registerTranslations({
   "Muscle map": "Hartă musculară",
@@ -55,8 +55,8 @@ registerTranslations({
   "No sessions logged yet — train a live session and your body map fills in here.":
     "Niciun antrenament înregistrat încă — fă un antrenament Live și harta corporală se va completa aici.",
   "Start Live Session": "Pornește Antrenament Live",
-  "3D view unavailable — showing a list instead.":
-    "Vizualizarea 3D nu este disponibilă — se afișează o listă.",
+  "3D view unavailable — showing a flat diagram instead.":
+    "Vizualizarea 3D nu este disponibilă — se afișează o diagramă plată.",
   "← Stats": "← Statistici",
   Weekly: "Săptămânal",
   Recovery: "Recuperare",
@@ -109,7 +109,7 @@ export function mountBody(root: HTMLElement, nav: Nav): Cleanup {
   let metric: BodyMetric = "strength";
   let scores = new Map<MuscleGroup, MuscleScore>();
   let scene: BodyScene | null = null;
-  let fallback: { el: HTMLElement; update: () => void } | null = null;
+  let fallback: { el: Element; update: () => void } | null = null;
   let disposed = false;
 
   // — metric toggle (mirrors the segmented mode/theme toggles) —
@@ -204,35 +204,7 @@ export function mountBody(root: HTMLElement, nav: Nav): Cleanup {
     readout.textContent = s ? `${label} — ${t(s.detail)}` : label;
   }
 
-  /** Flat fallback: a swatch + name + reading per muscle, used when WebGL fails. */
-  function buildFallback(): { el: HTMLElement; update: () => void } {
-    const rows = new Map<MuscleGroup, { swatch: HTMLElement; stat: HTMLElement }>();
-    const wrap = h("div", { class: "bodymap-fallback summary-muscles" });
-    for (const muscle of BODY_MUSCLES) {
-      const swatch = h("span", { class: "bodymap-swatch" });
-      const stat = h("span", { class: "muscle-stat bodymap-fallback-stat" });
-      const row = h("div", { class: "muscle-row bodymap-fallback-row" }, [
-        swatch,
-        h("span", { class: "muscle-name", text: t(MUSCLE_LABELS[muscle]) }),
-        stat,
-      ]);
-      row.addEventListener("click", () => showReadout(muscle));
-      rows.set(muscle, { swatch, stat });
-      wrap.appendChild(row);
-    }
-    return {
-      el: wrap,
-      update: () => {
-        for (const [muscle, { swatch, stat }] of rows) {
-          swatch.style.background = metricColor(metric, scores.get(muscle)?.value ?? null);
-          const s = scores.get(muscle);
-          stat.textContent = s ? t(s.detail) : "";
-        }
-      },
-    };
-  }
-
-  // — lazy-load Three.js and build the figure; fall back to a list on failure —
+  // — lazy-load Three.js and build the figure; fall back to an SVG body on failure —
   const ro = new ResizeObserver(() => {
     if (!scene) return;
     const w = stage.clientWidth || 320;
@@ -254,9 +226,12 @@ export function mountBody(root: HTMLElement, nav: Nav): Cleanup {
     } catch {
       if (disposed) return;
       stage.classList.add("is-fallback");
-      fallback = buildFallback();
+      fallback = buildBodySvg({
+        colorFor: (m) => metricColor(metric, scores.get(m)?.value ?? null),
+        onPick: showReadout,
+      });
       stage.append(
-        h("p", { class: "plan-meta", text: t("3D view unavailable — showing a list instead.") }),
+        h("p", { class: "plan-meta", text: t("3D view unavailable — showing a flat diagram instead.") }),
         fallback.el,
       );
       applyMetric();
