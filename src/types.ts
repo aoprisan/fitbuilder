@@ -223,6 +223,8 @@ export interface RoutineSheet {
   /** Document title, e.g. "Rutina Impins — Calisthenics". */
   name: string;
   routines: Routine[];
+  /** ISO timestamp of when the sheet was first created. Stamped on first save. */
+  createdAt?: string;
   /** ISO timestamp of last save. */
   updatedAt?: string;
 }

@@ -20,6 +20,7 @@ import { mountExecute } from "./views/execute";
 import { mountHome } from "./views/home";
 import { mountLive } from "./views/live";
 import { mountRecovery } from "./views/recovery";
+import { mountSavedRoutines } from "./views/savedRoutines";
 import { mountSheet } from "./views/sheet";
 import { mountStats } from "./views/stats";
 import { mountTrain } from "./views/train";
@@ -115,7 +116,7 @@ const NAV_BY_MODE: Record<AppMode, ReadonlyArray<NavItem>> = {
 function tabForView(view: ViewName): ViewName {
   if (view === "live" || view === "execute") return "train";
   if (view === "weekly" || view === "body") return "stats";
-  if (view === "claudeStart") return "home";
+  if (view === "claudeStart" || view === "savedRoutines") return "home";
   if (view === "claudeRoutine") return "stats";
   return view;
 }
@@ -213,6 +214,9 @@ function boot(): void {
         break;
       case "sheet":
         result = mountSheet(viewHost, nav);
+        break;
+      case "savedRoutines":
+        result = mountSavedRoutines(viewHost, nav);
         break;
       case "execute":
         result = mountExecute(viewHost, nav);

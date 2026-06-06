@@ -5,6 +5,7 @@ import { getSession, loadSessions } from "../logStorage";
 import { loadMode } from "../mode";
 import { allMovements } from "../movements";
 import { clearOneRm, loadOneRmMaxes, setOneRm } from "../oneRmStore";
+import { loadSheets } from "../sheetStorage";
 import {
   muscleRecovery,
   overallRecovery,
@@ -65,6 +66,14 @@ registerTranslations({
     "Înregistrează un maxim pe care l-ai testat — în timpul sau în afara unui antrenament. Alege exercițiul, introdu greutatea și apare în Statistici.",
   Lift: "Exercițiu",
   "Tested max (kg)": "Maxim testat (kg)",
+  "Your routines": "Rutinele tale",
+  "Saved routines": "Rutine salvate",
+  "Routines your coach shared with you, saved on this device — run one as a checklist or start it live.":
+    "Rutine pe care antrenorul ți le-a trimis, salvate pe acest dispozitiv — rulează una ca listă de bifat sau pornește-o live.",
+  "{0} saved": "{0} salvate",
+  "No routines saved yet — open a link from your coach to add one.":
+    "Nicio rutină salvată încă — deschide un link de la antrenorul tău pentru a adăuga una.",
+  "View saved routines": "Vezi rutinele salvate",
   "For routines & coaching": "Pentru rutine și coaching",
   Routines: "Rutine",
   "Build or import training routines and share them as PNG/PDF on WhatsApp — for a coach handing plans to students. Run one live to log it, or as a checklist.":
@@ -160,6 +169,33 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
             }),
           ]
         : []),
+    ]),
+  ]);
+
+  // ── Saved routines — a student's library of coach-shared plans ────────────
+  const savedSheetCount = loadSheets().length;
+  const savedRoutinesCard = h("section", { class: "card" }, [
+    h("p", { class: "eyebrow", text: t("Your routines") }),
+    h("h2", { class: "section-title", text: t("Saved routines") }),
+    h("p", {
+      class: "plan-meta",
+      text: t(
+        "Routines your coach shared with you, saved on this device — run one as a checklist or start it live.",
+      ),
+    }),
+    h("p", {
+      class: "plan-meta",
+      text:
+        savedSheetCount > 0
+          ? t("{0} saved").replace("{0}", String(savedSheetCount))
+          : t("No routines saved yet — open a link from your coach to add one."),
+    }),
+    h("div", { class: "btn-row" }, [
+      h("button", {
+        class: "btn btn-accent",
+        text: t("View saved routines"),
+        on: { click: () => nav.go("savedRoutines") },
+      }),
     ]),
   ]);
 
@@ -345,7 +381,14 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
   const cards =
     loadMode() === "trainer"
       ? [hero, routinesLane]
-      : [hero, trainingLane, claudeStartCard, renderRecoveryCard(), renderOneRmCard()];
+      : [
+          hero,
+          trainingLane,
+          savedRoutinesCard,
+          claudeStartCard,
+          renderRecoveryCard(),
+          renderOneRmCard(),
+        ];
 
   root.appendChild(h("div", { class: "view view-home" }, cards));
 }

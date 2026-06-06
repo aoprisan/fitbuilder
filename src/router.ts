@@ -4,6 +4,7 @@ export type ViewName =
   | "home"
   | "train"
   | "sheet"
+  | "savedRoutines"
   | "execute"
   | "live"
   | "stats"
