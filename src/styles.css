@@ -4206,7 +4206,8 @@ textarea:focus-visible {
   .view-execute,
   .view-claude-start,
   .view-recovery,
-  .view-weekly {
+  .view-weekly,
+  .view-body {
     max-width: 880px;
   }
 
@@ -4304,4 +4305,114 @@ textarea:focus-visible {
 
 .qr-overlay__actions {
   justify-content: center;
+}
+
+/* ─────────────────────────── BODY MAP ───────────────────────────
+   The rotatable 3D muscle figure (views/body.ts). The metric toggle reuses the
+   segmented .mode-toggle; the stage hosts the WebGL canvas (or a flat fallback
+   list), under a gradient legend keyed to the active metric. */
+
+.bodymap-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+}
+
+.bodymap-metrics {
+  align-self: center;
+}
+
+.bodymap-stage {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  border: 2px solid var(--ink);
+  background: var(--paper-deep);
+  box-shadow: 4px 4px 0 0 var(--ink);
+}
+
+.bodymap-canvas {
+  display: block;
+  touch-action: none;
+  user-select: none;
+}
+
+/* Fallback list (no WebGL): the same colours as flat swatched rows. */
+.bodymap-stage.is-fallback {
+  padding: 14px;
+  gap: 10px;
+}
+
+.bodymap-fallback {
+  width: 100%;
+}
+
+.bodymap-fallback-row {
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.bodymap-swatch {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--ink);
+  background: var(--paper-ash);
+}
+
+.bodymap-fallback-stat {
+  margin-left: auto;
+  text-align: right;
+}
+
+.bodymap-readout {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: var(--ink);
+  min-height: 1.2em;
+}
+
+.bodymap-legend {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bodymap-legend-scale {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bodymap-legend-bar {
+  flex: 1 1 auto;
+  height: 12px;
+  border: 2px solid var(--ink);
+}
+
+.bodymap-legend-end {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.bodymap-legend-desc {
+  margin: 0;
+  text-align: center;
 }

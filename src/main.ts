@@ -13,6 +13,7 @@ import { type AppMode, loadMode, saveMode } from "./mode";
 import { getTheme, setTheme, type Theme, THEMES } from "./theme";
 import { getLang, type Lang, onLangChange, registerTranslations, setLang, t } from "./i18n";
 import { cloneSheet, formatSessionDate } from "./util";
+import { mountBody } from "./views/body";
 import { mountClaudeStart } from "./views/claudeStart";
 import { mountExecute } from "./views/execute";
 import { mountHome } from "./views/home";
@@ -112,7 +113,7 @@ const NAV_BY_MODE: Record<AppMode, ReadonlyArray<NavItem>> = {
 /** Which visible tab a given view belongs under (for active-state highlighting). */
 function tabForView(view: ViewName): ViewName {
   if (view === "live" || view === "execute") return "train";
-  if (view === "weekly") return "stats";
+  if (view === "weekly" || view === "body") return "stats";
   if (view === "claudeStart") return "home";
   return view;
 }
@@ -225,6 +226,9 @@ function boot(): void {
         break;
       case "recovery":
         result = mountRecovery(viewHost, nav);
+        break;
+      case "body":
+        result = mountBody(viewHost, nav);
         break;
       case "claudeStart":
         result = mountClaudeStart(viewHost, nav);
