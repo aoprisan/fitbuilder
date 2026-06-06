@@ -41,6 +41,8 @@ registerTranslations({
     "Cum evoluează antrenamentele tale în timp — repetări, greutate, volumul lor combinat, plus progresul la forță și hipertrofie. Filtrează un singur exercițiu pentru a urmări supraîncărcarea progresivă.",
   "Weekly volume →": "Volum săptămânal →",
   "weekly training volume per muscle": "volum săptămânal de antrenament pe mușchi",
+  "Body map →": "Hartă corporală →",
+  "muscle map on a 3D body": "hartă musculară pe un corp 3D",
   "No sessions logged yet. Run a Live session and your progress charts will appear here.":
     "Niciun antrenament înregistrat încă. Pornește un antrenament Live și graficele de progres vor apărea aici.",
   "No sets logged for this exercise yet.":
@@ -242,6 +244,13 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
             text: t("Weekly volume →"),
             aria: { label: t("weekly training volume per muscle") },
             on: { click: () => nav.go("weekly") },
+          }),
+          h("button", {
+            class: "btn btn-small",
+            type: "button",
+            text: t("Body map →"),
+            aria: { label: t("muscle map on a 3D body") },
+            on: { click: () => nav.go("body") },
           }),
         ]),
       );

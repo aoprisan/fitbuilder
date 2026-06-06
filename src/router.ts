@@ -9,6 +9,7 @@ export type ViewName =
   | "stats"
   | "weekly"
   | "recovery"
+  | "body"
   | "claudeStart";
 
 export type Cleanup = () => void;
