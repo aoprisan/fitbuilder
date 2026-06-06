@@ -44,6 +44,11 @@ registerTranslations({
   "Build a routine": "Construiește o rutină",
   Readiness: "Pregătire",
   Recovery: "Recuperare",
+  "Muscle map": "Hartă musculară",
+  "Body map": "Hartă corporală",
+  "A 3D figure shaded by strength, growth, fatigue or efficiency — drag to spin, tap a muscle to read it.":
+    "O siluetă 3D colorată după forță, creștere, oboseală sau eficiență — rotește-o cu degetul, atinge un mușchi pentru detalii.",
+  "Open Body Map": "Deschide harta corporală",
   "Log a session to start tracking how recovered each muscle is — red just-worked, green ready again.":
     "Înregistrează o sesiune pentru a urmări cât de recuperat este fiecare mușchi — roșu tocmai lucrat, verde gata din nou.",
   "All muscle groups recovered — ready for a new session.":
@@ -196,6 +201,24 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
         text: t("View saved routines"),
         on: { click: () => nav.go("savedRoutines") },
       }),
+    ]),
+  ]);
+
+  // ── Body map — a link to the 3D muscle figure. A plain link card (no WebGL /
+  // Three.js loaded on Home) so it stays a cheap discovery shortcut; the heavy
+  // scene is built only once you open the view. Shown only with training logged,
+  // since the destination is empty without it.
+  const bodyMapCard = h("section", { class: "card" }, [
+    h("p", { class: "eyebrow", text: t("Muscle map") }),
+    h("h2", { class: "section-title", text: t("Body map") }),
+    h("p", {
+      class: "plan-meta",
+      text: t(
+        "A 3D figure shaded by strength, growth, fatigue or efficiency — drag to spin, tap a muscle to read it.",
+      ),
+    }),
+    h("div", { class: "btn-row" }, [
+      h("button", { class: "btn", text: t("Open Body Map"), on: { click: () => nav.go("body") } }),
     ]),
   ]);
 
@@ -386,6 +409,9 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
           trainingLane,
           claudeStartCard,
           renderRecoveryCard(),
+          // Body map sits beside Recovery (both read muscle state), once there's
+          // training to fill it in.
+          ...(last ? [bodyMapCard] : []),
           renderOneRmCard(),
           // Saved routines sit at the foot of the student home — the library is a
           // "go find a plan" destination, below the day-to-day train/track flow.
