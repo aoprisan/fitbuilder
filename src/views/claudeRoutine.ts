@@ -2,11 +2,15 @@ import { track } from "../analytics";
 import { parsePlanFromText } from "../claudePlan";
 import {
   buildRoutinePrompt,
+  buildWholeBodyPrompt,
   goalTitle,
   isCompoundKey,
   loggedCompoundOptions,
   type RoutineGoal,
   type RoutineInputs,
+  type RoutineScope,
+  type WholeBodyGoal,
+  type WholeBodyInputs,
 } from "../claudeRoutine";
 import { h } from "../dom";
 import { copyRoutinePrompt, startRoutineInClaude } from "../exporters";
@@ -18,19 +22,25 @@ import type { Cleanup, Nav } from "../router";
 import { loadSessions } from "../logStorage";
 import { saveSheet } from "../sheetStorage";
 import { setEditingSheet, setSheetFlash } from "../state";
-import { bestOneRm, type ExerciseKey, exerciseKeyLabel } from "../stats";
-import type { TrainingSession } from "../types";
+import { bestOneRm, type ExerciseKey, exerciseKeyLabel, presentExerciseKeys } from "../stats";
+import type { MuscleGroup, TrainingSession } from "../types";
 import { cloneSheet, round2 } from "../util";
 
 registerTranslations({
   "Build a strength routine": "Construiește o rutină de forță",
   "Build a routine from your training": "Construiește o rutină din antrenamentele tale",
-  "Pick a compound lift and a goal — Claude turns your logged history for that lift into a set-based block you can run, then paste it back to save it.":
-    "Alege un exercițiu compus și un obiectiv — Claude transformă istoricul tău pentru acel exercițiu într-un bloc bazat pe serii pe care îl poți rula, apoi lipește-l înapoi pentru a-l salva.",
+  "Turn your training history into a set-based block you can run — for one compound lift or your whole body — then paste it back to save it.":
+    "Transformă istoricul tău de antrenament într-un bloc bazat pe serii pe care îl poți rula — pentru un exercițiu compus sau pentru tot corpul — apoi lipește-l înapoi pentru a-l salva.",
   "Step 1": "Pasul 1",
-  "The lift & goal": "Exercițiul și obiectivul",
+  "Scope & goal": "Domeniu și obiectiv",
+  Scope: "Domeniu",
+  "One compound lift": "Un exercițiu compus",
+  "Whole body (all muscles)": "Tot corpul (toți mușchii)",
   "Compound lift": "Exercițiu compus",
   Goal: "Obiectiv",
+  "Based on {0} exercises across {1} muscles.": "Pe baza a {0} exerciții din {1} grupe musculare.",
+  "No training logged yet — Claude will draft a balanced starting split.":
+    "Niciun antrenament înregistrat încă — Claude va schița un split echilibrat de început.",
   Strength: "Forță",
   Hypertrophy: "Hipertrofie",
   "1RM Peak": "Vârf 1RM",
@@ -88,13 +98,21 @@ type StatusKind = "ok" | "err" | "info";
 /** History depths offered in the "base it on" selector (0 = every logged session). */
 const HISTORY_DEPTHS: readonly number[] = [4, 8, 12, 0];
 
-// One-shot seed so the Stats view can preselect the lift the user was looking at
-// (the same pattern as the sheet-flash hand-off). Consumed and cleared on mount.
-let seedKey: ExerciseKey | null = null;
+/** What a caller (Stats, Home) wants the next mount of the builder to open on. */
+export interface RoutineSeed {
+  /** Preselect this compound lift (and the single-lift scope). */
+  key?: ExerciseKey;
+  /** Open in this scope (single lift vs whole body). */
+  scope?: RoutineScope;
+}
 
-/** Preselect the compound lift the next mount of this view opens on. */
-export function seedRoutineKey(key: ExerciseKey): void {
-  seedKey = key;
+// One-shot seed so other views can preset the builder (the same pattern as the
+// sheet-flash hand-off). Consumed and cleared on mount.
+let seed: RoutineSeed | null = null;
+
+/** Preset the lift and/or scope the next mount of this view opens on. */
+export function seedRoutine(next: RoutineSeed): void {
+  seed = next;
 }
 
 export function mountClaudeRoutine(root: HTMLElement, nav: Nav): Cleanup {
@@ -109,8 +127,22 @@ export function mountClaudeRoutine(root: HTMLElement, nav: Nav): Cleanup {
       ? logged
       : compoundMovements().map((mv) => ({ key: mv.id, label: exerciseKeyLabel(mv.id), sessionCount: 0 }));
 
-  const startKey = seedKey && isCompoundKey(seedKey) ? seedKey : (options[0]?.key ?? "");
-  seedKey = null;
+  const seededKey = seed?.key && isCompoundKey(seed.key) ? seed.key : undefined;
+  const startKey = seededKey ?? options[0]?.key ?? "";
+  // A seeded lift forces single-lift scope; otherwise honour an explicit scope,
+  // defaulting to single-lift (the richer programming path).
+  let scope: RoutineScope = seededKey ? "lift" : (seed?.scope ?? "lift");
+  seed = null;
+
+  // How many distinct exercises / muscles the whole-body summary will carry —
+  // the read shown under the inputs so the user knows what Claude works from.
+  const exerciseCount = presentExerciseKeys(sessions).length;
+  const trainedMuscles = new Set<MuscleGroup>();
+  for (const session of sessions) {
+    for (const ex of session.exercises) {
+      if (ex.sets.length > 0 && ex.muscle !== "cardio") trainedMuscles.add(ex.muscle);
+    }
+  }
 
   const inputs: RoutineInputs = {
     key: startKey,
@@ -125,21 +157,32 @@ export function mountClaudeRoutine(root: HTMLElement, nav: Nav): Cleanup {
     statusEl.className = `status status-${kind}`;
   };
 
-  // ---- Step 1: the lift, goal, history depth & schedule ---------------------
+  // ---- Step 1: scope, the lift, goal, history depth & schedule --------------
+  const scopeSelect = h("select", { class: "field-select", aria: { label: t("Scope") } }, [
+    h("option", { value: "lift", text: t("One compound lift") }),
+    h("option", { value: "whole", text: t("Whole body (all muscles)") }),
+  ]);
+  scopeSelect.value = scope;
+
   const liftSelect = h(
     "select",
     { class: "field-select", aria: { label: t("Compound lift") } },
     options.map((o) => h("option", { value: o.key, text: o.label })),
   );
   liftSelect.value = inputs.key;
+  // Wrapped so the whole field hides in whole-body scope (no lift to pick).
+  const liftField = h("label", { class: "field" }, [
+    h("span", { class: "field-label", text: t("Compound lift") }),
+    liftSelect,
+  ]);
 
-  const goalSelect = h(
-    "select",
-    { class: "field-select", aria: { label: t("Goal") } },
-    (["strength", "hypertrophy", "peak-1rm"] as const).map((g) =>
-      h("option", { value: g, text: t(goalTitle(g)) }),
-    ),
-  );
+  // A 1RM peak is inherently lift-specific, so its option is removed in whole-body scope.
+  const peakOption = h("option", { value: "peak-1rm", text: t(goalTitle("peak-1rm")) });
+  const goalSelect = h("select", { class: "field-select", aria: { label: t("Goal") } }, [
+    h("option", { value: "strength", text: t(goalTitle("strength")) }),
+    h("option", { value: "hypertrophy", text: t(goalTitle("hypertrophy")) }),
+    peakOption,
+  ]);
   goalSelect.value = inputs.goal;
   goalSelect.addEventListener("change", () => {
     inputs.goal = goalSelect.value as RoutineGoal;
@@ -175,11 +218,30 @@ export function mountClaudeRoutine(root: HTMLElement, nav: Nav): Cleanup {
     inputs.daysPerWeek = Number(daysSelect.value);
   });
 
-  // A live read of the selected lift: its current best 1RM and how much history
-  // backs the prompt, so the user knows what Claude is working from.
+  // A live read of what Claude works from: in single-lift scope its current 1RM
+  // and history depth; in whole-body scope the breadth of training summarised.
   const oneRmLine = h("p", { class: "plan-meta" });
   const historyLine = h("p", { class: "plan-meta" });
+  const wholeLine = h("p", { class: "plan-meta" });
   const refreshContext = (): void => {
+    const isWhole = scope === "whole";
+    liftField.hidden = isWhole;
+    oneRmLine.hidden = isWhole;
+    historyLine.hidden = isWhole;
+    wholeLine.hidden = !isWhole;
+    peakOption.hidden = isWhole;
+    peakOption.disabled = isWhole;
+
+    if (isWhole) {
+      wholeLine.textContent =
+        exerciseCount === 0
+          ? t("No training logged yet — Claude will draft a balanced starting split.")
+          : t("Based on {0} exercises across {1} muscles.")
+              .replace("{0}", String(exerciseCount))
+              .replace("{1}", String(trainedMuscles.size));
+      return;
+    }
+
     const best = bestOneRm(sessions, inputs.key, loggedMaxes);
     const maxText =
       best.logged > 0
@@ -201,7 +263,30 @@ export function mountClaudeRoutine(root: HTMLElement, nav: Nav): Cleanup {
     inputs.key = liftSelect.value;
     refreshContext();
   });
+  scopeSelect.addEventListener("change", () => {
+    scope = scopeSelect.value as RoutineScope;
+    // A whole-body block can't peak a 1RM — fall back to strength if it was picked.
+    if (scope === "whole" && inputs.goal === "peak-1rm") {
+      inputs.goal = "strength";
+      goalSelect.value = "strength";
+    }
+    refreshContext();
+  });
   refreshContext();
+
+  // The prompt for the current scope: a single-lift block or a whole-body split.
+  const buildPrompt = (): string =>
+    scope === "whole"
+      ? buildWholeBodyPrompt(
+          sessions,
+          {
+            goal: inputs.goal as WholeBodyGoal,
+            sessionsBack: inputs.sessionsBack,
+            daysPerWeek: inputs.daysPerWeek,
+          } satisfies WholeBodyInputs,
+          loggedMaxes,
+        )
+      : buildRoutinePrompt(sessions, inputs, loggedMaxes);
 
   // ---- Step 2: hand the prompt to Claude ------------------------------------
   let busy = false;
@@ -211,7 +296,7 @@ export function mountClaudeRoutine(root: HTMLElement, nav: Nav): Cleanup {
     busy = true;
     setStatus(t("Opening Claude…"), "info");
     try {
-      const result = await startRoutineInClaude(buildRoutinePrompt(sessions, inputs, loggedMaxes));
+      const result = await startRoutineInClaude(buildPrompt());
       setStatus(
         result === "shared"
           ? t("Opened the share sheet — pick Claude, then send the prompt.")
@@ -235,7 +320,7 @@ export function mountClaudeRoutine(root: HTMLElement, nav: Nav): Cleanup {
     busy = true;
     setStatus(t("Copying the prompt…"), "info");
     try {
-      const result = await copyRoutinePrompt(buildRoutinePrompt(sessions, inputs, loggedMaxes));
+      const result = await copyRoutinePrompt(buildPrompt());
       setStatus(
         result === "copied"
           ? t("Copied the prompt — paste it into any AI chat.")
@@ -265,7 +350,7 @@ export function mountClaudeRoutine(root: HTMLElement, nav: Nav): Cleanup {
     }
     try {
       const stored = saveSheet(parsePlanFromText(pasteArea.value));
-      track("claude_routine_imported", { goal: inputs.goal });
+      track("claude_routine_imported", { goal: inputs.goal, scope });
       if (loadMode() === "trainer") {
         setSheetFlash(t('Added "{0}" from Claude. Edit it here.').replace("{0}", stored.name), "ok");
         nav.editSheet(cloneSheet(stored));
@@ -291,16 +376,14 @@ export function mountClaudeRoutine(root: HTMLElement, nav: Nav): Cleanup {
         h("h1", { class: "display", text: t("Build a routine from your training") }),
         h("p", {
           class: "lede",
-          text: t("Pick a compound lift and a goal — Claude turns your logged history for that lift into a set-based block you can run, then paste it back to save it."),
+          text: t("Turn your training history into a set-based block you can run — for one compound lift or your whole body — then paste it back to save it."),
         }),
       ]),
       h("section", { class: "card" }, [
         h("p", { class: "eyebrow", text: t("Step 1") }),
-        h("h2", { class: "section-title", text: t("The lift & goal") }),
-        h("label", { class: "field" }, [
-          h("span", { class: "field-label", text: t("Compound lift") }),
-          liftSelect,
-        ]),
+        h("h2", { class: "section-title", text: t("Scope & goal") }),
+        h("label", { class: "field" }, [h("span", { class: "field-label", text: t("Scope") }), scopeSelect]),
+        liftField,
         h("label", { class: "field" }, [h("span", { class: "field-label", text: t("Goal") }), goalSelect]),
         h("label", { class: "field" }, [
           h("span", { class: "field-label", text: t("Base it on") }),
@@ -312,6 +395,7 @@ export function mountClaudeRoutine(root: HTMLElement, nav: Nav): Cleanup {
         ]),
         oneRmLine,
         historyLine,
+        wholeLine,
       ]),
       h("section", { class: "card" }, [
         h("p", { class: "eyebrow", text: t("Step 2") }),

@@ -14,7 +14,7 @@ import {
   startTargetInClaude,
 } from "../exporters";
 import { isCompoundKey } from "../claudeRoutine";
-import { seedRoutineKey } from "./claudeRoutine";
+import { seedRoutine } from "./claudeRoutine";
 import { loadSessions } from "../logStorage";
 import { loadOneRmMaxes } from "../oneRmStore";
 import { buildHypertrophyPrompt, type HypertrophyTarget, hypertrophyTarget } from "../progression";
@@ -44,6 +44,8 @@ registerTranslations({
   "Build a routine": "Construiește o rutină",
   "Turn this lift's history into a set-based block — strength, hypertrophy or a 1RM peak.":
     "Transformă istoricul acestui exercițiu într-un bloc bazat pe serii — forță, hipertrofie sau un vârf 1RM.",
+  "Turn your whole training history into a balanced set-based split — strength or hypertrophy across every muscle.":
+    "Transformă tot istoricul tău de antrenament într-un split echilibrat bazat pe serii — forță sau hipertrofie pentru fiecare mușchi.",
   "Build a routine ▸": "Construiește o rutină ▸",
   "Weekly volume →": "Volum săptămânal →",
   "weekly training volume per muscle": "volum săptămânal de antrenament pe mușchi",
@@ -324,6 +326,8 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
       const target = hypertrophyTarget(sessions, filter);
       if (target) container.append(renderTargetSession(target, sessions, filter));
       if (isCompoundKey(filter)) container.append(renderRoutineCta(filter));
+    } else {
+      container.append(renderRoutineCta("all"));
     }
 
     if (best.logged > 0 || best.estimated > 0) container.append(renderOneRmHeadline(best));
@@ -646,17 +650,21 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
   }
 
   /**
-   * Discovery card for the set-based routine builder: a compound lift with logged
-   * history is the ideal seed for it, so offer to hand this exercise's history to
-   * Claude for a periodised strength/hypertrophy/1RM block. Seeds the builder's
-   * lift selection so it opens on the exercise the user is already viewing.
+   * Discovery card for the set-based routine builder. For a single compound lift
+   * it seeds that lift (deep, 1RM-aware programming for it); at the "all" scope it
+   * opens the whole-body mode (a balanced strength/hypertrophy split across every
+   * muscle the user trains). Either way Claude turns the logged history into a
+   * runnable, pasteable block.
    */
   function renderRoutineCta(key: ProgressFilter): HTMLElement {
+    const whole = key === "all";
     return h("section", { class: "card target-session" }, [
       h("span", { class: "effort-eyebrow", text: t("Build a routine") }),
       h("p", {
         class: "effort-meta",
-        text: t("Turn this lift's history into a set-based block — strength, hypertrophy or a 1RM peak."),
+        text: whole
+          ? t("Turn your whole training history into a balanced set-based split — strength or hypertrophy across every muscle.")
+          : t("Turn this lift's history into a set-based block — strength, hypertrophy or a 1RM peak."),
       }),
       h("div", { class: "btn-row" }, [
         h("button", {
@@ -665,7 +673,7 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
           text: t("Build a routine ▸"),
           on: {
             click: () => {
-              if (key !== "all") seedRoutineKey(key);
+              seedRoutine(whole ? { scope: "whole" } : { key, scope: "lift" });
               nav.go("claudeRoutine");
             },
           },

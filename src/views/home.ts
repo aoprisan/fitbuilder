@@ -15,6 +15,7 @@ import type { Nav } from "../router";
 import { exerciseKeyLabel } from "../stats";
 import { MUSCLE_LABELS } from "../types";
 import { round2, sessionSetCount } from "../util";
+import { seedRoutine } from "./claudeRoutine";
 import { recoveryRing, ringCell } from "./recovery";
 
 registerTranslations({
@@ -39,6 +40,7 @@ registerTranslations({
   "Resume Session": "Reia sesiunea",
   "Start Live Session": "Pornește sesiune live",
   "Progress Stats": "Statistici progres",
+  "Build a routine": "Construiește o rutină",
   Readiness: "Pregătire",
   Recovery: "Recuperare",
   "Log a session to start tracking how recovered each muscle is — red just-worked, green ready again.":
@@ -142,6 +144,22 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
         on: { click: () => nav.go("live") },
       }),
       h("button", { class: "btn", text: t("Progress Stats"), on: { click: () => nav.go("stats") } }),
+      // History-driven routine builder — only worth offering once there's training
+      // to build from (cold-start is covered by the "Get a plan from Claude" card).
+      ...(last
+        ? [
+            h("button", {
+              class: "btn",
+              text: t("Build a routine"),
+              on: {
+                click: () => {
+                  seedRoutine({ scope: "whole" });
+                  nav.go("claudeRoutine");
+                },
+              },
+            }),
+          ]
+        : []),
     ]),
   ]);
 
