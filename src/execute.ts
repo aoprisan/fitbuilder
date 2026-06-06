@@ -47,10 +47,11 @@ export interface RunItem {
    */
   target?: ExerciseTarget;
   /**
-   * Catalog identity, preferring the RoutineExercise's carried fields, falling
-   * back to a runtime `matchMovementByName(name)`. Absent only when the row
-   * has no carried identity and no name match — those rows still need the user
-   * to confirm muscle/gear at log time.
+   * Catalog identity, preferring the RoutineExercise's carried muscle + load type
+   * (which may omit the `exerciseId`), falling back to a runtime
+   * `matchMovementByName(name)`. Absent only when the row has no carried
+   * muscle/equipment and no name match — those rows still need the user to
+   * confirm muscle/gear at log time.
    */
   exerciseId?: string;
   muscle?: MuscleGroup;
@@ -171,13 +172,15 @@ function runItemFor(ex: RoutineExercise, ctx: FlattenContext): RunItem | null {
       : target?.kind === "volume"
         ? target.totalReps
         : null;
-  // Identity: prefer fields carried on the RoutineExercise; otherwise try
-  // a runtime name-match. Either source produces the same shape downstream.
-  const carried =
-    ex.exerciseId !== undefined && ex.muscle !== undefined && ex.equipment !== undefined;
+  // Identity: prefer the muscle + load type carried on the RoutineExercise (set
+  // by the builder/importer, or by a Claude-authored routine); otherwise try a
+  // runtime name-match. A carried identity may omit the catalog `exerciseId` —
+  // muscle + equipment alone are enough to credit the row, so we don't require it
+  // here. Either source produces the same shape downstream.
+  const carried = ex.muscle !== undefined && ex.equipment !== undefined;
   const identity = carried
     ? {
-        exerciseId: ex.exerciseId,
+        ...(ex.exerciseId !== undefined ? { exerciseId: ex.exerciseId } : {}),
         muscle: ex.muscle,
         equipment: ex.equipment,
         ...(ex.secondaryMuscles && ex.secondaryMuscles.length > 0
@@ -251,7 +254,7 @@ export interface RunExercise {
   equipment: Equipment;
   exerciseId?: string;
   secondaryMuscles?: readonly MuscleGroup[];
-  /** True when the name matched a catalog movement; false = a placeholder to confirm. */
+  /** True when the row has a resolved identity (carried muscle/equipment or a catalog name-match); false = a placeholder to confirm. */
   mapped: boolean;
 }
 
@@ -299,11 +302,11 @@ export class ExecuteController {
     this.items = flattenSheet(sheet);
     this.logged = this.items.map(() => []);
     this.meta = this.items.map((it) =>
-      it.exerciseId !== undefined && it.muscle !== undefined && it.equipment !== undefined
+      it.muscle !== undefined && it.equipment !== undefined
         ? {
             muscle: it.muscle,
             equipment: it.equipment,
-            exerciseId: it.exerciseId,
+            ...(it.exerciseId !== undefined ? { exerciseId: it.exerciseId } : {}),
             ...(it.secondaryMuscles && it.secondaryMuscles.length > 0
               ? { secondaryMuscles: [...it.secondaryMuscles] }
               : {}),

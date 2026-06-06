@@ -158,9 +158,11 @@ export interface RoutineExercise {
   note?: string;
   /**
    * Catalog identity carried from `movements.ts`, mirroring `LoggedExercise`.
-   * Populated when the builder/importer name matches a curated movement;
-   * absent on unmatched rows. Consumers (Execute, `sheetToSession`) prefer these
-   * when present, falling back to a runtime name-match.
+   * Populated when the builder/importer name matches a curated movement, or when
+   * a Claude-authored routine tags the row directly (`muscle` + `equipment`, often
+   * without an `exerciseId`); absent on unmatched, untagged rows. Consumers
+   * (Execute, `sheetToSession`) prefer the carried muscle + load type when present
+   * — the `exerciseId` is optional — falling back to a runtime name-match.
    */
   exerciseId?: string;
   muscle?: MuscleGroup;
