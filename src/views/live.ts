@@ -250,6 +250,9 @@ registerTranslations({
   "Distance (km)": "Distanță (km)",
   "Speed (km/h)": "Viteză (km/h)",
   "Incline (%)": "Înclinare (%)",
+  // — Floating "back to timer" button —
+  "↑ Timer": "↑ Cronometru",
+  "Back to the timer and set controls": "Înapoi la cronometru și controalele seriei",
 });
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -640,6 +643,32 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   // and timer are in view without scrolling past the exercise header. Reset to
   // null at the start of every render; null falls back to scroll-to-top.
   let scrollTargetEl: HTMLElement | null = null;
+
+  // Floating "jump back to the timer" button. During a live set (running /
+  // resting / logging) the action button + timer sit at the top of the screen,
+  // but the set list and effort read-out below can run long — so once those
+  // controls scroll out of view this fixed button fades in and a single tap
+  // returns to them, instead of finger-scrolling back up. `focusAnchorEl` is the
+  // element to return to (the action/timer row), repointed each render; an
+  // IntersectionObserver shows the button only while that anchor is off-screen.
+  let focusAnchorEl: HTMLElement | null = null;
+  const fab = h("button", {
+    class: "live-fab",
+    type: "button",
+    text: t("↑ Timer"),
+    aria: { label: t("Back to the timer and set controls") },
+    on: {
+      click: () => focusAnchorEl?.scrollIntoView({ block: "start", behavior: "smooth" }),
+    },
+  });
+  root.appendChild(fab);
+  const fabObserver = new IntersectionObserver(
+    (entries) => {
+      const e = entries[0];
+      if (e) fab.classList.toggle("is-visible", !e.isIntersecting);
+    },
+    { threshold: 0 },
+  );
 
   function stopRaf(): void {
     if (rafId) {
@@ -1807,6 +1836,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       container.append(actionRow, dialWrap, ...loggedBlocks);
       // Scroll so the Stop button + running timer are in view, past the header.
       scrollTargetEl = actionRow;
+      focusAnchorEl = actionRow;
 
       const frame = (): void => {
         setElapsedMs = Date.now() - setStartEpoch;
@@ -1860,6 +1890,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       );
       // Scroll so the Start-set button + rest timer are in view, past the header.
       scrollTargetEl = actionRow;
+      focusAnchorEl = actionRow;
       if (summary) container.append(summary);
       container.append(
         h("div", { class: "btn-row" }, [
@@ -1957,8 +1988,12 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           }),
           renderRirField(),
         ];
+    const setTimeEl = h("p", {
+      class: "set-time live-scroll-anchor",
+      text: t("Set time {0}").replace("{0}", formatClock(setElapsedMs / 1000)),
+    });
     container.append(
-      h("p", { class: "set-time", text: t("Set time {0}").replace("{0}", formatClock(setElapsedMs / 1000)) }),
+      setTimeEl,
       h("div", { class: "btn-row live-actions" }, [
         h("button", {
           class: "btn btn-primary btn-jumbo",
@@ -1970,6 +2005,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       h("div", { class: "card live-dials" }, dials),
       ...loggedBlocks,
     );
+    // The timer reading + ✓ Done + dials cluster sits at the top; anchor the
+    // floating button to it so a scroll down through the logged sets can snap back.
+    focusAnchorEl = setTimeEl;
   }
 
   // ─────────────────────────────── Render ─────────────────────────────────────
@@ -1982,6 +2020,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     // Cast keeps the assignment-narrowed type at `HTMLElement | null` so the
     // renderers' assignments (in the dispatch below) are visible at the check.
     scrollTargetEl = null as HTMLElement | null;
+    focusAnchorEl = null as HTMLElement | null;
     if (stage === "list") renderList();
     else if (stage === "select") renderSelect();
     else renderExercise();
@@ -1990,9 +2029,18 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     // other screen jumps back to the page top.
     if (scrollTargetEl) scrollTargetEl.scrollIntoView({ block: "start" });
     else window.scrollTo(0, 0);
+    // Watch the in-set action/timer row (when there is one) so the floating
+    // "back to timer" button only surfaces once it has scrolled off-screen.
+    fabObserver.disconnect();
+    if (focusAnchorEl) fabObserver.observe(focusAnchorEl);
+    else fab.classList.remove("is-visible");
   }
 
   restore();
   render();
-  return () => stopRaf();
+  return () => {
+    stopRaf();
+    fabObserver.disconnect();
+    fab.remove();
+  };
 }
