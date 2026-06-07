@@ -1,3 +1,4 @@
+import { MUSCLE_REFERENCE_LOAD_KG } from "./loadProfile";
 import {
   EQUIPMENT_LABELS,
   MUSCLE_GROUPS,
@@ -26,6 +27,17 @@ export interface Movement {
   secondaryMuscles: readonly MuscleGroup[];
   /** Load type — reused as the LoggedExercise equipment. */
   equipment: Equipment;
+  /**
+   * Working-load reference in kg — roughly what this movement handles for one hard
+   * working set (intermediate trainee), used to normalise its volume in the effort
+   * gauge (see {@link loadCapacityFactor}). It's the "back extension ≠ deadlift"
+   * knob: two movements on the same muscle can move wildly different loads, so a
+   * deadlift's high reference makes each kg count *less* while a back extension's
+   * low one makes each kg count *more*. Absent → fall back to the primary muscle's
+   * {@link MUSCLE_REFERENCE_LOAD_KG} (the old per-muscle behaviour). Set it only
+   * where a movement diverges meaningfully from its muscle baseline.
+   */
+  referenceLoadKg?: number;
   /**
    * Additional names that should resolve to this movement via
    * `matchMovementByName`. Used for plural/hyphen variants and Romanian
@@ -101,9 +113,9 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
     genericMovement("back", "lat-pulldown"),
   ],
   "lower-back": [
-    { id: "back-extension", name: "Back Extension", primaryMuscle: "lower-back", secondaryMuscles: ["glutes"], equipment: "calisthenics", aliases: ["Hyperextension", "Hyperextensions", "Superman", "Hiper Extensii", "Hiper Extensii Superman"] },
-    { id: "good-morning", name: "Good Morning", primaryMuscle: "lower-back", secondaryMuscles: ["glutes", "legs"], equipment: "barbell", aliases: ["Good Mornings"] },
-    { id: "back-extension-machine", name: "Back Extension Machine", primaryMuscle: "lower-back", secondaryMuscles: ["glutes"], equipment: "machine" },
+    { id: "back-extension", name: "Back Extension", primaryMuscle: "lower-back", secondaryMuscles: ["glutes"], equipment: "calisthenics", referenceLoadKg: 20, aliases: ["Hyperextension", "Hyperextensions", "Superman", "Hiper Extensii", "Hiper Extensii Superman"] },
+    { id: "good-morning", name: "Good Morning", primaryMuscle: "lower-back", secondaryMuscles: ["glutes", "legs"], equipment: "barbell", referenceLoadKg: 50, aliases: ["Good Mornings"] },
+    { id: "back-extension-machine", name: "Back Extension Machine", primaryMuscle: "lower-back", secondaryMuscles: ["glutes"], equipment: "machine", referenceLoadKg: 50 },
     genericMovement("lower-back", "barbell"),
     genericMovement("lower-back", "machine"),
   ],
@@ -118,14 +130,14 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
     genericMovement("shoulders", "rear-delt-fly"),
   ],
   legs: [
-    { id: "deadlift", name: "Deadlift", primaryMuscle: "legs", secondaryMuscles: ["glutes", "lower-back"], equipment: "barbell" },
-    { id: "romanian-deadlift", name: "Romanian Deadlift", primaryMuscle: "legs", secondaryMuscles: ["glutes", "lower-back"], equipment: "barbell" },
-    { id: "barbell-squat", name: "Barbell Squat", primaryMuscle: "legs", secondaryMuscles: ["glutes", "lower-back"], equipment: "barbell", aliases: ["Back Squat", "Genuflexiuni cu Bara"] },
-    { id: "dumbbell-squat", name: "Dumbbell Squat", primaryMuscle: "legs", secondaryMuscles: ["glutes"], equipment: "dumbbell", aliases: ["Goblet Squat", "Goblet Squats", "Genuflexiuni cu Gantere"] },
+    { id: "deadlift", name: "Deadlift", primaryMuscle: "legs", secondaryMuscles: ["glutes", "lower-back"], equipment: "barbell", referenceLoadKg: 150 },
+    { id: "romanian-deadlift", name: "Romanian Deadlift", primaryMuscle: "legs", secondaryMuscles: ["glutes", "lower-back"], equipment: "barbell", referenceLoadKg: 120 },
+    { id: "barbell-squat", name: "Barbell Squat", primaryMuscle: "legs", secondaryMuscles: ["glutes", "lower-back"], equipment: "barbell", referenceLoadKg: 130, aliases: ["Back Squat", "Genuflexiuni cu Bara"] },
+    { id: "dumbbell-squat", name: "Dumbbell Squat", primaryMuscle: "legs", secondaryMuscles: ["glutes"], equipment: "dumbbell", referenceLoadKg: 40, aliases: ["Goblet Squat", "Goblet Squats", "Genuflexiuni cu Gantere"] },
     { id: "bodyweight-squat", name: "Bodyweight Squat", primaryMuscle: "legs", secondaryMuscles: ["glutes"], equipment: "calisthenics", aliases: ["Squat", "Squats", "Genuflexiuni"] },
-    { id: "leg-press", name: "Leg Press", primaryMuscle: "legs", secondaryMuscles: [], equipment: "machine" },
-    { id: "leg-extension", name: "Leg Extension", primaryMuscle: "legs", secondaryMuscles: [], equipment: "machine" },
-    { id: "prone-leg-curl", name: "Prone Leg Curl", primaryMuscle: "legs", secondaryMuscles: [], equipment: "machine" },
+    { id: "leg-press", name: "Leg Press", primaryMuscle: "legs", secondaryMuscles: [], equipment: "machine", referenceLoadKg: 200 },
+    { id: "leg-extension", name: "Leg Extension", primaryMuscle: "legs", secondaryMuscles: [], equipment: "machine", referenceLoadKg: 70 },
+    { id: "prone-leg-curl", name: "Prone Leg Curl", primaryMuscle: "legs", secondaryMuscles: [], equipment: "machine", referenceLoadKg: 55 },
     genericMovement("legs", "barbell"),
     genericMovement("legs", "dumbbell"),
     genericMovement("legs", "cable"),
@@ -166,6 +178,23 @@ const REGISTRY: ReadonlyMap<string, Movement> = new Map(
 /** Look up a movement by id, or undefined for an unknown/legacy id. */
 export function findMovement(id: string): Movement | undefined {
   return REGISTRY.get(id);
+}
+
+/**
+ * The working-load reference (kg) to normalise an exercise's volume by in the
+ * effort gauge: the catalog movement's own {@link Movement.referenceLoadKg} when
+ * it declares one, otherwise the primary muscle's
+ * {@link MUSCLE_REFERENCE_LOAD_KG}. Lets a deadlift and a back extension that
+ * both credit the lower back be weighed against their own typical loads rather
+ * than a single per-muscle figure. Legacy logs (no/unknown `exerciseId`) keep the
+ * per-muscle fallback unchanged.
+ */
+export function movementLoadReferenceKg(
+  exerciseId: string | undefined,
+  muscle: MuscleGroup,
+): number {
+  const mv = exerciseId !== undefined ? REGISTRY.get(exerciseId) : undefined;
+  return mv?.referenceLoadKg ?? MUSCLE_REFERENCE_LOAD_KG[muscle];
 }
 
 /** Every catalog movement, deduped by id, in muscle-group then catalog order. */
