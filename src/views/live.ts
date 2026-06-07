@@ -1749,10 +1749,10 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       }
     }
 
-    // Running and resting reorder the screen (the action button + timer move up,
-    // the set list drops below); idle and logging keep the logged read-out right
-    // under the last-time recall.
-    if (sub !== "resting" && sub !== "running") container.append(...loggedBlocks);
+    // Running, resting, and logging reorder the screen (the action button + dials
+    // move up, the set list drops below); only idle keeps the logged read-out
+    // right under the last-time recall.
+    if (sub === "idle") container.append(...loggedBlocks);
 
     if (sub === "idle") {
       container.append(
@@ -1884,7 +1884,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     }
 
     // sub === "logging" — the ✓ Done button sits above the dials so you don't
-    // have to swipe down across the weight knob (which would rotate it) to reach it.
+    // have to swipe down across the weight knob (which would rotate it) to reach
+    // it; the performed-sets read-out drops below the dials so logging reps and
+    // weight stays at the top of the screen.
     const dials = isCardio(equipment)
       ? [
           dialField({
@@ -1967,6 +1969,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         }),
       ]),
       h("div", { class: "card live-dials" }, dials),
+      ...loggedBlocks,
     );
   }
 
