@@ -1377,12 +1377,6 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         h("p", { class: "session-date", text: formatSessionDate(session.startedAt) }),
       ]),
     );
-    // The effort dashboard stays up top as a read-out; its Share/PNG/PDF export
-    // controls move to the session footer (next to "end session") so the top of
-    // the screen stays focused on pick-exercise → Start, not mid-flow exporting.
-    if (summary) {
-      container.append(summary);
-    }
 
     // Toggle picks update the view-level selection, and — when confirming a
     // planned routine exercise — write straight onto it so the choice sticks.
@@ -1535,9 +1529,10 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         ]),
         doneHost,
       ]),
-      // Session footer: export this session, then end it. Both are end-of-session
-      // actions, so they sit together below the picker rather than mid-screen.
-      ...(summary ? [sessionExportRow(session), statusEl] : []),
+      // Session footer: the effort dashboard + its Share/PNG/PDF export controls
+      // drop to the bottom (the top of the screen stays focused on pick-exercise →
+      // Start), with the session read-out sitting directly above "end session".
+      ...(summary ? [sessionExportRow(session), statusEl, summary] : []),
       h("div", { class: "btn-row live-actions" }, [
         h("button", {
           class: "btn btn-accent",
@@ -1721,27 +1716,37 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       h("h1", { class: "view-title", text: t("Live Session") }),
       head,
       ...(lastPerf ? [renderLastPerformance(lastPerf.date, lastPerf.exercise)] : []),
-      renderSetList(),
     );
+
+    // Performed sets + plan benchmark — the logged read-out for this exercise.
+    // Collected into one block so the resting sub-stage can slot it below the
+    // timer (start → timer → performed sets → effort), while every other sub
+    // keeps it directly under the last-time recall.
+    const loggedBlocks: HTMLElement[] = [renderSetList()];
 
     // Plan benchmark: when this exercise carries the trainer's structured
     // guideline (started from a routine), show the prescribed-vs-logged read —
     // a per-set comparison for set schemes, a rep tally for volume targets.
     const bm = currentEx ? exerciseBenchmark(currentEx) : null;
     if (currentEx && bm) {
-      container.append(renderBenchmark(currentEx, bm));
+      loggedBlocks.push(renderBenchmark(currentEx, bm));
     } else {
       // Legacy / free-text fallback: parse the prescription to a rep total and
       // show how far the logged reps have filled it (reuses Execute's UI).
       const pres = currentEx?.prescription;
       const target = pres !== undefined ? parseTargetReps(pres) : null;
       if (currentEx && pres !== undefined && target !== null && target > 0) {
-        container.append(
+        loggedBlocks.push(
           h("p", { class: "now-target", text: pres }),
           ...repTally(sumReps(currentEx.sets), target),
         );
       }
     }
+
+    // Running and resting reorder the screen (the action button + timer move up,
+    // the set list drops below); idle and logging keep the logged read-out right
+    // under the last-time recall.
+    if (sub !== "resting" && sub !== "running") container.append(...loggedBlocks);
 
     if (sub === "idle") {
       container.append(
@@ -1784,8 +1789,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         h("div", { class: "dial-center" }, [num, h("span", { class: "dial-label", text: t("SET") })]),
       ]);
 
+      // In-set layout (top → bottom): Stop, then the running timer, then the
+      // performed sets — matching the between-sets ordering.
       container.append(
-        dialWrap,
         h("div", { class: "btn-row live-actions" }, [
           h("button", {
             class: "btn btn-accent btn-jumbo",
@@ -1794,6 +1800,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
             on: { click: stopSet },
           }),
         ]),
+        dialWrap,
+        ...loggedBlocks,
       );
 
       const frame = (): void => {
@@ -1830,11 +1838,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         ? renderSessionSummary(state.activeLog, loadSessions())
         : null;
 
-      container.append(
-        h("p", { class: "set-time", text: t("Resting — recover, then start your next set") }),
-        dialWrap,
-      );
-      if (summary) container.append(summary);
+      // Between-sets layout (top → bottom): Start set, then the rest timer, then
+      // the performed sets, then the effort box, and finally finish-exercise.
       container.append(
         h("div", { class: "btn-row live-actions" }, [
           h("button", {
@@ -1844,6 +1849,12 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
             on: { click: startSet },
           }),
         ]),
+        h("p", { class: "set-time", text: t("Resting — recover, then start your next set") }),
+        dialWrap,
+        ...loggedBlocks,
+      );
+      if (summary) container.append(summary);
+      container.append(
         h("div", { class: "btn-row" }, [
           h("button", {
             class: "btn",
