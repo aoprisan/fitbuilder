@@ -233,12 +233,19 @@ export type EffortTier = "warmup" | "light" | "moderate" | "solid" | "hard" | "b
 
 // Tiers keyed off the gauge ratio (current effort ÷ a full session's worth).
 // Picked highest-first by descending threshold.
+//
+// The ratio is calibrated against the *median* of past sessions, so a typical
+// workout lands at ratio ≈ 1.0. The bands are centred so that typical reads
+// "Solid" — a normal complete session — with "Hard"/"Brutal" reserved for days
+// that genuinely run above your usual effort, and "Moderate"/"Light" for days
+// that fall short. (Centring "Hard" on the median, as an earlier cut did, made
+// every average session read Hard and overstated effort.)
 const TIERS: ReadonlyArray<{ tier: EffortTier; label: string; min: number }> = [
-  { tier: "brutal", label: "Brutal", min: 1.3 },
-  { tier: "hard", label: "Hard", min: 1.0 },
-  { tier: "solid", label: "Solid", min: 0.7 },
-  { tier: "moderate", label: "Moderate", min: 0.4 },
-  { tier: "light", label: "Light", min: 0.15 },
+  { tier: "brutal", label: "Brutal", min: 1.5 },
+  { tier: "hard", label: "Hard", min: 1.2 },
+  { tier: "solid", label: "Solid", min: 0.85 },
+  { tier: "moderate", label: "Moderate", min: 0.5 },
+  { tier: "light", label: "Light", min: 0.2 },
   { tier: "warmup", label: "Warm-up", min: 0 },
 ];
 
