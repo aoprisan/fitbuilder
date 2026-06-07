@@ -1,4 +1,6 @@
 import { track } from "./analytics";
+import { renderAppCardToCanvas } from "./appCardRender";
+import { APP_INSTALL_URL } from "./canvasKit";
 import { dataUrlToBytes, jpegToPdf } from "./pdf";
 import { renderRecoveryToCanvas } from "./recoveryRender";
 import { renderSessionToCanvas } from "./sessionRender";
@@ -305,6 +307,42 @@ export async function shareRoutineLink(sheet: RoutineSheet): Promise<LinkShareRe
   } catch {
     return { result: "manual", url };
   }
+}
+
+export interface AppShareResult {
+  /** "shared" via the OS share sheet, or "downloaded" when the PNG fell back to a file. */
+  result: ShareResult;
+  /** The install URL — always returned (and copied) so callers can show it for manual paste. */
+  url: string;
+}
+
+/**
+ * Share the app itself: a branded PNG invite (the Gym Log mark + install URL)
+ * plus the link. Prefers the native share sheet (file + url + text, so it can
+ * target WhatsApp directly), falling back to a PNG download. The install URL is
+ * always copied to the clipboard too, so it's ready to paste either way.
+ */
+export async function shareApp(): Promise<AppShareResult> {
+  const url = APP_INSTALL_URL;
+  void copyText(url); // best-effort backstop; leaves the link on the clipboard regardless
+  const blob = await canvasToBlob(await renderAppCardToCanvas(), "image/png");
+  const file = new File([blob], "gym-log.png", { type: "image/png" });
+  track("share", { format: "app" });
+
+  const nav = shareNav();
+  if (nav.share && nav.canShare && nav.canShare({ files: [file] })) {
+    try {
+      await nav.share({ files: [file], title: "Gym Log", text: `Gym Log · Training Ledger\n${url}`, url });
+      return { result: "shared", url };
+    } catch (err) {
+      // A dismissed share sheet is a completed interaction, not a failure.
+      if (err instanceof DOMException && err.name === "AbortError") return { result: "shared", url };
+      // Anything else (rare): fall through to a download.
+    }
+  }
+
+  downloadBlob(blob, file.name);
+  return { result: "downloaded", url };
 }
 
 /** Render a routine's QR code and download it as a PNG (to print for a session). */

@@ -32,6 +32,8 @@ export const MONO = "'IBM Plex Mono', ui-monospace, Menlo, monospace";
 // each routine/recap a trainer sends doubles as a link back to the app. (Becomes
 // a removable mark for a future "Pro" tier — see the monetization plan.)
 export const APP_URL = "aoprisan.github.io/fitbuilder";
+/** Full, clickable install URL (with scheme) — used when sharing the app link. */
+export const APP_INSTALL_URL = `https://${APP_URL}/`;
 export const WATERMARK = `Made with Gym Log · ${APP_URL}`;
 
 // Logical layout units (multiplied by SCALE for the actual bitmap). Shared so

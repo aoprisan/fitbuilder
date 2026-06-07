@@ -16,6 +16,7 @@ import type { Nav } from "../router";
 import { exerciseKeyLabel } from "../stats";
 import { MUSCLE_LABELS } from "../types";
 import { round2, sessionSetCount } from "../util";
+import { shareApp } from "../exporters";
 import { seedRoutine } from "./claudeRoutine";
 import { recoveryRing, ringCell } from "./recovery";
 
@@ -84,6 +85,16 @@ registerTranslations({
   "Build or import training routines and share them as PNG/PDF on WhatsApp — for a coach handing plans to students. Run one live to log it, or as a checklist.":
     "Creează sau importă rutine de antrenament și distribuie-le ca PNG/PDF pe WhatsApp — pentru un antrenor care oferă planuri studenților. Rulează una live pentru a o înregistra sau ca listă de bifat.",
   "Routine Sheets": "Fișe de rutină",
+  "Spread the word": "Răspândește vestea",
+  "Share app": "Distribuie aplicația",
+  "Send a friend the app — a branded card with the install link, copied to your clipboard too.":
+    "Trimite aplicația unui prieten — un card cu sigla și linkul de instalare, copiat și în clipboard.",
+  "Shared — link copied to your clipboard too.":
+    "Distribuit — linkul a fost copiat și în clipboard.",
+  "Saved the invite image — link copied to your clipboard.":
+    "Imaginea de invitație a fost salvată — linkul a fost copiat în clipboard.",
+  "Couldn't share just now — please try again.":
+    "Nu s-a putut distribui acum — încearcă din nou.",
 });
 
 export function mountHome(root: HTMLElement, nav: Nav): void {
@@ -382,6 +393,44 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
     ]);
   }
 
+  // ── Share the app — a branded PNG invite + the install link, both copied so
+  // a happy user (coach or student) can pass it on. The growth loop, surfaced. ─
+  function renderShareAppCard(): HTMLElement {
+    const status = h("p", { class: "plan-meta" });
+    const shareBtn = h("button", {
+      class: "btn btn-primary",
+      type: "button",
+      text: t("Share app"),
+    });
+    shareBtn.addEventListener("click", async () => {
+      shareBtn.disabled = true;
+      try {
+        const { result } = await shareApp();
+        status.textContent =
+          result === "shared"
+            ? t("Shared — link copied to your clipboard too.")
+            : t("Saved the invite image — link copied to your clipboard.");
+      } catch {
+        status.textContent = t("Couldn't share just now — please try again.");
+      } finally {
+        shareBtn.disabled = false;
+      }
+    });
+
+    return h("section", { class: "card" }, [
+      h("p", { class: "eyebrow", text: t("Spread the word") }),
+      h("h2", { class: "section-title", text: t("Share app") }),
+      h("p", {
+        class: "plan-meta",
+        text: t(
+          "Send a friend the app — a branded card with the install link, copied to your clipboard too.",
+        ),
+      }),
+      h("div", { class: "btn-row" }, [shareBtn]),
+      status,
+    ]);
+  }
+
   // ── Lane 2: the coach — author routines, share them, run them ─────────────
   const routinesLane = h("section", { class: "card" }, [
     h("p", { class: "eyebrow", text: t("For routines & coaching") }),
@@ -403,7 +452,7 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
   // App maintenance (Update app, Clear all data) lives in the Settings sheet.
   const cards =
     loadMode() === "trainer"
-      ? [hero, routinesLane]
+      ? [hero, routinesLane, renderShareAppCard()]
       : [
           hero,
           trainingLane,
@@ -416,6 +465,8 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
           // Saved routines sit at the foot of the student home — the library is a
           // "go find a plan" destination, below the day-to-day train/track flow.
           savedRoutinesCard,
+          // Share the app sits last — a low-priority "tell a friend" growth nudge.
+          renderShareAppCard(),
         ];
 
   root.appendChild(h("div", { class: "view view-home" }, cards));
