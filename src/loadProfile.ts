@@ -57,6 +57,25 @@ const BARBELL: LoadProfile = { loadFidelity: 1, cns: 1, muscle: 1, strength: 1, 
  * (`bench-press`, `triceps-press`, `lat-pulldown`, `rear-delt-fly`,
  * `lateral-raise`, `lateral-abs-machine`) are specific guided-machine classes,
  * so they share the low-stabilisation / lower-fidelity machine character.
+ *
+ * Retuned (2026) against the evidence rather than the original flat-0.5-cable
+ * intuition. Three findings drove the changes:
+ *  - At a *matched* load, machine/cable prime-mover activation is within single
+ *    digits of free weights (pec-deck ≈98%, cable crossover ≈93% of barbell
+ *    bench pectoralis EMG; ACE/UW–La Crosse), and volume-matched hypertrophy is
+ *    null between modalities (Haugen et al. 2023, BMC Sports Sci Med Rehabil,
+ *    SMD −0.055). So the machine `loadFidelity` discount was raised 0.8→0.9 and
+ *    the steep `cns` discounts were compressed upward — the real modality
+ *    difference is *stabiliser* recruitment, a fraction of total cost, not a
+ *    loss of resistance at the muscle.
+ *  - The machine/cable strength penalty was far too harsh: the specificity
+ *    effect is real but *small* (free-weight-test advantage SMD ≈0.21, no
+ *    overall between-modality difference; Haugen 2023), so `strength` ~0.6 →
+ *    ~0.85–0.9, not a 35–40% loss.
+ *  - Cables: the displayed-vs-real gap is deterministic pulley physics (2:1 ≈
+ *    half, 1:1 ≈ full), a per-machine property, not a "cable" constant. 0.7 is a
+ *    blend leaning toward the common 1:1 pulldown/row; the truly guided 1:1
+ *    `lat-pulldown` is set to 0.95 (REP Fitness / Get RXd cable-ratio mechanics).
  */
 export const LOAD_PROFILES: Record<Equipment, LoadProfile> = {
   barbell: BARBELL,
@@ -64,14 +83,14 @@ export const LOAD_PROFILES: Record<Equipment, LoadProfile> = {
   kettlebell: { loadFidelity: 1, cns: 1, muscle: 0.9, strength: 0.85, hypertrophy: 0.9 },
   calisthenics: { loadFidelity: 1, cns: 0.9, muscle: 1, strength: 0.9, hypertrophy: 1 },
   trx: { loadFidelity: 1, cns: 0.8, muscle: 0.9, strength: 0.7, hypertrophy: 0.95 },
-  cable: { loadFidelity: 0.6, cns: 0.7, muscle: 0.85, strength: 0.6, hypertrophy: 1.05 },
-  machine: { loadFidelity: 0.8, cns: 0.65, muscle: 0.9, strength: 0.65, hypertrophy: 1 },
-  "bench-press": { loadFidelity: 0.85, cns: 0.7, muscle: 0.95, strength: 0.7, hypertrophy: 1 },
-  "lat-pulldown": { loadFidelity: 0.85, cns: 0.7, muscle: 0.9, strength: 0.65, hypertrophy: 1 },
-  "triceps-press": { loadFidelity: 0.8, cns: 0.6, muscle: 0.9, strength: 0.6, hypertrophy: 1 },
-  "lateral-raise": { loadFidelity: 0.8, cns: 0.5, muscle: 0.8, strength: 0.5, hypertrophy: 1 },
-  "rear-delt-fly": { loadFidelity: 0.75, cns: 0.5, muscle: 0.8, strength: 0.5, hypertrophy: 1 },
-  "lateral-abs-machine": { loadFidelity: 0.6, cns: 0.5, muscle: 0.8, strength: 0.5, hypertrophy: 0.95 },
+  cable: { loadFidelity: 0.7, cns: 0.85, muscle: 0.85, strength: 0.85, hypertrophy: 1.05 },
+  machine: { loadFidelity: 0.9, cns: 0.8, muscle: 0.9, strength: 0.88, hypertrophy: 1 },
+  "bench-press": { loadFidelity: 0.9, cns: 0.8, muscle: 0.95, strength: 0.85, hypertrophy: 1 },
+  "lat-pulldown": { loadFidelity: 0.95, cns: 0.85, muscle: 0.9, strength: 0.85, hypertrophy: 1 },
+  "triceps-press": { loadFidelity: 0.85, cns: 0.75, muscle: 0.9, strength: 0.78, hypertrophy: 1 },
+  "lateral-raise": { loadFidelity: 0.85, cns: 0.72, muscle: 0.8, strength: 0.75, hypertrophy: 1 },
+  "rear-delt-fly": { loadFidelity: 0.8, cns: 0.72, muscle: 0.8, strength: 0.7, hypertrophy: 1 },
+  "lateral-abs-machine": { loadFidelity: 0.7, cns: 0.72, muscle: 0.8, strength: 0.7, hypertrophy: 0.95 },
   // Cardio (treadmill): no external load (these terms multiply a 0 kg load to 0),
   // so the numbers here only set its systemic/local recovery cost — a steady run
   // taxes the cardiovascular system and legs but carries no strength/hypertrophy
@@ -81,12 +100,21 @@ export const LOAD_PROFILES: Record<Equipment, LoadProfile> = {
 
 // Compound lifts (those that tax secondary muscles) demand more from the whole
 // system: more total tissue to repair, more coordination and bracing, and a
-// stronger carry-over to maximal strength than isolation work. The systemic
-// premium is kept modest — resistance training fatigue is mostly peripheral
-// (muscle damage / perceived effort), and the evidence for a large extra
-// *central* cost from compounds is weak (e.g. no reliable squat-vs-deadlift
-// difference in central fatigue), so the bigger premium sits on the muscle term.
-export const COMPOUND_CNS = 1.15;
+// stronger carry-over to maximal strength than isolation work.
+//
+// The premium splits three ways, and the evidence supports them unequally:
+//  - MUSCLE (recovery) and STRENGTH (1RM transfer) premiums are well-supported,
+//    arguably conservative: multi-joint work raises creatine kinase more and
+//    needs ~a full extra recovery day (leg press 48h vs knee-extension 24h to
+//    restore torque; Soares 2015, PMC10286608), and transfers better to maximal
+//    strength (Paoli 2017; though the edge shrinks in trained lifters).
+//  - CNS: there is *no* reliable evidence compounds cost more *central* fatigue.
+//    Barnes et al. 2019 (JSCR) found squat vs deadlift at 95% 1RM produced no
+//    difference in voluntary activation despite the deadlift's heavier load —
+//    the "deadlifts fry your CNS" belief fails for central fatigue. So the CNS
+//    premium is trimmed to a token 1.05; the real systemic cost of compounds is
+//    peripheral/metabolic, already captured by their extra volume and muscle term.
+export const COMPOUND_CNS = 1.05;
 export const COMPOUND_MUSCLE = 1.15;
 export const COMPOUND_STRENGTH = 1.15;
 
