@@ -1748,9 +1748,10 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       }
     }
 
-    // Resting reorders the screen (set list drops below the timer); every other
-    // sub keeps the logged read-out right under the last-time recall.
-    if (sub !== "resting") container.append(...loggedBlocks);
+    // Running and resting reorder the screen (the action button + timer move up,
+    // the set list drops below); idle and logging keep the logged read-out right
+    // under the last-time recall.
+    if (sub !== "resting" && sub !== "running") container.append(...loggedBlocks);
 
     if (sub === "idle") {
       container.append(
@@ -1793,8 +1794,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         h("div", { class: "dial-center" }, [num, h("span", { class: "dial-label", text: t("SET") })]),
       ]);
 
+      // In-set layout (top → bottom): Stop, then the running timer, then the
+      // performed sets — matching the between-sets ordering.
       container.append(
-        dialWrap,
         h("div", { class: "btn-row live-actions" }, [
           h("button", {
             class: "btn btn-accent btn-jumbo",
@@ -1803,6 +1805,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
             on: { click: stopSet },
           }),
         ]),
+        dialWrap,
+        ...loggedBlocks,
       );
 
       const frame = (): void => {
