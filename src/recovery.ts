@@ -14,20 +14,37 @@ function isCompound(ex: LoggedExercise): boolean {
 
 /**
  * Hours after training a muscle group until it's treated as fully recovered.
- * Larger, slower-recovering groups get longer windows than small ones.
+ *
+ * Retuned (2026) away from the "bigger muscle = longer recovery" heuristic,
+ * which the best direct evidence contradicts. The real predictors are fibre
+ * type (type-II recover slower) and habitual daily use (quads, erectors, calves
+ * and core are pre-conditioned), not raw size: in the one clean head-to-head,
+ * the small elbow flexors recovered *slower* than the large knee extensors
+ * (Chen & Nosaka 2011, PMC3737787; fibre-typology effect, Lievens 2020). So the
+ * old size-based ordering — biceps fastest, legs slowest — was roughly inverted.
+ *
+ * Honest limitation: outside elbow-flexors-vs-knee-extensors no per-muscle
+ * hour-level data exists, so the rest are extrapolations from fibre type +
+ * habitual use, and for a consistent trainee the repeated-bout effect makes
+ * every window conservative. ~48h is the defensible default; arm/pressing
+ * (damage-prone) sit above it, postural/daily-used groups below.
  */
 export const RECOVERY_HOURS: Record<MuscleGroup, number> = {
   chest: 48,
-  back: 60,
+  back: 54,
   // Erectors are endurance-oriented postural muscles — lighter back-extension /
   // hyperextension work clears faster than the lats' heavier pulling volume.
   "lower-back": 48,
   shoulders: 48,
   traps: 48,
-  biceps: 36,
-  triceps: 36,
-  legs: 72,
-  glutes: 60,
+  // Elbow flexors/extensors are the most damage-prone, slowest-recovering group
+  // (Chen & Nosaka 2011) — not the fastest. Raised from a too-short 36h.
+  biceps: 54,
+  triceps: 48,
+  // Knee extensors recover faster than the arms and are habituated by daily use,
+  // so 72h overstated it; lowered toward the ~48-60h the evidence supports.
+  legs: 54,
+  glutes: 48,
   core: 24,
   forearms: 24,
   calves: 36,
@@ -206,16 +223,19 @@ const CNS_SATURATION = 4.5;
 const CNS_FALLBACK_LOAD = 45;
 
 /**
- * Rep-range weighting of a set's systemic cost. Heavy, low-rep work taxes the
- * system somewhat more, but the spread is deliberately gentle: resistance-training
- * fatigue is mostly peripheral, and measured *central* fatigue is modest and
- * fairly similar across loads — so this no longer treats heavy sets as a fatigue
- * bomb. Proximity to failure (applied separately) does most of the differentiating.
+ * Rep-range weighting of a set's systemic cost. The spread is deliberately
+ * narrow — and narrower than it used to be (heavy 1.2->1.1, high-rep 0.85->1.0).
+ * The common "heavy low-rep = far more fatigue" assumption is weakly supported:
+ * resistance-training fatigue is mostly peripheral, central fatigue is similar
+ * across loads, and light high-rep-to-failure actually produces *equal-or-greater*
+ * acute neuromuscular fatigue and slower recovery than heavy work (Morton et al.
+ * 2017, PMC5617935; MDPI 2024). The small residual heavy premium (1.1) stands in
+ * for joint/connective-tissue and neural strain rather than total fatigue.
+ * Proximity to failure (applied separately) does most of the differentiating.
  */
 function repsIntensity(reps: number): number {
-  if (reps <= 5) return 1.2; // strength / heavy singles & triples
-  if (reps <= 12) return 1; // hypertrophy
-  return 0.85; // high-rep / endurance
+  if (reps <= 5) return 1.1; // strength / heavy singles & triples
+  return 1; // hypertrophy and high-rep — comparable total fatigue cost
 }
 
 /**
