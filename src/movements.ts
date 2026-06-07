@@ -113,9 +113,9 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
     genericMovement("back", "lat-pulldown"),
   ],
   "lower-back": [
-    { id: "back-extension", name: "Back Extension", primaryMuscle: "lower-back", secondaryMuscles: ["glutes"], equipment: "calisthenics", referenceLoadKg: 20, aliases: ["Hyperextension", "Hyperextensions", "Superman", "Hiper Extensii", "Hiper Extensii Superman"] },
-    { id: "good-morning", name: "Good Morning", primaryMuscle: "lower-back", secondaryMuscles: ["glutes", "legs"], equipment: "barbell", referenceLoadKg: 50, aliases: ["Good Mornings"] },
-    { id: "back-extension-machine", name: "Back Extension Machine", primaryMuscle: "lower-back", secondaryMuscles: ["glutes"], equipment: "machine", referenceLoadKg: 50 },
+    { id: "back-extension", name: "Back Extension", primaryMuscle: "lower-back", secondaryMuscles: ["glutes"], equipment: "calisthenics", referenceLoadKg: 40, aliases: ["Hyperextension", "Hyperextensions", "Superman", "Hiper Extensii", "Hiper Extensii Superman"] },
+    { id: "good-morning", name: "Good Morning", primaryMuscle: "lower-back", secondaryMuscles: ["glutes", "legs"], equipment: "barbell", referenceLoadKg: 80, aliases: ["Good Mornings"] },
+    { id: "back-extension-machine", name: "Back Extension Machine", primaryMuscle: "lower-back", secondaryMuscles: ["glutes"], equipment: "machine", referenceLoadKg: 90 },
     genericMovement("lower-back", "barbell"),
     genericMovement("lower-back", "machine"),
   ],

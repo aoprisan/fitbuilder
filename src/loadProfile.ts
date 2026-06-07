@@ -105,10 +105,10 @@ export function profileFor(equipment: Equipment): LoadProfile {
  * rough and easy to retune; cardio carries no external load so its value is inert.
  */
 export const MUSCLE_REFERENCE_LOAD_KG: Record<MuscleGroup, number> = {
-  legs: 110,
-  glutes: 90,
-  traps: 95,
-  calves: 90,
+  legs: 120,
+  glutes: 110,
+  traps: 125,
+  calves: 110,
   back: 75,
   "lower-back": 70,
   chest: 65,
@@ -122,9 +122,11 @@ export const MUSCLE_REFERENCE_LOAD_KG: Record<MuscleGroup, number> = {
 
 // Capacity normalisation is centred on this load: a muscle whose reference equals
 // the baseline is neutral (factor 1). The factor is clamped so an extreme-capacity
-// muscle can't swing a set's volume term more than ~2× either way.
+// movement can't swing a set's volume term too far either way — the floor is low
+// enough that very heavy work (shrugs, leg press, deadlifts) is discounted hard so
+// its tonnage stops dominating the effort total.
 const BASELINE_LOAD_KG = 60;
-const MUSCLE_LOAD_FACTOR_MIN = 0.5;
+const MUSCLE_LOAD_FACTOR_MIN = 0.4;
 const MUSCLE_LOAD_FACTOR_MAX = 2;
 
 /**
