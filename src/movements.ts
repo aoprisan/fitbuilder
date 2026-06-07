@@ -168,6 +168,7 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
   ],
   cardio: [
     { id: "treadmill", name: "Treadmill", primaryMuscle: "cardio", secondaryMuscles: [], equipment: "treadmill", aliases: ["Run", "Running", "Jog", "Jogging", "Walk", "Alergare", "Banda", "Banda de Alergat"] },
+    { id: "treadmill-intervals", name: "Treadmill Intervals", primaryMuscle: "cardio", secondaryMuscles: [], equipment: "treadmill", aliases: ["Interval Treadmill", "Treadmill HIIT", "HIIT Treadmill", "Interval Run", "Interval Running", "Treadmill Sprints", "Intervale Banda"] },
     { id: "boxing", name: "Boxing", primaryMuscle: "cardio", secondaryMuscles: ["shoulders", "core"], equipment: "calisthenics", aliases: ["Box", "Boxing Rounds", "Shadow Boxing", "Bag Work", "Heavy Bag", "Sparring", "Box Fitness"] },
   ],
 };
