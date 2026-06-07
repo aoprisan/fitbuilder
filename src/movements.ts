@@ -123,10 +123,12 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
     { id: "overhead-press", name: "Overhead Press", primaryMuscle: "shoulders", secondaryMuscles: ["triceps"], equipment: "barbell", aliases: ["Shoulder Press", "Presa Umeri"] },
     { id: "pike-push-up", name: "Pike Push-Up", primaryMuscle: "shoulders", secondaryMuscles: ["triceps"], equipment: "calisthenics", aliases: ["Pike Push-Ups", "Pike Push Ups"] },
     { id: "handstand-push-up", name: "Handstand Push-Up", primaryMuscle: "shoulders", secondaryMuscles: ["triceps"], equipment: "calisthenics", aliases: ["Handstand Push-Ups", "Handstand Push Ups"] },
+    { id: "dumbbell-lateral-raise", name: "Dumbbell Lateral Raise", primaryMuscle: "shoulders", secondaryMuscles: [], equipment: "dumbbell", aliases: ["Lateral Raise", "Lateral Raises", "Side Raise", "Dumbbell Side Raise", "Ridicari Laterale"] },
+    { id: "lateral-raise-machine", name: "Lateral Raise Machine", primaryMuscle: "shoulders", secondaryMuscles: [], equipment: "lateral-raise", aliases: ["Machine Lateral Raise", "Lateral Raises Machine"] },
+    { id: "cable-lateral-raise", name: "Cable Lateral Raise (Behind Back)", primaryMuscle: "shoulders", secondaryMuscles: [], equipment: "cable", aliases: ["Behind-the-Back Cable Lateral Raise", "Behind Back Cable Lateral Raise", "Cable Side Raise"] },
     genericMovement("shoulders", "dumbbell"),
     genericMovement("shoulders", "barbell"),
     genericMovement("shoulders", "cable"),
-    genericMovement("shoulders", "lateral-raise"),
     genericMovement("shoulders", "rear-delt-fly"),
   ],
   biceps: [
