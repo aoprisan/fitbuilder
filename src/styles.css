@@ -2043,6 +2043,55 @@ textarea {
   flex: 1 1 100%;
 }
 
+/* Floating "back to the timer" stamp — surfaces during a live set once the
+   action button + timer have scrolled out of view, so one tap returns to them
+   instead of finger-scrolling up. Sits below the bottom nav rail's z-index. */
+.live-fab {
+  position: fixed;
+  right: clamp(14px, 4vw, 26px);
+  bottom: max(env(safe-area-inset-bottom), 22px);
+  z-index: 140;
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 12px 16px 10px;
+  color: var(--on-press);
+  background: var(--signal);
+  border: 2px solid var(--ink);
+  box-shadow: 4px 4px 0 0 var(--ink);
+  cursor: pointer;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(10px);
+  transition:
+    opacity 160ms var(--ease),
+    transform 160ms var(--ease),
+    visibility 160ms var(--ease);
+}
+
+.live-fab.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.live-fab:active {
+  box-shadow: 2px 2px 0 0 var(--ink);
+  transform: translate(2px, 2px);
+}
+
+/* On phone the nav is a fixed bottom rail (~74px + safe area) — lift the
+   floating button clear of it. */
+@media (max-width: 559px) {
+  .live-fab {
+    bottom: calc(86px + env(safe-area-inset-bottom));
+  }
+}
+
 .live-done-list {
   margin-top: 18px;
   padding-top: 14px;
