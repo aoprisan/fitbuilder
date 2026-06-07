@@ -129,6 +129,13 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
     genericMovement("shoulders", "lateral-raise"),
     genericMovement("shoulders", "rear-delt-fly"),
   ],
+  biceps: [
+    { id: "wall-barbell-curl", name: "Wall Barbell Curl", primaryMuscle: "biceps", secondaryMuscles: [], equipment: "barbell", aliases: ["Barbell Wall Curl", "Wall Curl", "Strict Barbell Curl"] },
+    genericMovement("biceps", "dumbbell"),
+    genericMovement("biceps", "barbell"),
+    genericMovement("biceps", "cable"),
+    genericMovement("biceps", "machine"),
+  ],
   legs: [
     { id: "deadlift", name: "Deadlift", primaryMuscle: "legs", secondaryMuscles: ["glutes", "lower-back"], equipment: "barbell", referenceLoadKg: 150 },
     { id: "romanian-deadlift", name: "Romanian Deadlift", primaryMuscle: "legs", secondaryMuscles: ["glutes", "lower-back"], equipment: "barbell", referenceLoadKg: 120 },
