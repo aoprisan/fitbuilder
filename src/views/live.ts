@@ -635,6 +635,12 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   // Rest clock — starts the moment a set is committed, runs until the next set.
   let restStartEpoch = 0;
 
+  // After a render, bring this element to the top of the viewport instead of
+  // jumping to page top. Used during a running set / rest so the action button
+  // and timer are in view without scrolling past the exercise header. Reset to
+  // null at the start of every render; null falls back to scroll-to-top.
+  let scrollTargetEl: HTMLElement | null = null;
+
   function stopRaf(): void {
     if (rafId) {
       cancelAnimationFrame(rafId);
@@ -1791,18 +1797,17 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
 
       // In-set layout (top → bottom): Stop, then the running timer, then the
       // performed sets — matching the between-sets ordering.
-      container.append(
-        h("div", { class: "btn-row live-actions" }, [
-          h("button", {
-            class: "btn btn-accent btn-jumbo",
-            type: "button",
-            text: t("■ Stop"),
-            on: { click: stopSet },
-          }),
-        ]),
-        dialWrap,
-        ...loggedBlocks,
-      );
+      const actionRow = h("div", { class: "btn-row live-actions live-scroll-anchor" }, [
+        h("button", {
+          class: "btn btn-accent btn-jumbo",
+          type: "button",
+          text: t("■ Stop"),
+          on: { click: stopSet },
+        }),
+      ]);
+      container.append(actionRow, dialWrap, ...loggedBlocks);
+      // Scroll so the Stop button + running timer are in view, past the header.
+      scrollTargetEl = actionRow;
 
       const frame = (): void => {
         setElapsedMs = Date.now() - setStartEpoch;
@@ -1840,19 +1845,22 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
 
       // Between-sets layout (top → bottom): Start set, then the rest timer, then
       // the performed sets, then the effort box, and finally finish-exercise.
+      const actionRow = h("div", { class: "btn-row live-actions live-scroll-anchor" }, [
+        h("button", {
+          class: "btn btn-primary btn-jumbo",
+          type: "button",
+          text: t("▶ Start set"),
+          on: { click: startSet },
+        }),
+      ]);
       container.append(
-        h("div", { class: "btn-row live-actions" }, [
-          h("button", {
-            class: "btn btn-primary btn-jumbo",
-            type: "button",
-            text: t("▶ Start set"),
-            on: { click: startSet },
-          }),
-        ]),
+        actionRow,
         h("p", { class: "set-time", text: t("Resting — recover, then start your next set") }),
         dialWrap,
         ...loggedBlocks,
       );
+      // Scroll so the Start-set button + rest timer are in view, past the header.
+      scrollTargetEl = actionRow;
       if (summary) container.append(summary);
       container.append(
         h("div", { class: "btn-row" }, [
@@ -1969,10 +1977,17 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     clear(container);
     if (!state.activeLog) stage = "list";
     snapshot();
+    // Cast keeps the assignment-narrowed type at `HTMLElement | null` so the
+    // renderers' assignments (in the dispatch below) are visible at the check.
+    scrollTargetEl = null as HTMLElement | null;
     if (stage === "list") renderList();
     else if (stage === "select") renderSelect();
     else renderExercise();
-    window.scrollTo(0, 0);
+    // During a running set / rest the renderer points scrollTargetEl at the
+    // action row so the button + timer sit at the top of the viewport; every
+    // other screen jumps back to the page top.
+    if (scrollTargetEl) scrollTargetEl.scrollIntoView({ block: "start" });
+    else window.scrollTo(0, 0);
   }
 
   restore();

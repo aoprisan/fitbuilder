@@ -2033,6 +2033,12 @@ textarea {
   justify-content: center;
 }
 
+/* Anchor for the auto-scroll during a running set / rest: leave a little
+   breathing room above the action button so it isn't flush with the top. */
+.live-scroll-anchor {
+  scroll-margin-top: 12px;
+}
+
 .live-actions .btn-jumbo {
   flex: 1 1 100%;
 }
