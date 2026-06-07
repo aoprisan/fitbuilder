@@ -1,5 +1,5 @@
-import { effectiveLoadKg, effortLoadFactor, muscleLoadFactor } from "./loadProfile";
-import { SECONDARY_MUSCLE_SHARE } from "./movements";
+import { effectiveLoadKg, effortLoadFactor, loadCapacityFactor } from "./loadProfile";
+import { movementLoadReferenceKg, SECONDARY_MUSCLE_SHARE } from "./movements";
 import type { Equipment, MuscleGroup, TrainingSession, WorkSet } from "./types";
 import { isCardio } from "./types";
 import { clamp, round2 } from "./util";
@@ -114,15 +114,19 @@ export function fatigueProximity(rir?: number): number {
  * `fatigueWeighted` turns on the volume-term weighting the effort gauge wants. It
  * is **off by default** so the raw-work callers that apply their own equipment
  * factors afterwards (recovery's `muscleDemandFactor` / `cnsFactor`) keep getting
- * unweighted work and don't double-count. `isCompound` and `muscle` only matter
- * when weighted.
+ * unweighted work and don't double-count. `isCompound` and `referenceLoadKg` only
+ * matter when weighted.
  */
 export interface SetEffortOpts {
   /** Lift taxes secondary muscles (deadlift, press) — earns the compound fatigue premium. */
   isCompound?: boolean;
-  /** Primary muscle worked — normalises the volume term against that muscle's load capacity. */
-  muscle?: MuscleGroup;
-  /** Weight the volume term by {@link effortLoadFactor} / {@link muscleLoadFactor}. Default false (raw work). */
+  /**
+   * Working-load reference (kg) to normalise the volume term against — the movement's
+   * own when it has one, else its muscle's (see {@link movementLoadReferenceKg}). A kg
+   * counts more on a low-load movement (back extension) than a high-load one (deadlift).
+   */
+  referenceLoadKg?: number;
+  /** Weight the volume term by {@link effortLoadFactor} / {@link loadCapacityFactor}. Default false (raw work). */
   fatigueWeighted?: boolean;
 }
 
@@ -139,9 +143,10 @@ export interface SetEffortOpts {
  *  - {@link effortLoadFactor} — by *load type*: each unit of resistance costs less
  *    on a guided machine isolation than on a free-weight compound, so an 86 kg
  *    machine back extension fills the gauge far less than an 86 kg deadlift.
- *  - {@link muscleLoadFactor} — by *movement / muscle capacity*: a kg counts more
- *    on a low-capacity muscle than a high-capacity one, so a 56 kg biceps curl (a
- *    brutal set) outweighs a 56 kg shrug (a light one) instead of tying it.
+ *  - {@link loadCapacityFactor} — by *movement / muscle capacity*: a kg counts more
+ *    on a low-load movement than a high-load one, so a 56 kg biceps curl (a brutal
+ *    set) outweighs a 56 kg deadlift (a light one) instead of tying it, and a back
+ *    extension outweighs a deadlift that both credit the lower back.
  *
  * The base credit, reps and time under tension stay modality-agnostic.
  */
@@ -161,7 +166,10 @@ export function setEffort(set: WorkSet, equipment?: Equipment, opts: SetEffortOp
   const load = equipment ? effectiveLoadKg(set.weightKg, equipment) : Math.max(0, set.weightKg);
   const fatigue =
     opts.fatigueWeighted && equipment ? effortLoadFactor(equipment, opts.isCompound ?? false) : 1;
-  const norm = opts.fatigueWeighted && opts.muscle ? muscleLoadFactor(opts.muscle) : 1;
+  const norm =
+    opts.fatigueWeighted && opts.referenceLoadKg !== undefined
+      ? loadCapacityFactor(opts.referenceLoadKg)
+      : 1;
   const volume = set.reps * load * fatigue * norm;
   return (
     1 +
@@ -181,8 +189,9 @@ export function sessionEffort(session: TrainingSession): number {
   let total = 0;
   for (const ex of session.exercises) {
     const isCompound = isCompoundExercise(ex);
+    const referenceLoadKg = movementLoadReferenceKg(ex.exerciseId, ex.muscle);
     for (const s of ex.sets)
-      total += setEffort(s, ex.equipment, { isCompound, muscle: ex.muscle, fatigueWeighted: true });
+      total += setEffort(s, ex.equipment, { isCompound, referenceLoadKg, fatigueWeighted: true });
   }
   return total;
 }
@@ -196,9 +205,10 @@ function sessionEffortIntensity(session: TrainingSession): number {
   let total = 0;
   for (const ex of session.exercises) {
     const isCompound = isCompoundExercise(ex);
+    const referenceLoadKg = movementLoadReferenceKg(ex.exerciseId, ex.muscle);
     for (const s of ex.sets)
       total +=
-        setEffort(s, ex.equipment, { isCompound, muscle: ex.muscle, fatigueWeighted: true }) *
+        setEffort(s, ex.equipment, { isCompound, referenceLoadKg, fatigueWeighted: true }) *
         fatigueProximity(s.rir);
   }
   return total;
@@ -326,10 +336,11 @@ function accumulateMuscleWork(sessions: Iterable<TrainingSession>): MuscleWork[]
   for (const session of sessions) {
     for (const ex of session.exercises) {
       const isCompound = isCompoundExercise(ex);
+      const referenceLoadKg = movementLoadReferenceKg(ex.exerciseId, ex.muscle);
       for (const s of ex.sets) {
         const setPts = setEffort(s, ex.equipment, {
           isCompound,
-          muscle: ex.muscle,
+          referenceLoadKg,
           fatigueWeighted: true,
         });
         // Primary muscle takes full credit; a compound lift's secondary muscles

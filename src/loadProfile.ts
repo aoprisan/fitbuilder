@@ -128,13 +128,15 @@ const MUSCLE_LOAD_FACTOR_MIN = 0.5;
 const MUSCLE_LOAD_FACTOR_MAX = 2;
 
 /**
- * Capacity normaliser for a muscle's volume in the effort gauge: `baseline ÷ the
- * muscle's reference load`. >1 for low-capacity muscles (a curl's 20 kg is a hard
- * set, so it counts up), <1 for high-capacity ones (a shrug's 80 kg is routine, so
- * it counts down). Clamped to keep the swing bounded.
+ * Capacity normaliser for the effort gauge from a working-load reference:
+ * `baseline ÷ reference`. >1 for low-load movements (a curl's 20 kg is a hard
+ * set, so it counts up), <1 for high-load ones (a deadlift's 80 kg is routine, so
+ * it counts down). Clamped to keep the swing bounded. The reference is the load a
+ * movement (or, lacking one, its muscle) handles for a hard working set, so a back
+ * extension and a deadlift on the same lower back normalise very differently.
  */
-export function muscleLoadFactor(muscle: MuscleGroup): number {
-  const factor = BASELINE_LOAD_KG / MUSCLE_REFERENCE_LOAD_KG[muscle];
+export function loadCapacityFactor(referenceLoadKg: number): number {
+  const factor = BASELINE_LOAD_KG / referenceLoadKg;
   return Math.min(MUSCLE_LOAD_FACTOR_MAX, Math.max(MUSCLE_LOAD_FACTOR_MIN, factor));
 }
 
