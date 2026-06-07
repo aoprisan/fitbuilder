@@ -1749,10 +1749,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       }
     }
 
-    // Running, resting, and logging reorder the screen (the action button + dials
-    // move up, the set list drops below); only idle keeps the logged read-out
-    // right under the last-time recall.
-    if (sub === "idle") container.append(...loggedBlocks);
+    // Every sub-stage keeps the action button (and dials, when logging) at the
+    // top of the screen, with the performed-sets read-out dropping below it.
 
     if (sub === "idle") {
       container.append(
@@ -1772,6 +1770,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
             on: { click: finishExercise },
           }),
         ]),
+        ...loggedBlocks,
       );
       return;
     }
