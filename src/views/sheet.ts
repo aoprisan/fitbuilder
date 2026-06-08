@@ -8,6 +8,7 @@ import type { SelectMode } from "../liveProgress";
 import {
   compoundMovements,
   findMovement,
+  isCompoundMovement,
   isolationMovementsForMuscle,
   type Movement,
   muscleShares,
@@ -544,7 +545,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
     const selected = findMovement(movementId);
     // A compound row defaults to the Compound picker — the isolation-only Custom
     // picker can't represent it. Once the user picks a mode, that choice sticks.
-    const mode = rowMode.get(ex) ?? (selected && selected.secondaryMuscles.length > 0 ? "compound" : "custom");
+    const mode = rowMode.get(ex) ?? (selected && isCompoundMovement(selected) ? "compound" : "custom");
 
     // Adopt a catalog movement as this row's identity (name + muscle/load/compound).
     const pick = (id: string): void => {
@@ -567,13 +568,13 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
       // Keep the selection valid for the new mode. Compound lists only compounds;
       // Custom lists only isolation movements, so each drops a stale selection to
       // the first valid option for the picker it's switching to.
-      if (m === "compound" && (!selected || selected.secondaryMuscles.length === 0)) {
+      if (m === "compound" && (!selected || !isCompoundMovement(selected))) {
         const first = compoundMovements()[0];
         if (first) {
           pick(first.id);
           return;
         }
-      } else if (m === "custom" && selected && selected.secondaryMuscles.length > 0) {
+      } else if (m === "custom" && selected && isCompoundMovement(selected)) {
         const first = isolationMovementsForMuscle(muscle)[0];
         if (first) {
           pick(first.id);
@@ -620,7 +621,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
         pickMode,
       ),
       ...body,
-      ...(selected && selected.secondaryMuscles.length > 0 ? [renderMuscleShares(selected)] : []),
+      ...(selected && isCompoundMovement(selected) ? [renderMuscleShares(selected)] : []),
     ]);
   };
 

@@ -1,4 +1,4 @@
-import { findMovement } from "./movements";
+import { findMovement, isCompoundMovement } from "./movements";
 import { exerciseHistoryLines } from "./progression";
 import { bestOneRm, exerciseKey, exerciseKeyLabel, type ExerciseKey, presentExerciseKeys } from "./stats";
 import {
@@ -163,10 +163,10 @@ const EXAMPLE_SHEET = {
   ],
 };
 
-/** A movement is "selectable" here when it's a curated compound — it taxes secondaries. */
+/** A movement is "selectable" here when it's a curated compound lift. */
 export function isCompoundKey(key: ExerciseKey): boolean {
   const mv = findMovement(key);
-  return mv !== undefined && mv.secondaryMuscles.length > 0;
+  return mv !== undefined && isCompoundMovement(mv);
 }
 
 /** A compound the user can build a block for, with a menu label. */

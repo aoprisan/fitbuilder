@@ -41,6 +41,7 @@ import {
 import {
   compoundMovements,
   findMovement,
+  isCompoundMovement,
   isolationMovementsForMuscle,
   type Movement,
   movementsForMuscle,
@@ -1355,7 +1356,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     // A compound selection (commonly a routine-prescribed lift) can't live in the
     // isolation-only Custom picker, so default to the Compound picker whenever the
     // current movement is a compound; the Mode toggle still lets the user switch.
-    if ((findMovement(movementId)?.secondaryMuscles.length ?? 0) > 0) {
+    const selMv = findMovement(movementId);
+    if (selMv && isCompoundMovement(selMv)) {
       selectMode = "compound";
     }
     if (selectMode === "compound") ensureCompound();
@@ -1498,7 +1500,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
                 movementId,
                 pickMovement,
               ),
-              ...(selectedCompound && selectedCompound.secondaryMuscles.length > 0
+              ...(selectedCompound && isCompoundMovement(selectedCompound)
                 ? [renderMuscleShares(selectedCompound)]
                 : []),
             ]

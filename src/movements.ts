@@ -25,6 +25,14 @@ export interface Movement {
   name: string;
   primaryMuscle: MuscleGroup;
   secondaryMuscles: readonly MuscleGroup[];
+  /**
+   * Force-classify as an isolation movement even though it carries a secondary
+   * muscle. The secondary is a minor *credit* bias (rear-delt fly → traps, back
+   * extension → glutes), not a second worked region — so the movement stays out
+   * of the compound picker ({@link isCompoundMovement}) and is offered under its
+   * muscle in the Custom picker instead. Credit/analytics still use the secondary.
+   */
+  isolation?: boolean;
   /** Load type — reused as the LoggedExercise equipment. */
   equipment: Equipment;
   /**
@@ -101,7 +109,7 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
     { id: "chin-up", name: "Chin-Up", primaryMuscle: "back", secondaryMuscles: ["biceps"], equipment: "calisthenics", aliases: ["Chin-Ups", "Chin Ups", "Tractiuni Supinate"] },
     { id: "inverted-row", name: "Inverted Row", primaryMuscle: "back", secondaryMuscles: ["biceps", "rear-delts"], equipment: "calisthenics", aliases: ["Australian Pull-Up", "Australian Pull-Ups", "Australiene", "Ramat", "Ramat Banda Elastica"] },
     { id: "muscle-up", name: "Muscle-Up", primaryMuscle: "back", secondaryMuscles: ["chest", "triceps"], equipment: "calisthenics", aliases: ["Muscle-Ups", "Muscle Up", "Muscle Ups"] },
-    { id: "dead-hang", name: "Dead Hang", primaryMuscle: "forearms", secondaryMuscles: ["back"], equipment: "calisthenics", aliases: ["Dead Hangs"] },
+    { id: "dead-hang", name: "Dead Hang", primaryMuscle: "forearms", secondaryMuscles: ["back"], isolation: true, equipment: "calisthenics", aliases: ["Dead Hangs"] },
     { id: "pronated-grip-pulldown", name: "Pronated Grip Pulldown", primaryMuscle: "back", secondaryMuscles: ["biceps", "forearms"], equipment: "lat-pulldown", aliases: ["Pronated Pulldown", "Wide Grip Pulldown", "Lat Pulldown Pronated"] },
     { id: "neutral-grip-pulldown", name: "Neutral Grip Pulldown", primaryMuscle: "back", secondaryMuscles: ["biceps", "forearms"], equipment: "lat-pulldown", aliases: ["Neutral Pulldown", "Neutral Grip Lat Pulldown", "Close Grip Pulldown"] },
     { id: "cable-row", name: "Cable Row Machine", primaryMuscle: "back", secondaryMuscles: ["biceps", "traps", "rear-delts"], equipment: "cable", aliases: ["Cable Row", "Seated Cable Row", "Ramat la Cablu"] },
@@ -113,9 +121,9 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
     genericMovement("back", "lat-pulldown"),
   ],
   "lower-back": [
-    { id: "back-extension", name: "Back Extension", primaryMuscle: "lower-back", secondaryMuscles: ["glutes"], equipment: "calisthenics", referenceLoadKg: 40, aliases: ["Hyperextension", "Hyperextensions", "Superman", "Hiper Extensii", "Hiper Extensii Superman"] },
+    { id: "back-extension", name: "Back Extension", primaryMuscle: "lower-back", secondaryMuscles: ["glutes"], isolation: true, equipment: "calisthenics", referenceLoadKg: 40, aliases: ["Hyperextension", "Hyperextensions", "Superman", "Hiper Extensii", "Hiper Extensii Superman"] },
     { id: "good-morning", name: "Good Morning", primaryMuscle: "lower-back", secondaryMuscles: ["glutes", "legs"], equipment: "barbell", referenceLoadKg: 80, aliases: ["Good Mornings"] },
-    { id: "back-extension-machine", name: "Back Extension Machine", primaryMuscle: "lower-back", secondaryMuscles: ["glutes"], equipment: "machine", referenceLoadKg: 90 },
+    { id: "back-extension-machine", name: "Back Extension Machine", primaryMuscle: "lower-back", secondaryMuscles: ["glutes"], isolation: true, equipment: "machine", referenceLoadKg: 90 },
     genericMovement("lower-back", "barbell"),
     genericMovement("lower-back", "machine"),
   ],
@@ -145,9 +153,9 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
     genericMovement("side-delts", "lateral-raise"),
   ],
   "rear-delts": [
-    { id: "rear-delt-fly-machine", name: "Rear Delt Fly Machine", primaryMuscle: "rear-delts", secondaryMuscles: ["traps"], equipment: "rear-delt-fly", aliases: ["Reverse Pec Deck", "Reverse Fly Machine", "Rear Delt Machine"] },
-    { id: "dumbbell-rear-delt-fly", name: "Bent-Over Reverse Fly", primaryMuscle: "rear-delts", secondaryMuscles: ["traps"], equipment: "dumbbell", aliases: ["Reverse Fly", "Rear Delt Fly", "Bent-Over Reverse Fly", "Bent Over Lateral Raise", "Reverse Dumbbell Fly"] },
-    { id: "face-pull", name: "Face Pull", primaryMuscle: "rear-delts", secondaryMuscles: ["traps"], equipment: "cable", aliases: ["Cable Face Pull", "Rope Face Pull"] },
+    { id: "rear-delt-fly-machine", name: "Rear Delt Fly Machine", primaryMuscle: "rear-delts", secondaryMuscles: ["traps"], isolation: true, equipment: "rear-delt-fly", aliases: ["Reverse Pec Deck", "Reverse Fly Machine", "Rear Delt Machine"] },
+    { id: "dumbbell-rear-delt-fly", name: "Bent-Over Reverse Fly", primaryMuscle: "rear-delts", secondaryMuscles: ["traps"], isolation: true, equipment: "dumbbell", aliases: ["Reverse Fly", "Rear Delt Fly", "Bent-Over Reverse Fly", "Bent Over Lateral Raise", "Reverse Dumbbell Fly"] },
+    { id: "face-pull", name: "Face Pull", primaryMuscle: "rear-delts", secondaryMuscles: ["traps"], isolation: true, equipment: "cable", aliases: ["Cable Face Pull", "Rope Face Pull"] },
     genericMovement("rear-delts", "dumbbell"),
     genericMovement("rear-delts", "cable"),
     genericMovement("rear-delts", "rear-delt-fly"),
@@ -182,7 +190,7 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
     { id: "plank", name: "Plank", primaryMuscle: "core", secondaryMuscles: [], equipment: "calisthenics" },
     { id: "bench-crunches", name: "Bench Crunches", primaryMuscle: "core", secondaryMuscles: [], equipment: "calisthenics" },
     { id: "knee-raises", name: "Knee Raises", primaryMuscle: "core", secondaryMuscles: [], equipment: "calisthenics", aliases: ["Knee Raise", "Lying Knee Raises", "Captain's Chair Knee Raises"] },
-    { id: "hanging-knee-raises", name: "Hanging Knee Raises", primaryMuscle: "core", secondaryMuscles: ["forearms"], equipment: "calisthenics", aliases: ["Hanging Knee Raise", "Hanging Leg Raises", "Hanging Leg Raise"] },
+    { id: "hanging-knee-raises", name: "Hanging Knee Raises", primaryMuscle: "core", secondaryMuscles: ["forearms"], isolation: true, equipment: "calisthenics", aliases: ["Hanging Knee Raise", "Hanging Leg Raises", "Hanging Leg Raise"] },
     { id: "lateral-abs-machine", name: "Lateral Abs Machine", primaryMuscle: "core", secondaryMuscles: [], equipment: "lateral-abs-machine" },
     genericMovement("core", "cable"),
     genericMovement("core", "dumbbell"),
@@ -190,7 +198,7 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
   cardio: [
     { id: "treadmill", name: "Treadmill", primaryMuscle: "cardio", secondaryMuscles: [], equipment: "treadmill", aliases: ["Run", "Running", "Jog", "Jogging", "Walk", "Alergare", "Banda", "Banda de Alergat"] },
     { id: "treadmill-intervals", name: "Treadmill Intervals", primaryMuscle: "cardio", secondaryMuscles: [], equipment: "treadmill", aliases: ["Interval Treadmill", "Treadmill HIIT", "HIIT Treadmill", "Interval Run", "Interval Running", "Treadmill Sprints", "Intervale Banda"] },
-    { id: "boxing", name: "Boxing", primaryMuscle: "cardio", secondaryMuscles: ["front-delts", "core"], equipment: "calisthenics", aliases: ["Box", "Boxing Rounds", "Shadow Boxing", "Bag Work", "Heavy Bag", "Sparring", "Box Fitness"] },
+    { id: "boxing", name: "Boxing", primaryMuscle: "cardio", secondaryMuscles: ["front-delts", "core"], isolation: true, equipment: "calisthenics", aliases: ["Box", "Boxing Rounds", "Shadow Boxing", "Bag Work", "Heavy Bag", "Sparring", "Box Fitness"] },
   ],
 };
 
@@ -203,14 +211,25 @@ export function movementsForMuscle(muscle: MuscleGroup): readonly Movement[] {
 }
 
 /**
+ * Whether a movement belongs in the compound picker: it taxes a secondary muscle
+ * *and* isn't a movement explicitly flagged {@link Movement.isolation} (a single-
+ * joint lift that lists a minor secondary only for credit, e.g. rear-delt fly →
+ * traps). The single source of truth for the compound/isolation split — every UI
+ * "is this a compound" check routes through here, not `secondaryMuscles.length`.
+ */
+export function isCompoundMovement(mv: Movement): boolean {
+  return mv.secondaryMuscles.length > 0 && mv.isolation !== true;
+}
+
+/**
  * The *isolation* movements for a muscle — {@link movementsForMuscle} minus the
  * compound lifts. The muscle+gear ("custom") picker uses this so multi-muscle
  * lifts don't clutter muscle selection; compounds are reached only through the
  * dedicated compound picker ({@link compoundMovements}). Generic-gear movements
- * carry no secondaries, so they stay.
+ * and flagged isolations (rear-delt fly, back extension, …) stay here.
  */
 export function isolationMovementsForMuscle(muscle: MuscleGroup): readonly Movement[] {
-  return movementsForMuscle(muscle).filter((mv) => mv.secondaryMuscles.length === 0);
+  return movementsForMuscle(muscle).filter((mv) => !isCompoundMovement(mv));
 }
 
 const REGISTRY: ReadonlyMap<string, Movement> = new Map(
@@ -288,14 +307,13 @@ export function matchMovementByName(name: string): Movement | undefined {
 }
 
 /**
- * Every curated compound lift, in catalog order. A movement is "compound" when
- * it taxes secondary muscles; generic-gear movements have none, so this yields
- * only the named multi-muscle lifts (e.g. the bench/incline presses, deadlifts).
+ * Every curated compound lift, in catalog order — the movements for which
+ * {@link isCompoundMovement} holds (taxes a secondary region and isn't a flagged
+ * isolation). Yields only the named multi-muscle lifts (bench/incline presses,
+ * deadlifts, squats, …); generic gear and single-joint isolations are excluded.
  */
 export function compoundMovements(): readonly Movement[] {
-  return MUSCLE_GROUPS.flatMap((m) => movementsForMuscle(m)).filter(
-    (mv) => mv.secondaryMuscles.length > 0,
-  );
+  return MUSCLE_GROUPS.flatMap((m) => movementsForMuscle(m)).filter(isCompoundMovement);
 }
 
 /** A muscle's normalized share of a movement's work, as a whole-number percent. */
