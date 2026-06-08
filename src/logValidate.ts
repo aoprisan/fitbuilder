@@ -23,18 +23,31 @@ function coerceEquipment(value: unknown): Equipment {
     : "dumbbell";
 }
 
+/**
+ * Legacy muscle ids that have since been renamed/split, mapped to their current
+ * id so old logs aren't silently dropped (or worse, defaulted to "chest"). The
+ * single "shoulders" group was split into front/side/rear delts; older logs
+ * predate the split, so they land on the middle (side) head.
+ */
+const LEGACY_MUSCLE_ALIASES: Record<string, MuscleGroup> = {
+  shoulders: "side-delts",
+};
+
+function asMuscle(value: unknown): MuscleGroup | undefined {
+  if (typeof value !== "string") return undefined;
+  if ((MUSCLE_GROUPS as readonly string[]).includes(value)) return value as MuscleGroup;
+  return LEGACY_MUSCLE_ALIASES[value];
+}
+
 function coerceMuscle(value: unknown): MuscleGroup {
-  return typeof value === "string" && (MUSCLE_GROUPS as readonly string[]).includes(value)
-    ? (value as MuscleGroup)
-    : "chest";
+  return asMuscle(value) ?? "chest";
 }
 
 function coerceSecondaryMuscles(value: unknown): MuscleGroup[] {
   if (!Array.isArray(value)) return [];
-  return value.filter(
-    (m): m is MuscleGroup =>
-      typeof m === "string" && (MUSCLE_GROUPS as readonly string[]).includes(m),
-  );
+  return value
+    .map(asMuscle)
+    .filter((m): m is MuscleGroup => m !== undefined);
 }
 
 function coerceNonNegative(value: unknown): number {

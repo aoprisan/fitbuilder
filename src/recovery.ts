@@ -35,7 +35,12 @@ export const RECOVERY_HOURS: Record<MuscleGroup, number> = {
   // Erectors are endurance-oriented postural muscles — lighter back-extension /
   // hyperextension work clears faster than the lats' heavier pulling volume.
   "lower-back": 48,
-  shoulders: 48,
+  // Delts by head: the front head takes heavy pressing damage like the chest, so
+  // it sits at the ~48h default; the side and rear heads see only light, high-rep
+  // isolation and clear faster.
+  "front-delts": 48,
+  "side-delts": 36,
+  "rear-delts": 36,
   traps: 48,
   // Elbow flexors/extensors are the most damage-prone, slowest-recovering group
   // (Chen & Nosaka 2011) — not the fastest. Raised from a too-short 36h.

@@ -50,7 +50,7 @@ const EXAMPLE_SHEET = {
           name: "Bench Press",
           muscle: "chest",
           equipment: "barbell",
-          secondaryMuscles: ["triceps", "shoulders"],
+          secondaryMuscles: ["triceps", "front-delts"],
           target: {
             kind: "sets",
             sets: [
@@ -63,16 +63,16 @@ const EXAMPLE_SHEET = {
         },
         {
           name: "Overhead Press",
-          muscle: "shoulders",
+          muscle: "front-delts",
           equipment: "barbell",
-          secondaryMuscles: ["triceps"],
+          secondaryMuscles: ["side-delts", "triceps"],
           target: { kind: "sets", sets: [{ reps: 10 }, { reps: 10 }, { reps: 10 }] },
         },
         {
           name: "Push-Ups",
           muscle: "chest",
           equipment: "calisthenics",
-          secondaryMuscles: ["triceps", "shoulders"],
+          secondaryMuscles: ["triceps", "front-delts"],
           target: { kind: "volume", totalReps: 50 },
         },
       ],

@@ -77,9 +77,13 @@ function buildParts(): PartSpec[] {
     { geo: box(0.64, 0.5, 0.14), pos: [0, 2.14, -0.34], muscle: "back" },
     { geo: box(0.46, 0.4, 0.14), pos: [0, 1.64, -0.34], muscle: "lower-back" },
 
-    // — shoulders —
-    { geo: ball(0.22), pos: [-0.6, 2.4, 0], muscle: "shoulders" },
-    { geo: ball(0.22), pos: [0.6, 2.4, 0], muscle: "shoulders" },
+    // — deltoids: each shoulder split into front (+z), side (outer) and rear (-z) heads —
+    { geo: ball(0.15), pos: [-0.58, 2.4, 0.12], muscle: "front-delts" },
+    { geo: ball(0.15), pos: [0.58, 2.4, 0.12], muscle: "front-delts" },
+    { geo: ball(0.15), pos: [-0.7, 2.42, 0], muscle: "side-delts" },
+    { geo: ball(0.15), pos: [0.7, 2.42, 0], muscle: "side-delts" },
+    { geo: ball(0.15), pos: [-0.58, 2.4, -0.12], muscle: "rear-delts" },
+    { geo: ball(0.15), pos: [0.58, 2.4, -0.12], muscle: "rear-delts" },
 
     // — arms: biceps (front) / triceps (back) / forearms —
     { geo: cap(0.12, 0.34), pos: [-0.74, 1.95, 0.1], muscle: "biceps" },
