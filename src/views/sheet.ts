@@ -8,8 +8,8 @@ import type { SelectMode } from "../liveProgress";
 import {
   compoundMovements,
   findMovement,
+  isolationMovementsForMuscle,
   type Movement,
-  movementsForMuscle,
   muscleShares,
 } from "../movements";
 import type { Cleanup, Nav } from "../router";
@@ -538,11 +538,13 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
     ]);
 
   const renderMovementPicker = (ex: RoutineExercise, exIndex: number): HTMLElement => {
-    const mode = rowMode.get(ex) ?? "custom";
     const current = ex.exerciseId ? findMovement(ex.exerciseId) : undefined;
     const muscle: MuscleGroup = ex.muscle ?? current?.primaryMuscle ?? "chest";
-    const movementId = current?.id ?? movementsForMuscle(muscle)[0]?.id ?? "";
+    const movementId = current?.id ?? isolationMovementsForMuscle(muscle)[0]?.id ?? "";
     const selected = findMovement(movementId);
+    // A compound row defaults to the Compound picker — the isolation-only Custom
+    // picker can't represent it. Once the user picks a mode, that choice sticks.
+    const mode = rowMode.get(ex) ?? (selected && selected.secondaryMuscles.length > 0 ? "compound" : "custom");
 
     // Adopt a catalog movement as this row's identity (name + muscle/load/compound).
     const pick = (id: string): void => {
@@ -557,14 +559,22 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
       renderRoutines();
     };
     const pickMuscle = (m: string): void => {
-      const first = movementsForMuscle(m as MuscleGroup)[0];
+      const first = isolationMovementsForMuscle(m as MuscleGroup)[0];
       if (first) pick(first.id);
     };
     const pickMode = (m: string): void => {
       rowMode.set(ex, m as SelectMode);
-      // Keep the selection valid for the new mode: Compound only lists compounds.
+      // Keep the selection valid for the new mode. Compound lists only compounds;
+      // Custom lists only isolation movements, so each drops a stale selection to
+      // the first valid option for the picker it's switching to.
       if (m === "compound" && (!selected || selected.secondaryMuscles.length === 0)) {
         const first = compoundMovements()[0];
+        if (first) {
+          pick(first.id);
+          return;
+        }
+      } else if (m === "custom" && selected && selected.secondaryMuscles.length > 0) {
+        const first = isolationMovementsForMuscle(muscle)[0];
         if (first) {
           pick(first.id);
           return;
@@ -594,7 +604,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
             ),
             chipToggle(
               t("Exercise"),
-              movementsForMuscle(muscle).map((mv) => mv.id),
+              isolationMovementsForMuscle(muscle).map((mv) => mv.id),
               (id) => findMovement(id)?.name ?? id,
               movementId,
               pick,

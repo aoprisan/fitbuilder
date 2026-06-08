@@ -41,6 +41,7 @@ import {
 import {
   compoundMovements,
   findMovement,
+  isolationMovementsForMuscle,
   type Movement,
   movementsForMuscle,
   muscleShares,
@@ -584,16 +585,21 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     equipment = mv.equipment;
   }
 
-  /** Switch muscle group and reset the movement to that group's first option. */
+  /** Switch muscle group and reset the movement to that group's first isolation option. */
   function selectMuscle(m: MuscleGroup): void {
     muscle = m;
-    const first = movementsForMuscle(m)[0];
+    const first = isolationMovementsForMuscle(m)[0];
     if (first) selectMovement(first.id);
   }
 
-  /** Ensure the current movement belongs to the current muscle; default if not. */
+  /**
+   * Ensure the current movement is a valid isolation pick for the current muscle;
+   * default to its first isolation movement if not. Custom mode lists isolation
+   * movements only — compounds live in the compound picker — so a compound
+   * selection (e.g. a routine-prescribed lift) is dropped back to isolation here.
+   */
   function ensureMovement(): void {
-    const movements = movementsForMuscle(muscle);
+    const movements = isolationMovementsForMuscle(muscle);
     if (!movements.some((mv) => mv.id === movementId)) {
       const first = movements[0];
       if (first) selectMovement(first.id);
@@ -1346,6 +1352,12 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         if (match) movementId = match.id;
       }
     }
+    // A compound selection (commonly a routine-prescribed lift) can't live in the
+    // isolation-only Custom picker, so default to the Compound picker whenever the
+    // current movement is a compound; the Mode toggle still lets the user switch.
+    if ((findMovement(movementId)?.secondaryMuscles.length ?? 0) > 0) {
+      selectMode = "compound";
+    }
     if (selectMode === "compound") ensureCompound();
     else ensureMovement();
 
@@ -1494,7 +1506,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
             renderToggle(t("Muscle group"), MUSCLE_GROUPS, (m) => t(MUSCLE_LABELS[m as MuscleGroup]), muscle, pickMuscle),
             renderToggle(
               t("Exercise"),
-              movementsForMuscle(muscle).map((mv) => mv.id),
+              isolationMovementsForMuscle(muscle).map((mv) => mv.id),
               (id) => findMovement(id)?.name ?? id,
               movementId,
               pickMovement,

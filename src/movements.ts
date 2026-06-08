@@ -202,6 +202,17 @@ export function movementsForMuscle(muscle: MuscleGroup): readonly Movement[] {
   return CURATED[muscle] ?? GENERIC_EQUIPMENT.map((eq) => genericMovement(muscle, eq));
 }
 
+/**
+ * The *isolation* movements for a muscle — {@link movementsForMuscle} minus the
+ * compound lifts. The muscle+gear ("custom") picker uses this so multi-muscle
+ * lifts don't clutter muscle selection; compounds are reached only through the
+ * dedicated compound picker ({@link compoundMovements}). Generic-gear movements
+ * carry no secondaries, so they stay.
+ */
+export function isolationMovementsForMuscle(muscle: MuscleGroup): readonly Movement[] {
+  return movementsForMuscle(muscle).filter((mv) => mv.secondaryMuscles.length === 0);
+}
+
 const REGISTRY: ReadonlyMap<string, Movement> = new Map(
   MUSCLE_GROUPS.flatMap((m) => movementsForMuscle(m)).map((mv) => [mv.id, mv]),
 );
