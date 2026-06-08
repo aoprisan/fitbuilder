@@ -114,6 +114,8 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
     { id: "neutral-grip-pulldown", name: "Neutral Grip Pulldown", primaryMuscle: "back", secondaryMuscles: ["biceps", "forearms"], equipment: "lat-pulldown", aliases: ["Neutral Pulldown", "Neutral Grip Lat Pulldown", "Close Grip Pulldown"] },
     { id: "cable-row", name: "Cable Row Machine", primaryMuscle: "back", secondaryMuscles: ["biceps", "traps", "rear-delts"], equipment: "cable", aliases: ["Cable Row", "Seated Cable Row", "Ramat la Cablu"] },
     { id: "seated-row", name: "Seated Row Machine", primaryMuscle: "back", secondaryMuscles: ["biceps", "traps", "rear-delts"], equipment: "machine", aliases: ["Seated Row", "Row Machine", "Machine Row"] },
+    { id: "straight-arm-pulldown", name: "Straight-Arm Pulldown", primaryMuscle: "back", secondaryMuscles: ["triceps"], isolation: true, equipment: "cable", aliases: ["Straight Arm Pulldown", "Straight-Arm Pull-Down", "Cable Straight-Arm Pulldown", "Lat Pushdown"] },
+    { id: "lat-pullover", name: "Lat Pullover", primaryMuscle: "back", secondaryMuscles: ["chest"], isolation: true, equipment: "dumbbell", aliases: ["Pullover", "Dumbbell Pullover", "Cable Pullover"] },
     genericMovement("back", "barbell"),
     genericMovement("back", "dumbbell"),
     genericMovement("back", "cable"),
