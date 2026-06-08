@@ -59,7 +59,10 @@ const poly = (points: string): Shape => ({ tag: "polygon", attrs: { points } });
 const REGIONS: Region[] = [
   // — front —
   { muscle: "traps", shapes: [poly("36,41 50,30 50,41"), poly("64,41 50,30 50,41")] },
-  { muscle: "shoulders", shapes: [ell(28, 44, 9, 8), ell(72, 44, 9, 8)] },
+  // Deltoids: the front figure shows the anterior head (inner) with the lateral
+  // head as the outer cap; the posterior head is on the back figure.
+  { muscle: "front-delts", shapes: [ell(30, 45, 7, 7), ell(70, 45, 7, 7)] },
+  { muscle: "side-delts", shapes: [ell(22, 40, 4, 6), ell(78, 40, 4, 6)] },
   { muscle: "chest", shapes: [ell(41, 52, 9, 7), ell(59, 52, 9, 7)] },
   { muscle: "biceps", shapes: [ell(22, 63, 6, 12), ell(78, 63, 6, 12)] },
   { muscle: "forearms", shapes: [ell(18, 87, 5, 13), ell(82, 87, 5, 13)] },
@@ -68,7 +71,9 @@ const REGIONS: Region[] = [
   { muscle: "calves", shapes: [ell(42, 175, 6, 18), ell(58, 175, 6, 18)] },
   // — back —
   { muscle: "traps", shapes: [poly("150,41 170,30 190,41 170,57")] },
-  { muscle: "shoulders", shapes: [ell(148, 44, 9, 8), ell(192, 44, 9, 8)] },
+  // Back figure: posterior head (inner) with the lateral head as the outer cap.
+  { muscle: "rear-delts", shapes: [ell(150, 45, 7, 7), ell(190, 45, 7, 7)] },
+  { muscle: "side-delts", shapes: [ell(142, 40, 4, 6), ell(198, 40, 4, 6)] },
   { muscle: "back", shapes: [ell(158, 68, 8, 13), ell(182, 68, 8, 13)] },
   { muscle: "triceps", shapes: [ell(142, 63, 6, 12), ell(198, 63, 6, 12)] },
   { muscle: "forearms", shapes: [ell(138, 87, 5, 13), ell(202, 87, 5, 13)] },

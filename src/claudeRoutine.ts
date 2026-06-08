@@ -110,7 +110,7 @@ const EXAMPLE_SHEET = {
               name: "Bench Press",
               muscle: "chest",
               equipment: "barbell",
-              secondaryMuscles: ["triceps", "shoulders"],
+              secondaryMuscles: ["triceps", "front-delts"],
               target: {
                 kind: "sets",
                 sets: [
@@ -126,7 +126,7 @@ const EXAMPLE_SHEET = {
         {
           title: "Accessory",
           exercises: [
-            { name: "Overhead Press", muscle: "shoulders", equipment: "barbell", secondaryMuscles: ["triceps"], target: { kind: "sets", sets: [{ reps: 8, loadKg: 40 }, { reps: 8, loadKg: 40 }, { reps: 8, loadKg: 40 }] } },
+            { name: "Overhead Press", muscle: "front-delts", equipment: "barbell", secondaryMuscles: ["side-delts", "triceps"], target: { kind: "sets", sets: [{ reps: 8, loadKg: 40 }, { reps: 8, loadKg: 40 }, { reps: 8, loadKg: 40 }] } },
             { name: "Dips", muscle: "chest", equipment: "calisthenics", secondaryMuscles: ["triceps"], target: { kind: "sets", sets: [{ reps: 10 }, { reps: 10 }, { reps: 10 }] } },
           ],
         },
@@ -144,7 +144,7 @@ const EXAMPLE_SHEET = {
               name: "Bench Press",
               muscle: "chest",
               equipment: "barbell",
-              secondaryMuscles: ["triceps", "shoulders"],
+              secondaryMuscles: ["triceps", "front-delts"],
               target: {
                 kind: "sets",
                 sets: [
@@ -268,8 +268,8 @@ const WHOLE_EXAMPLE_SHEET = {
         {
           title: "Push",
           exercises: [
-            { name: "Bench Press", muscle: "chest", equipment: "barbell", secondaryMuscles: ["triceps", "shoulders"], target: { kind: "sets", sets: [{ reps: 8, loadKg: 70 }, { reps: 8, loadKg: 70 }, { reps: 8, loadKg: 70 }] }, note: "~70% 1RM · 1 RIR" },
-            { name: "Overhead Press", muscle: "shoulders", equipment: "barbell", secondaryMuscles: ["triceps"], target: { kind: "sets", sets: [{ reps: 10, loadKg: 35 }, { reps: 10, loadKg: 35 }, { reps: 10, loadKg: 35 }] } },
+            { name: "Bench Press", muscle: "chest", equipment: "barbell", secondaryMuscles: ["triceps", "front-delts"], target: { kind: "sets", sets: [{ reps: 8, loadKg: 70 }, { reps: 8, loadKg: 70 }, { reps: 8, loadKg: 70 }] }, note: "~70% 1RM · 1 RIR" },
+            { name: "Overhead Press", muscle: "front-delts", equipment: "barbell", secondaryMuscles: ["side-delts", "triceps"], target: { kind: "sets", sets: [{ reps: 10, loadKg: 35 }, { reps: 10, loadKg: 35 }, { reps: 10, loadKg: 35 }] } },
           ],
         },
         {

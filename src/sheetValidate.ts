@@ -74,10 +74,17 @@ function validateTarget(value: unknown): ExerciseTarget | undefined {
   return undefined;
 }
 
+// Legacy muscle ids renamed/split since a sheet was authored — mapped to their
+// current id. The "shoulders" group was split into front/side/rear delts; sheets
+// (incl. older Claude-authored ones) that predate the split land on the side head.
+const LEGACY_MUSCLE_ALIASES: Record<string, MuscleGroup> = {
+  shoulders: "side-delts",
+};
+
 function asMuscle(value: unknown): MuscleGroup | undefined {
-  return typeof value === "string" && (MUSCLE_GROUPS as readonly string[]).includes(value)
-    ? (value as MuscleGroup)
-    : undefined;
+  if (typeof value !== "string") return undefined;
+  if ((MUSCLE_GROUPS as readonly string[]).includes(value)) return value as MuscleGroup;
+  return LEGACY_MUSCLE_ALIASES[value];
 }
 
 function asEquipment(value: unknown): Equipment | undefined {
@@ -88,10 +95,7 @@ function asEquipment(value: unknown): Equipment | undefined {
 
 function asSecondaryMuscles(value: unknown): readonly MuscleGroup[] {
   if (!Array.isArray(value)) return [];
-  return value.filter(
-    (m): m is MuscleGroup =>
-      typeof m === "string" && (MUSCLE_GROUPS as readonly string[]).includes(m),
-  );
+  return value.map(asMuscle).filter((m): m is MuscleGroup => m !== undefined);
 }
 
 function validateExercise(value: unknown): RoutineExercise {

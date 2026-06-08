@@ -126,7 +126,7 @@ export function profileFor(equipment: Equipment): LoadProfile {
  * Per-muscle reference working load (kg, free-weight equivalent) — roughly what a
  * muscle group moves in one hard working set for an intermediate trainee. It's the
  * "56 kg shrug ≠ 56 kg curl" knob: traps/legs/glutes shift big loads, so a given
- * kg there is a *small* fraction of capacity; biceps/forearms/shoulders move much
+ * kg there is a *small* fraction of capacity; biceps/forearms/delts move much
  * less, so the same kg is a *large* fraction. Effort runs off how hard a set is,
  * not raw tonnage, so the volume term is normalised against this reference (a kg
  * counts more on a low-capacity muscle, less on a high-capacity one). Deliberately
@@ -140,7 +140,13 @@ export const MUSCLE_REFERENCE_LOAD_KG: Record<MuscleGroup, number> = {
   back: 75,
   "lower-back": 70,
   chest: 65,
-  shoulders: 45,
+  // Delts split three ways: the front head presses real load (overhead/incline
+  // pressing), while the side and rear heads only handle light isolation
+  // (lateral / reverse-fly raises), so a given kg is a far larger fraction of
+  // their capacity and must count up much harder.
+  "front-delts": 45,
+  "side-delts": 16,
+  "rear-delts": 14,
   triceps: 32,
   biceps: 28,
   forearms: 30,

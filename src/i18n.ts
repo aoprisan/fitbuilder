@@ -73,7 +73,9 @@ const RO: Record<string, string> = {
   // — Muscle group labels (types.ts MUSCLE_LABELS) —
   Chest: "Piept",
   Back: "Spate",
-  Shoulders: "Umeri",
+  "Front Delts": "Umăr Anterior",
+  "Side Delts": "Umăr Lateral",
+  "Rear Delts": "Umăr Posterior",
   Traps: "Trapez",
   Biceps: "Biceps",
   Triceps: "Triceps",
