@@ -106,7 +106,7 @@ export function mountBody(root: HTMLElement, nav: Nav): Cleanup {
     return () => {};
   }
 
-  let metric: BodyMetric = "strength";
+  let metric: BodyMetric = "fatigue";
   let scores = new Map<MuscleGroup, MuscleScore>();
   let scene: BodyScene | null = null;
   let fallback: { el: Element; update: () => void } | null = null;
