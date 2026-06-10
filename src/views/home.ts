@@ -455,11 +455,12 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
       ? [hero, routinesLane, renderShareAppCard()]
       : [
           hero,
-          trainingLane,
-          // Body map + Recovery sit right under Start/Resume — the day-to-day flow
-          // is "start a session, then check the body". Both read muscle state, so
-          // they stay adjacent; the map only shows once there's training to fill it.
+          // Body map leads the day-to-day flow: the student opens Home to check
+          // muscle state, then start/resume. It sits right under the hero, above
+          // Train & track, so it's visible without scrolling. The map only shows
+          // once there's training to fill it in.
           ...(last ? [bodyMapCard] : []),
+          trainingLane,
           renderRecoveryCard(),
           claudeStartCard,
           renderOneRmCard(),
