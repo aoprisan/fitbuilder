@@ -1357,6 +1357,82 @@ textarea {
   font-size: 13px;
 }
 
+/* Progressive-overload nudge — the suggested next step for a movement. */
+.live-overload {
+  border-left: 8px solid var(--brick);
+  display: grid;
+  gap: 4px;
+}
+
+.live-overload .now-eyebrow,
+.live-overload .now-target,
+.live-overload .plan-meta {
+  margin: 0;
+}
+
+/* Personal-record celebration shown while resting after the record set. */
+.live-pr {
+  border-color: var(--brick);
+  border-left-width: 8px;
+}
+
+.pr-head {
+  margin: 0 0 6px;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--brick);
+}
+
+.pr-line {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pr-line + .pr-line {
+  margin-top: 2px;
+}
+
+/* Barbell plate calculator under the weight dial. */
+.plate-hint {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+/* Session-history filters on the live list screen. */
+.live-filter-row {
+  display: flex;
+  gap: 10px;
+  margin: 0 0 14px;
+}
+
+.live-filter-row .plan-name-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+}
+
+.live-filter-muscle {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 8px 10px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 2.5px solid var(--ink);
+}
+
 /* Pre-training "muscle not recovered" caution on the live select screen. */
 .live-recovery-warn {
   border-color: var(--mustard);

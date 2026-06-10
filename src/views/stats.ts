@@ -1,4 +1,5 @@
 import { clear, h } from "../dom";
+import { latestBodyweight } from "../bodyweightStore";
 import { lifetimeEffort, type LifetimeEffort } from "../effort";
 import { registerTranslations, t } from "../i18n";
 import {
@@ -114,6 +115,9 @@ registerTranslations({
   "Best one-rep max": "Cel mai bun 1RM",
   Logged: "Înregistrat",
   Estimated: "Estimat",
+  Relative: "Relativ",
+  "Best max ÷ your latest logged body weight ({0} kg).":
+    "Cel mai bun maxim ÷ ultima greutate corporală înregistrată ({0} kg).",
   "Heaviest tested max you've logged beside your best Epley estimate.":
     "Cea mai grea valoare maximă testată pe care ai înregistrat-o, alături de cea mai bună estimare Epley.",
   glass: "pahar",
@@ -264,7 +268,7 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
       );
     }
 
-    const lifetime = lifetimeEffort(sessions);
+    const lifetime = lifetimeEffort(sessions, latestBodyweight()?.kg);
     if (lifetime.sessions > 0) container.append(renderLifetime(lifetime));
 
     if (keys.length > 0) container.append(renderFilter(keys));
@@ -689,6 +693,12 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
    */
   function renderOneRmHeadline(best: BestOneRm): HTMLElement {
     const fmt = (n: number): string => (n > 0 ? `${round2(n)} kg` : "—");
+    // Relative strength: best max (tested over estimated) ÷ the latest logged
+    // body weight — only shown once a body weight exists to divide by.
+    const bw = latestBodyweight()?.kg;
+    const bestKg = Math.max(best.logged, best.estimated);
+    const relative =
+      bw !== undefined && bw > 0 && bestKg > 0 ? Math.round((bestKg / bw) * 100) / 100 : null;
     return h("section", { class: "card onerm-headline" }, [
       h("span", { class: "effort-eyebrow", text: t("Best one-rep max") }),
       h("div", { class: "onerm-grid" }, [
@@ -700,10 +710,21 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
           h("span", { class: "field-label", text: t("Estimated") }),
           h("span", { class: "onerm-calc", text: fmt(best.estimated) }),
         ]),
+        ...(relative !== null
+          ? [
+              h("div", { class: "onerm-cell" }, [
+                h("span", { class: "field-label", text: t("Relative") }),
+                h("span", { class: "onerm-calc", text: `${relative}× BW` }),
+              ]),
+            ]
+          : []),
       ]),
       h("p", {
         class: "onerm-note",
-        text: t("Heaviest tested max you've logged beside your best Epley estimate."),
+        text:
+          relative !== null
+            ? t("Best max ÷ your latest logged body weight ({0} kg).").replace("{0}", String(bw))
+            : t("Heaviest tested max you've logged beside your best Epley estimate."),
       }),
     ]);
   }

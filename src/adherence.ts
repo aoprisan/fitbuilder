@@ -1,3 +1,4 @@
+import { sessionAdherence } from "./benchmark";
 import { parseTargetReps } from "./execute";
 import type { TrainingSession } from "./types";
 
@@ -34,6 +35,36 @@ function sessionCompletion(session: TrainingSession): number | null {
   return fractions.reduce((a, f) => a + f, 0) / fractions.length;
 }
 
+/**
+ * One session's completion-of-plan percentage in [0, 100]: the structured
+ * benchmark (`sessionAdherence`, when the session carried per-set targets)
+ * first, falling back to the free-text prescription parse for older runs. Null
+ * when the session carried nothing comparable.
+ */
+export function sessionPlanPct(session: TrainingSession): number | null {
+  const structured = sessionAdherence(session);
+  if (structured) return structured.pct;
+  const c = sessionCompletion(session);
+  return c === null ? null : Math.round(c * 100);
+}
+
+/**
+ * Logged sessions started from a sheet — matching the sheet's own id and the
+ * per-routine slice ids Train stamps (`"<sheetId>:r<index>"`), newest first.
+ */
+export function sessionsForSheet(
+  sheetId: string,
+  sessions: readonly TrainingSession[],
+): TrainingSession[] {
+  return sessions
+    .filter(
+      (s) =>
+        s.fromSheetId !== undefined &&
+        (s.fromSheetId === sheetId || s.fromSheetId.startsWith(`${sheetId}:r`)),
+    )
+    .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+}
+
 export function summarizeAdherence(
   sheetId: string,
   sessions: readonly TrainingSession[],
@@ -44,10 +75,12 @@ export function summarizeAdherence(
   let lastRunIso = own[0]!.startedAt;
   for (const s of own) if (s.startedAt > lastRunIso) lastRunIso = s.startedAt;
 
+  // Prefer the structured per-set benchmark for each run, falling back to the
+  // free-text prescription parse — the same read the adherence report prints.
   const completions: number[] = [];
   for (const s of own) {
-    const c = sessionCompletion(s);
-    if (c !== null) completions.push(c);
+    const pct = sessionPlanPct(s);
+    if (pct !== null) completions.push(pct);
   }
 
   return {
@@ -56,7 +89,7 @@ export function summarizeAdherence(
     ...(completions.length > 0
       ? {
           avgCompletionPct: Math.round(
-            (completions.reduce((a, c) => a + c, 0) / completions.length) * 100,
+            completions.reduce((a, c) => a + c, 0) / completions.length,
           ),
         }
       : {}),

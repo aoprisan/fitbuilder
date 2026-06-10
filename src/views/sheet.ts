@@ -1,7 +1,9 @@
 import { track } from "../analytics";
+import { sessionsForSheet } from "../adherence";
 import { clear, h } from "../dom";
-import { canShareFiles, exportRoutineQrPng, exportSheetPdf, exportSheetPng, shareRoutineLink, shareSheet } from "../exporters";
+import { canShareFiles, exportRoutineQrPng, exportSheetPdf, exportSheetPng, shareAdherence, shareRoutineLink, shareSheet } from "../exporters";
 import { ImportError, importRoutineFile } from "../import";
+import { loadSessions } from "../logStorage";
 import { renderRoutineQrCanvas } from "../qr";
 import { clearLogo, fileToLogoDataUrl, loadLogo, LogoError, saveLogo } from "../logo";
 import type { SelectMode } from "../liveProgress";
@@ -52,6 +54,10 @@ import { registerTranslations, t } from "../i18n";
 
 registerTranslations({
   "QR code for {0}": "Cod QR pentru {0}",
+  "Report ▸": "Raport ▸",
+  'share the adherence report for "{0}"': "partajează raportul de aderență pentru „{0}”",
+  "1 run logged": "1 rulare înregistrată",
+  "{0} runs logged": "{0} rulări înregistrate",
   "Scan to load this routine — or save it as a PNG to print for a group session.":
     "Scanează pentru a încărca rutina — sau salvează ca PNG pentru a o tipări la o sesiune de grup.",
   "Save PNG": "Salvează PNG",
@@ -1271,8 +1277,12 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
       );
       return;
     }
+    const sessions = loadSessions();
     for (const s of sheets) {
       const exCount = s.routines.reduce((sum, r) => sum + routineExerciseCount(r), 0);
+      // Runs a student logged from this sheet (Live "follow" + Execute) — when
+      // there are any, the coach can share the adherence report for them.
+      const runCount = sessionsForSheet(s.id, sessions).length;
       savedHost.appendChild(
         h("section", { class: "card saved-item" }, [
           h("div", { class: "saved-info" }, [
@@ -1288,6 +1298,17 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
                   h("p", {
                     class: "plan-meta saved-created",
                     text: t("Created {0}").replace("{0}", formatShortDate(s.createdAt)),
+                  }),
+                ]
+              : []),
+            ...(runCount > 0
+              ? [
+                  h("p", {
+                    class: "plan-meta",
+                    text:
+                      runCount === 1
+                        ? t("1 run logged")
+                        : t("{0} runs logged").replace("{0}", String(runCount)),
                   }),
                 ]
               : []),
@@ -1319,6 +1340,30 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
               aria: { label: t("show a scannable QR code for \"{0}\"").replace("{0}", String(s.name)) },
               on: { click: () => void showQrFor(s) },
             }),
+            ...(runCount > 0
+              ? [
+                  h("button", {
+                    class: "btn btn-small",
+                    type: "button",
+                    text: t("Report ▸"),
+                    aria: {
+                      label: t('share the adherence report for "{0}"').replace("{0}", String(s.name)),
+                    },
+                    on: {
+                      click: () =>
+                        runExport(t("Share"), async () => {
+                          const result = await shareAdherence(s, loadSessions());
+                          setStatus(
+                            result === "shared"
+                              ? t("Opened the share sheet — pick WhatsApp.")
+                              : t("Sharing isn't available here, so the PNG was downloaded instead."),
+                            "ok",
+                          );
+                        }),
+                    },
+                  }),
+                ]
+              : []),
             h("button", {
               class: "btn btn-small danger",
               type: "button",

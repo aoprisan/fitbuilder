@@ -16,6 +16,7 @@ import {
   type Ctx,
   wrap,
 } from "./canvasKit";
+import { latestBodyweight } from "./bodyweightStore";
 import { lifetimeEffort, type LifetimeEffort } from "./effort";
 import { loadOneRmMaxes } from "./oneRmStore";
 import { loadTrainer } from "./trainer";
@@ -309,7 +310,7 @@ export async function renderStatsToCanvas(
   const logo = await resolveLogo();
   const trainer = loadTrainer();
 
-  const summary = buildLifetimeSummary(lifetimeEffort(sessions));
+  const summary = buildLifetimeSummary(lifetimeEffort(sessions, latestBodyweight()?.kg));
   const scope = filter === "all" ? "All exercises" : exerciseKeyLabel(filter);
   const kg = (n: number): string => String(round2(n));
 

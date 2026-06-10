@@ -382,11 +382,27 @@ export function muscleBreakdown(session: TrainingSession): MuscleWork[] {
 const PROTEIN_BASE_G = 15;
 const PROTEIN_PER_EFFORT = 0.4;
 const PROTEIN_PER_MUSCLE = 2;
+// With a logged body weight the base dose becomes per-kg (the ~0.25 g/kg
+// post-exercise dose the MPS literature converges on), bounded so an extreme
+// entry can't produce a silly figure. Without one the flat base applies as before.
+const PROTEIN_BASE_PER_KG = 0.25;
+const PROTEIN_BASE_MIN_G = 15;
+const PROTEIN_BASE_MAX_G = 35;
 
-/** Estimated protein (g) to support recovery from this session, rounded to 5 g. */
-export function estimateProteinG(effort: EffortReading, muscleCount: number): number {
-  const raw =
-    PROTEIN_BASE_G + effort.points * PROTEIN_PER_EFFORT + muscleCount * PROTEIN_PER_MUSCLE;
+/**
+ * Estimated protein (g) to support recovery from this session, rounded to 5 g.
+ * When the user's body weight is known the base dose scales per-kg.
+ */
+export function estimateProteinG(
+  effort: EffortReading,
+  muscleCount: number,
+  bodyweightKg?: number,
+): number {
+  const base =
+    bodyweightKg !== undefined && bodyweightKg > 0
+      ? clamp(bodyweightKg * PROTEIN_BASE_PER_KG, PROTEIN_BASE_MIN_G, PROTEIN_BASE_MAX_G)
+      : PROTEIN_BASE_G;
+  const raw = base + effort.points * PROTEIN_PER_EFFORT + muscleCount * PROTEIN_PER_MUSCLE;
   return Math.round(raw / 5) * 5;
 }
 
@@ -396,10 +412,22 @@ export function estimateProteinG(effort: EffortReading, muscleCount: number): nu
 // Resistance training with normal rest periods averages ~3.5 METs, so this is
 // a deliberately conservative ballpark (trackers tend to overestimate).
 const KCAL_PER_EFFORT_POINT = 5;
+// The kcal-per-point figure assumes an average ~75 kg lifter; with a logged
+// body weight the burn scales with mass (bounded so outliers stay sensible).
+const KCAL_REFERENCE_KG = 75;
+const KCAL_SCALE_MIN = 0.7;
+const KCAL_SCALE_MAX = 1.4;
 
-/** Rough calories burned in a session, from accumulated effort. Rounded to 10. */
-export function estimateCalories(effort: EffortReading): number {
-  return Math.round((effort.points * KCAL_PER_EFFORT_POINT) / 10) * 10;
+/**
+ * Rough calories burned in a session, from accumulated effort. Rounded to 10.
+ * When the user's body weight is known the figure scales with body mass.
+ */
+export function estimateCalories(effort: EffortReading, bodyweightKg?: number): number {
+  const scale =
+    bodyweightKg !== undefined && bodyweightKg > 0
+      ? clamp(bodyweightKg / KCAL_REFERENCE_KG, KCAL_SCALE_MIN, KCAL_SCALE_MAX)
+      : 1;
+  return Math.round((effort.points * KCAL_PER_EFFORT_POINT * scale) / 10) * 10;
 }
 
 const HYDRATION_NOTES: Record<EffortTier, string> = {
@@ -442,7 +470,7 @@ export interface LifetimeEffort {
  * up over every logged session. Hydration and protein are summed per session so
  * the totals reflect what each individual session called for, then pooled.
  */
-export function lifetimeEffort(sessions: TrainingSession[]): LifetimeEffort {
+export function lifetimeEffort(sessions: TrainingSession[], bodyweightKg?: number): LifetimeEffort {
   const logged = sessions.filter((s) => s.exercises.some((ex) => ex.sets.length > 0));
   let points = 0;
   let hydrationMl = 0;
@@ -452,8 +480,8 @@ export function lifetimeEffort(sessions: TrainingSession[]): LifetimeEffort {
     const effort = readEffort(session, sessions);
     points += effort.points;
     hydrationMl += readHydration(effort).ml;
-    proteinG += estimateProteinG(effort, muscleBreakdown(session).length);
-    caloriesKcal += estimateCalories(effort);
+    proteinG += estimateProteinG(effort, muscleBreakdown(session).length, bodyweightKg);
+    caloriesKcal += estimateCalories(effort, bodyweightKg);
   }
   return {
     sessions: logged.length,
