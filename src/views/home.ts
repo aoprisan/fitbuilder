@@ -12,8 +12,10 @@ import {
   overallStatus,
   systemicRecovery,
 } from "../recovery";
+import { weeklyStreak } from "../records";
 import type { Nav } from "../router";
 import { exerciseKeyLabel } from "../stats";
+import { trainTodayPicks } from "../trainToday";
 import { MUSCLE_LABELS } from "../types";
 import { round2, sessionSetCount } from "../util";
 import { shareApp } from "../exporters";
@@ -39,6 +41,13 @@ registerTranslations({
   sets: "serii",
   "No sessions yet — start one when you reach the gym.":
     "Încă nicio sesiune — pornește una când ajungi la sală.",
+  "{0}-week streak — at least one session every week.":
+    "Serie de {0} săptămâni — cel puțin o sesiune în fiecare săptămână.",
+  Today: "Astăzi",
+  "What to train today": "Ce să antrenezi astăzi",
+  "Recovered muscle groups that have banked the least volume this week — fresh and under-dosed first.":
+    "Grupe musculare recuperate care au acumulat cel mai puțin volum săptămâna aceasta — proaspete și sub-dozate primele.",
+  "{0} sets this week · {1}% recovered": "{0} serii săptămâna aceasta · {1}% recuperat",
   "Resume Session": "Reia sesiunea",
   "Start Live Session": "Pornește sesiune live",
   "Progress Stats": "Statistici progres",
@@ -162,6 +171,19 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
       ),
     }),
     lastLine,
+    // Consistency streak — consecutive calendar weeks with a logged session.
+    // Shown from 2 weeks up; one week isn't a streak yet.
+    ...(weeklyStreak(sessions) >= 2
+      ? [
+          h("p", {
+            class: "plan-meta home-streak",
+            text: `🔥 ${t("{0}-week streak — at least one session every week.").replace(
+              "{0}",
+              String(weeklyStreak(sessions)),
+            )}`,
+          }),
+        ]
+      : []),
     h("div", { class: "btn-row" }, [
       h("button", {
         class: "btn btn-primary",
@@ -232,6 +254,41 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
       h("button", { class: "btn", text: t("Open Body Map"), on: { click: () => nav.go("body") } }),
     ]),
   ]);
+
+  // ── What to train today — recovered + under-dosed muscles, ranked ──────────
+  function renderTrainTodayCard(): HTMLElement | null {
+    const picks = trainTodayPicks(sessions);
+    if (picks.length === 0) return null;
+    const rows = picks.map((p) =>
+      h("div", { class: "muscle-row" }, [
+        h("span", { class: "muscle-name", text: t(MUSCLE_LABELS[p.muscle]) }),
+        h("span", {
+          class: "muscle-stat",
+          text: t("{0} sets this week · {1}% recovered")
+            .replace("{0}", String(p.weeklySets))
+            .replace("{1}", String(Math.round(p.recovered * 100))),
+        }),
+      ]),
+    );
+    return h("section", { class: "card train-today" }, [
+      h("p", { class: "eyebrow", text: t("Today") }),
+      h("h2", { class: "section-title", text: t("What to train today") }),
+      h("p", {
+        class: "plan-meta",
+        text: t(
+          "Recovered muscle groups that have banked the least volume this week — fresh and under-dosed first.",
+        ),
+      }),
+      ...rows,
+      h("div", { class: "btn-row" }, [
+        h("button", {
+          class: "btn btn-primary",
+          text: liveRunning ? t("Resume Session") : t("Start Live Session"),
+          on: { click: () => nav.go("live") },
+        }),
+      ]),
+    ]);
+  }
 
   // ── Recovery — how recovered each muscle is since it was last trained ──────
   function renderRecoveryCard(): HTMLElement {
@@ -460,6 +517,12 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
           // Train & track, so it's visible without scrolling. The map only shows
           // once there's training to fill it in.
           ...(last ? [bodyMapCard] : []),
+          // "What to train today" sits right above Train & track — the answer to
+          // the question a returning user opens the app with. Empty history → null.
+          ...((): HTMLElement[] => {
+            const card = renderTrainTodayCard();
+            return card ? [card] : [];
+          })(),
           trainingLane,
           renderRecoveryCard(),
           claudeStartCard,

@@ -47,6 +47,9 @@ import {
   movementsForMuscle,
   muscleShares,
 } from "../movements";
+import { suggestOverload } from "../overload";
+import { platesPerSide, BAR_KG } from "../plates";
+import { detectPrs, priorSetsFor, type PrHit } from "../records";
 import { muscleRecovery, type MuscleRecovery, recoveryColor } from "../recovery";
 import { exerciseKey, type ExerciseKey } from "../stats";
 import type { Cleanup, Nav } from "../router";
@@ -221,6 +224,30 @@ registerTranslations({
   "{0} reps in reserve": "{0} repetări în rezervă",
   // — Last-time recall —
   "Last time · {0}": "Ultima dată · {0}",
+  // — Progressive-overload nudge —
+  "Next step": "Pasul următor",
+  "Try {0}": "Încearcă {0}",
+  "+{0} kg — you owned this load last time, move it up.":
+    "+{0} kg — ai stăpânit această greutate data trecută, crește-o.",
+  "+{0} rep — same load, beat last time by one.":
+    "+{0} repetare — aceeași greutate, depășește data trecută cu una.",
+  // — Personal records —
+  "Personal record!": "Record personal!",
+  "Heaviest load yet — {0} kg (was {1})": "Cea mai mare greutate — {0} kg (era {1})",
+  "Most reps at this load — {0} (was {1})":
+    "Cele mai multe repetări la această greutate — {0} (era {1})",
+  "Best estimated 1RM — {0} kg (was {1})": "Cel mai bun 1RM estimat — {0} kg (era {1})",
+  // — Plate calculator —
+  "Bar {0} kg · per side: {1}": "Bară {0} kg · pe fiecare parte: {1}",
+  "+{0} kg short — use micro-plates or round": "+{0} kg lipsă — folosește micro-discuri sau rotunjește",
+  "Empty bar — {0} kg": "Bară goală — {0} kg",
+  "Below the empty bar ({0} kg)": "Sub bara goală ({0} kg)",
+  // — History filters —
+  "Search sessions": "Caută sesiuni",
+  "search sessions by name or exercise": "caută sesiuni după nume sau exercițiu",
+  "Filter by muscle": "Filtrează după mușchi",
+  "All muscles": "Toți mușchii",
+  "No sessions match these filters.": "Nicio sesiune nu se potrivește acestor filtre.",
   // — Exercise head / target —
   "{0} · {1}": "{0} · {1}",
   "Target progress": "Progres țintă",
@@ -551,6 +578,60 @@ function renderLastPerformance(date: string, ex: LoggedExercise): HTMLElement {
   ]);
 }
 
+/**
+ * Progressive-overload nudge for the movement about to be trained: double
+ * progression over its logged history (add a rep at the same load; add the
+ * smallest plate once the rep window tops out). Shown beside the last-time
+ * recall when the call is to move something up — a "hold" (consolidate) read
+ * stays quiet, and routine-prescribed exercises defer to the trainer's plan.
+ */
+function renderOverloadHint(
+  sessions: readonly TrainingSession[],
+  key: ExerciseKey,
+  equipment: Equipment,
+): HTMLElement | null {
+  const sug = suggestOverload(sessions, key, equipment);
+  if (!sug || sug.kind === "hold") return null;
+  const target =
+    isBodyweight(equipment) && sug.weightKg === 0
+      ? `${sug.reps} ${t("reps")}`
+      : `${sug.reps} @ ${formatLoad(equipment, sug.weightKg)}`;
+  const note =
+    sug.kind === "load"
+      ? t("+{0} kg — you owned this load last time, move it up.").replace("{0}", String(sug.deltaKg))
+      : t("+{0} rep — same load, beat last time by one.").replace("{0}", String(sug.deltaReps));
+  return h("section", { class: "card live-overload" }, [
+    h("p", { class: "now-eyebrow", text: t("Next step") }),
+    h("p", { class: "now-target", text: t("Try {0}").replace("{0}", target) }),
+    h("p", { class: "plan-meta", text: note }),
+  ]);
+}
+
+/** Celebration card for the records the just-logged set broke. */
+function renderPrFlash(hits: readonly PrHit[]): HTMLElement | null {
+  if (hits.length === 0) return null;
+  const line = (p: PrHit): string => {
+    switch (p.kind) {
+      case "weight":
+        return t("Heaviest load yet — {0} kg (was {1})")
+          .replace("{0}", String(p.value))
+          .replace("{1}", String(p.previous));
+      case "reps":
+        return t("Most reps at this load — {0} (was {1})")
+          .replace("{0}", String(p.value))
+          .replace("{1}", String(p.previous));
+      case "e1rm":
+        return t("Best estimated 1RM — {0} kg (was {1})")
+          .replace("{0}", String(p.value))
+          .replace("{1}", String(p.previous));
+    }
+  };
+  return h("section", { class: "card live-pr" }, [
+    h("p", { class: "pr-head", text: `🏆 ${t("Personal record!")}` }),
+    ...hits.map((p) => h("p", { class: "pr-line", text: line(p) })),
+  ]);
+}
+
 /** Top-level place in the live flow. */
 type Stage = "list" | "select" | "exercise";
 /** Where we are within a single exercise. */
@@ -576,6 +657,12 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   let editingSetIndex: number | null = null;
   let editReps = 0;
   let editWeight = 0;
+  // Records broken by the most recently committed set — shown while resting,
+  // cleared when the next set starts. Transient; not part of the resume snapshot.
+  let prFlash: PrHit[] = [];
+  // Session-history filters on the list screen (kept across repaints).
+  let filterText = "";
+  let filterMuscle: MuscleGroup | "" = "";
 
   /** Point the selection at a movement id, syncing the derived muscle + load type. */
   function selectMovement(id: string): void {
@@ -933,7 +1020,29 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     render();
   }
 
+  /** Stable identity of the exercise being trained (logged or still pending). */
+  function currentKey(): ExerciseKey {
+    return currentEx
+      ? exerciseKey(currentEx)
+      : exerciseKey({ muscle, equipment, exerciseId: movementId });
+  }
+
+  /**
+   * The matching set from the last *prior* session this movement was trained —
+   * the ghost value the dials seed from when nothing is logged yet this
+   * exercise. Falls back to that session's final set when it had fewer sets.
+   */
+  function historyGhost(setIndex: number): WorkSet | null {
+    const lp = lastPerformance(
+      loadSessions().filter((s) => s.id !== state.activeLog?.id),
+      currentKey(),
+    );
+    if (!lp) return null;
+    return lp.exercise.sets[setIndex] ?? lp.exercise.sets[lp.exercise.sets.length - 1] ?? null;
+  }
+
   function startSet(): void {
+    prFlash = [];
     setStartEpoch = Date.now();
     setElapsedMs = 0;
     sub = "running";
@@ -955,10 +1064,14 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       // Seed the dials from the trainer's prescription for this set when the
       // exercise carries a per-set guideline — so following the plan is a tap, and
       // ramps/pyramids advance set-by-set. Fall back to carrying the last set
-      // forward (or the bodyweight/default) for off-plan or volume work.
+      // forward; with nothing logged yet this exercise, ghost in the matching set
+      // from the last session this movement was trained (set 1 seeds from last
+      // time's set 1, and so on) before the generic default.
       const planned = currentEx ? nextSetTarget(currentEx) : null;
-      const fallbackWeight = last ? last.weightKg : isBodyweight(equipment) ? 0 : 10;
-      setReps = planned?.reps ?? (last ? last.reps : 10);
+      const ghost = last ? null : historyGhost(currentEx?.sets.length ?? 0);
+      const fallbackWeight =
+        last?.weightKg ?? ghost?.weightKg ?? (isBodyweight(equipment) ? 0 : 10);
+      setReps = planned?.reps ?? last?.reps ?? ghost?.reps ?? 10;
       setWeight = planned?.loadKg ?? fallbackWeight;
     }
     pendingRir = null; // proximity to failure is logged fresh per set
@@ -985,6 +1098,13 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           durationSec,
           ...(pendingRir !== null ? { rir: pendingRir } : {}),
         };
+    // Records check before the set joins the history: everything previously
+    // logged for this movement — other sessions plus this exercise's earlier sets.
+    const prior = priorSetsFor(
+      loadSessions().filter((other) => other.id !== s.id),
+      currentKey(),
+    ).concat(currentEx?.sets ?? []);
+    prFlash = detectPrs(prior, set, equipment);
     if (!currentEx) {
       const mv = findMovement(movementId);
       if (!mv) return;
@@ -1000,6 +1120,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   }
 
   function finishExercise(): void {
+    prFlash = [];
     currentEx = null;
     sub = "idle";
     stage = "select";
@@ -1136,17 +1257,75 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     deleteEmptySessions(loadProgress()?.sessionId);
     const sessions = loadSessions().sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 
-    const listHost = h("div", { class: "saved-list" });
-    if (sessions.length === 0) {
-      listHost.appendChild(
-        h("p", {
-          class: "empty",
-          text: t("No sessions yet. Hit “Start session” when you reach the gym."),
-        }),
+    // History filters: free-text (session or exercise name) + muscle group. The
+    // list repaints in place on each keystroke so the search box keeps focus.
+    const matches = (s: TrainingSession): boolean => {
+      const fm = filterMuscle;
+      if (
+        fm !== "" &&
+        !s.exercises.some(
+          (ex) =>
+            ex.sets.length > 0 && (ex.muscle === fm || (ex.secondaryMuscles ?? []).includes(fm)),
+        )
+      ) {
+        return false;
+      }
+      const q = filterText.trim().toLowerCase();
+      if (q === "") return true;
+      return (
+        (s.name || "").toLowerCase().includes(q) ||
+        s.exercises.some((ex) => ex.name.toLowerCase().includes(q))
       );
-    } else {
-      sessions.forEach((s) => listHost.appendChild(renderSessionCard(s, sessions)));
-    }
+    };
+
+    const listHost = h("div", { class: "saved-list" });
+    const paintList = (): void => {
+      clear(listHost);
+      if (sessions.length === 0) {
+        listHost.appendChild(
+          h("p", {
+            class: "empty",
+            text: t("No sessions yet. Hit “Start session” when you reach the gym."),
+          }),
+        );
+        return;
+      }
+      const filtered = sessions.filter(matches);
+      if (filtered.length === 0) {
+        listHost.appendChild(h("p", { class: "empty", text: t("No sessions match these filters.") }));
+        return;
+      }
+      filtered.forEach((s) => listHost.appendChild(renderSessionCard(s, sessions)));
+    };
+    paintList();
+
+    const searchInput = h("input", {
+      class: "plan-name-input",
+      type: "search",
+      value: filterText,
+      placeholder: t("Search sessions"),
+      aria: { label: t("search sessions by name or exercise") },
+    });
+    searchInput.addEventListener("input", () => {
+      filterText = searchInput.value;
+      paintList();
+    });
+    const muscleSelect = h(
+      "select",
+      { class: "live-filter-muscle", aria: { label: t("Filter by muscle") } },
+      [
+        h("option", { value: "", text: t("All muscles") }),
+        ...MUSCLE_GROUPS.map((m) =>
+          h("option", { value: m, text: t(MUSCLE_LABELS[m]) }),
+        ),
+      ],
+    );
+    muscleSelect.value = filterMuscle;
+    muscleSelect.addEventListener("change", () => {
+      filterMuscle = muscleSelect.value as MuscleGroup | "";
+      paintList();
+    });
+    const filterRow = h("div", { class: "live-filter-row" }, [searchInput, muscleSelect]);
 
     container.append(
       h("h1", { class: "view-title", text: t("Live") }),
@@ -1165,6 +1344,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         }),
       ]),
       statusEl,
+      ...(sessions.length > 1 ? [filterRow] : []),
       listHost,
     );
 
@@ -1518,10 +1698,20 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     // The last time this exact movement was trained, so the user picks a load to
     // beat. Drawn from prior sessions only (the active one excluded), matching the
     // recovery-warning scope so a within-session repeat still recalls last week.
+    const priorSessions = allSessions.filter((s) => s.id !== session.id);
     const lastPerf = lastPerformance(
-      allSessions.filter((s) => s.id !== session.id),
+      priorSessions,
       exerciseKey({ muscle, equipment, exerciseId: movementId }),
     );
+    // Progression nudge for a freestyle pick — a routine-planned exercise defers
+    // to the trainer's prescribed scheme instead.
+    const overloadHint = planned
+      ? null
+      : renderOverloadHint(
+          priorSessions,
+          exerciseKey({ muscle, equipment, exerciseId: movementId }),
+          equipment,
+        );
 
     // Caution if the picked movement's muscles haven't recovered from earlier
     // sessions — the active session is excluded so within-session repeats are fine.
@@ -1556,6 +1746,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         ),
         ...picker,
         ...(lastPerf ? [renderLastPerformance(lastPerf.date, lastPerf.exercise)] : []),
+        ...(overloadHint ? [overloadHint] : []),
         ...(recWarn ? [recWarn] : []),
         h("div", { class: "btn-row" }, [
           h("button", {
@@ -1754,17 +1945,18 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     // Same "last time" recall as the select screen, kept on screen while the
     // exercise is in progress — so the load to beat is in view as you dial in
     // reps and weight. Active session excluded, so it's last week's reference.
-    const lastPerf = lastPerformance(
-      loadSessions().filter((s) => s.id !== state.activeLog?.id),
-      currentEx
-        ? exerciseKey(currentEx)
-        : exerciseKey({ muscle, equipment, exerciseId: movementId }),
-    );
+    const priorSessions = loadSessions().filter((s) => s.id !== state.activeLog?.id);
+    const lastPerf = lastPerformance(priorSessions, currentKey());
+    // Progression nudge for freestyle work; plan-carrying exercises defer to the
+    // trainer's prescribed scheme (the benchmark below reads against it instead).
+    const planDriven = currentEx?.target !== undefined || currentEx?.prescription !== undefined;
+    const overloadHint = planDriven ? null : renderOverloadHint(priorSessions, currentKey(), equipment);
 
     container.append(
       h("h1", { class: "view-title", text: t("Live Session") }),
       head,
       ...(lastPerf ? [renderLastPerformance(lastPerf.date, lastPerf.exercise)] : []),
+      ...(overloadHint ? [overloadHint] : []),
     );
 
     // Performed sets + plan benchmark — the logged read-out for this exercise.
@@ -1896,8 +2088,10 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           on: { click: startSet },
         }),
       ]);
+      const pr = renderPrFlash(prFlash);
       container.append(
         actionRow,
+        ...(pr ? [pr] : []),
         h("p", { class: "set-time", text: t("Resting — recover, then start your next set") }),
         dialWrap,
         ...loggedBlocks,
@@ -1973,35 +2167,59 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
             },
           }),
         ]
-      : [
-          dialField({
-            label: t("Reps"),
-            value: setReps,
-            step: 1,
-            min: 0,
-            integer: true,
-            unit: t("reps"),
-            tone: "signal",
-            onCommit: (n) => {
-              setReps = n;
-              snapshot();
-            },
-          }),
-          dialField({
-            label: isBodyweight(equipment) ? t("Added (kg)") : t("Weight (kg)"),
-            value: setWeight,
-            step: 2.5,
-            min: 0,
-            integer: false,
-            unit: "kg",
-            tone: "navy",
-            onCommit: (n) => {
-              setWeight = n;
-              snapshot();
-            },
-          }),
-          renderRirField(),
-        ];
+      : (() => {
+          // Plate calculator: for a barbell load, what to put on each side of a
+          // standard 20 kg bar. Repainted in place as the weight dial turns.
+          const plateHint = equipment === "barbell" ? h("p", { class: "plate-hint" }) : null;
+          const paintPlates = (): void => {
+            if (!plateHint) return;
+            const load = platesPerSide(setWeight);
+            if (!load) {
+              plateHint.textContent = t("Below the empty bar ({0} kg)").replace("{0}", String(BAR_KG));
+            } else if (load.perSide.length === 0 && load.remainderKg === 0) {
+              plateHint.textContent = t("Empty bar — {0} kg").replace("{0}", String(BAR_KG));
+            } else {
+              plateHint.textContent = t("Bar {0} kg · per side: {1}")
+                .replace("{0}", String(BAR_KG))
+                .replace("{1}", load.perSide.join(" + "));
+              if (load.remainderKg > 0) {
+                plateHint.textContent += ` · ${t("+{0} kg short — use micro-plates or round").replace("{0}", String(load.remainderKg))}`;
+              }
+            }
+          };
+          paintPlates();
+          return [
+            dialField({
+              label: t("Reps"),
+              value: setReps,
+              step: 1,
+              min: 0,
+              integer: true,
+              unit: t("reps"),
+              tone: "signal",
+              onCommit: (n) => {
+                setReps = n;
+                snapshot();
+              },
+            }),
+            dialField({
+              label: isBodyweight(equipment) ? t("Added (kg)") : t("Weight (kg)"),
+              value: setWeight,
+              step: 2.5,
+              min: 0,
+              integer: false,
+              unit: "kg",
+              tone: "navy",
+              onCommit: (n) => {
+                setWeight = n;
+                snapshot();
+                paintPlates();
+              },
+            }),
+            ...(plateHint ? [plateHint] : []),
+            renderRirField(),
+          ];
+        })();
     const setTimeEl = h("p", {
       class: "set-time live-scroll-anchor",
       text: t("Set time {0}").replace("{0}", formatClock(setElapsedMs / 1000)),
