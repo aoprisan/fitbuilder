@@ -15,6 +15,7 @@ import {
   type Ctx,
   wrap,
 } from "./canvasKit";
+import { latestBodyweight } from "./bodyweightStore";
 import {
   estimateCalories,
   estimateProteinG,
@@ -68,8 +69,9 @@ function buildSessionSummary(
   const effort = readEffort(session, allSessions);
   const hydration = readHydration(effort);
   const muscles = muscleBreakdown(session);
-  const protein = estimateProteinG(effort, muscles.length);
-  const calories = estimateCalories(effort);
+  const bodyweight = latestBodyweight()?.kg;
+  const protein = estimateProteinG(effort, muscles.length, bodyweight);
+  const calories = estimateCalories(effort, bodyweight);
   const topEffort = muscles.reduce((m, x) => Math.max(m, x.effort), 0);
   const glasses = `${hydration.glasses} ${hydration.glasses === 1 ? "glass" : "glasses"}`;
 

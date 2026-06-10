@@ -47,6 +47,7 @@ import {
   movementsForMuscle,
   muscleShares,
 } from "../movements";
+import { latestBodyweight } from "../bodyweightStore";
 import { suggestOverload } from "../overload";
 import { platesPerSide, BAR_KG } from "../plates";
 import { detectPrs, priorSetsFor, type PrHit } from "../records";
@@ -1182,8 +1183,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     const hydration = readHydration(effort);
     const muscles = muscleBreakdown(session);
     const adherence = sessionAdherence(session);
-    const protein = estimateProteinG(effort, muscles.length);
-    const calories = estimateCalories(effort);
+    const bodyweight = latestBodyweight()?.kg;
+    const protein = estimateProteinG(effort, muscles.length, bodyweight);
+    const calories = estimateCalories(effort, bodyweight);
     const pct = Math.round(Math.min(1, effort.ratio) * 100);
 
     const fill = h("div", { class: "effort-bar-fill" });

@@ -1,4 +1,5 @@
 import { clear, h } from "../dom";
+import { latestBodyweight } from "../bodyweightStore";
 import { estimateCalories, readEffort } from "../effort";
 import { ExecuteController } from "../execute";
 import { executeRunToSession } from "../log";
@@ -761,7 +762,7 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
         (loggedSets === 1 ? t("{0} set · ≈ {1} effort · ~{2} kcal{3}") : t("{0} sets · ≈ {1} effort · ~{2} kcal{3}"))
           .replace("{0}", String(loggedSets))
           .replace("{1}", effort.label)
-          .replace("{2}", String(estimateCalories(effort)))
+          .replace("{2}", String(estimateCalories(effort, latestBodyweight()?.kg)))
           .replace("{3}", vs),
       );
       saveBtn.textContent = savedSessionId ? t("Update log") : t("Save to log");

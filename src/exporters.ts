@@ -1,3 +1,4 @@
+import { renderAdherenceToCanvas } from "./adherenceRender";
 import { track } from "./analytics";
 import { renderAppCardToCanvas } from "./appCardRender";
 import { APP_INSTALL_URL } from "./canvasKit";
@@ -343,6 +344,45 @@ export async function shareApp(): Promise<AppShareResult> {
 
   downloadBlob(blob, file.name);
   return { result: "downloaded", url };
+}
+
+/** Slug for a sheet's adherence report, e.g. "push-day-adherence". */
+function adherenceSlug(sheet: RoutineSheet): string {
+  return `${slug(sheet.name)}-adherence`;
+}
+
+/** Render a sheet's adherence report (runs vs plan) and download it as a PNG. */
+export async function exportAdherencePng(
+  sheet: RoutineSheet,
+  allSessions: TrainingSession[],
+): Promise<void> {
+  await downloadCanvasPng(
+    await renderAdherenceToCanvas(sheet, allSessions),
+    `${adherenceSlug(sheet)}.png`,
+  );
+}
+
+/** Render a sheet's adherence report and download it as a PDF. */
+export async function exportAdherencePdf(
+  sheet: RoutineSheet,
+  allSessions: TrainingSession[],
+): Promise<void> {
+  downloadCanvasPdf(
+    await renderAdherenceToCanvas(sheet, allSessions),
+    `${adherenceSlug(sheet)}.pdf`,
+  );
+}
+
+/** Share a sheet's adherence report as a PNG (native share sheet, download fallback). */
+export async function shareAdherence(
+  sheet: RoutineSheet,
+  allSessions: TrainingSession[],
+): Promise<ShareResult> {
+  return shareCanvas(
+    await renderAdherenceToCanvas(sheet, allSessions),
+    `${adherenceSlug(sheet)}.png`,
+    `${sheet.name} — adherence`,
+  );
 }
 
 /** Render a routine's QR code and download it as a PNG (to print for a session). */

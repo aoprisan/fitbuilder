@@ -1,3 +1,9 @@
+import {
+  deleteBodyweight,
+  latestBodyweight,
+  loadBodyweights,
+  logBodyweight,
+} from "../bodyweightStore";
 import { clear, h } from "../dom";
 import { registerTranslations, t } from "../i18n";
 import { loadProgress } from "../liveProgress";
@@ -81,6 +87,17 @@ registerTranslations({
     "Înregistrează un maxim pe care l-ai testat — în timpul sau în afara unui antrenament. Alege exercițiul, introdu greutatea și apare în Statistici.",
   Lift: "Exercițiu",
   "Tested max (kg)": "Maxim testat (kg)",
+  "Body weight": "Greutate corporală",
+  "Log today's weight — it personalises the protein and calorie reads and unlocks relative strength in Stats.":
+    "Înregistrează greutatea de azi — personalizează estimările de proteine și calorii și deblochează forța relativă în Statistici.",
+  "Today's weight (kg)": "Greutatea de azi (kg)",
+  "Save weight": "Salvează greutatea",
+  "No weight logged yet.": "Încă nicio greutate înregistrată.",
+  "Logged {0} kg.": "Înregistrat {0} kg.",
+  "{0} kg since the previous entry.": "{0} kg față de intrarea anterioară.",
+  "First entry — log again to see the trend.":
+    "Prima intrare — înregistrează din nou pentru a vedea tendința.",
+  "remove weight entry for {0}": "elimină greutatea înregistrată pentru {0}",
   "Your routines": "Rutinele tale",
   "Saved routines": "Rutine salvate",
   "Routines your coach shared with you, saved on this device — run one as a checklist or start it live.":
@@ -450,6 +467,105 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
     ]);
   }
 
+  // ── Body weight — a dated series that personalises the nutrition heuristics
+  // and powers relative strength in Stats. One entry per day, latest wins. ────
+  function renderBodyweightCard(): HTMLElement {
+    const kgInput = h("input", {
+      class: "onerm-log-input",
+      type: "number",
+      inputmode: "decimal",
+      min: "0",
+      step: "0.1",
+      placeholder: "—",
+      aria: { label: t("Today's weight (kg)") },
+    });
+    const status = h("p", { class: "onerm-note" });
+    const listHost = h("div", { class: "saved-list onerm-log-list" });
+
+    const renderList = (): void => {
+      clear(listHost);
+      const entries = loadBodyweights();
+      if (entries.length === 0) {
+        listHost.appendChild(h("p", { class: "empty", text: t("No weight logged yet.") }));
+        return;
+      }
+      // Latest first, trimmed to a short recent read; each shows its delta vs
+      // the entry before it so the list doubles as the trend.
+      const recent = entries.slice(-6).reverse();
+      recent.forEach((e) => {
+        const idx = entries.findIndex((x) => x.date === e.date);
+        const prev = idx > 0 ? entries[idx - 1] : undefined;
+        const delta =
+          prev !== undefined ? round2(e.kg - prev.kg) : null;
+        const deltaText =
+          delta === null ? "" : ` · ${delta > 0 ? "+" : ""}${delta} kg`;
+        listHost.appendChild(
+          h("div", { class: "onerm-log-row" }, [
+            h("span", { class: "onerm-log-name", text: e.date }),
+            h("span", { class: "onerm-log-kg", text: `${e.kg} kg${deltaText}` }),
+            h("button", {
+              class: "icon-btn danger",
+              type: "button",
+              text: "✕",
+              aria: { label: t("remove weight entry for {0}").replace("{0}", e.date) },
+              on: {
+                click: () => {
+                  deleteBodyweight(e.date);
+                  renderList();
+                },
+              },
+            }),
+          ]),
+        );
+      });
+    };
+
+    const saveBtn = h("button", {
+      class: "btn btn-primary btn-small",
+      type: "button",
+      text: t("Save weight"),
+    });
+    saveBtn.addEventListener("click", () => {
+      const n = parseFloat(kgInput.value);
+      if (!Number.isFinite(n) || n <= 0) return;
+      const prev = latestBodyweight();
+      logBodyweight(n);
+      const delta = prev ? round2(n - prev.kg) : null;
+      status.textContent =
+        t("Logged {0} kg.").replace("{0}", String(round2(n))) +
+        " " +
+        (delta === null
+          ? t("First entry — log again to see the trend.")
+          : t("{0} kg since the previous entry.").replace(
+              "{0}",
+              `${delta > 0 ? "+" : ""}${delta}`,
+            ));
+      renderList();
+    });
+
+    const latest = latestBodyweight();
+    if (latest) kgInput.value = String(latest.kg);
+    renderList();
+
+    return h("section", { class: "card bodyweight-log" }, [
+      h("p", { class: "eyebrow", text: t("Personal records") }),
+      h("h2", { class: "section-title", text: t("Body weight") }),
+      h("p", {
+        class: "plan-meta",
+        text: t(
+          "Log today's weight — it personalises the protein and calorie reads and unlocks relative strength in Stats.",
+        ),
+      }),
+      h("label", { class: "field" }, [
+        h("span", { class: "field-label", text: t("Today's weight (kg)") }),
+        kgInput,
+      ]),
+      h("div", { class: "btn-row" }, [saveBtn]),
+      status,
+      listHost,
+    ]);
+  }
+
   // ── Share the app — a branded PNG invite + the install link, both copied so
   // a happy user (coach or student) can pass it on. The growth loop, surfaced. ─
   function renderShareAppCard(): HTMLElement {
@@ -527,6 +643,7 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
           renderRecoveryCard(),
           claudeStartCard,
           renderOneRmCard(),
+          renderBodyweightCard(),
           // Saved routines sit at the foot of the student home — the library is a
           // "go find a plan" destination, below the day-to-day train/track flow.
           savedRoutinesCard,
