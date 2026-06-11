@@ -35,10 +35,11 @@ export interface OverloadSuggestion {
   deltaReps: number;
 }
 
-/** The heaviest set of a performance, breaking ties by reps. */
+/** The heaviest working set of a performance, breaking ties by reps. Warm-ups don't anchor progression. */
 function topSet(sets: readonly WorkSet[]): WorkSet | null {
   let best: WorkSet | null = null;
   for (const s of sets) {
+    if (s.setType === "warmup") continue;
     if (!best || s.weightKg > best.weightKg || (s.weightKg === best.weightKg && s.reps > best.reps)) {
       best = s;
     }

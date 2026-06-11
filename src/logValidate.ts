@@ -65,6 +65,8 @@ function coerceSet(value: unknown): WorkSet {
   const weightKg = coerceNonNegative(value["weightKg"]);
   const dur = optionalNonNegative(value["durationSec"]);
   const rir = optionalNonNegative(value["rir"]);
+  const rawType = value["setType"];
+  const setType = rawType === "warmup" || rawType === "dropset" ? rawType : undefined;
   const distanceKm = optionalNonNegative(value["distanceKm"]);
   const speedKmh = optionalNonNegative(value["speedKmh"]);
   const inclinePct = optionalNonNegative(value["inclinePct"]);
@@ -73,6 +75,7 @@ function coerceSet(value: unknown): WorkSet {
     weightKg,
     ...(dur !== undefined ? { durationSec: dur } : {}),
     ...(rir !== undefined ? { rir } : {}),
+    ...(setType !== undefined ? { setType } : {}),
     ...(distanceKm !== undefined ? { distanceKm } : {}),
     ...(speedKmh !== undefined ? { speedKmh } : {}),
     ...(inclinePct !== undefined ? { inclinePct } : {}),

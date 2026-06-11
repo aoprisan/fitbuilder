@@ -23,14 +23,17 @@ export interface PrHit {
  * Which records a new set breaks for its movement, given all sets logged before
  * it. A weight PR is the heaviest load ever handled; a reps PR is the most reps
  * at (or above) the set's load; an e1RM PR is the best Epley estimate. Empty for
- * cardio bouts and unloaded sets with no rep history to beat.
+ * cardio bouts and unloaded sets with no rep history to beat. Warm-up sets are
+ * out on both ends — they neither break records nor set the bar to beat.
  */
 export function detectPrs(
-  priorSets: readonly WorkSet[],
+  allPriorSets: readonly WorkSet[],
   set: WorkSet,
   equipment: Equipment,
 ): PrHit[] {
-  if (isCardio(equipment) || priorSets.length === 0) return [];
+  if (isCardio(equipment) || set.setType === "warmup") return [];
+  const priorSets = allPriorSets.filter((s) => s.setType !== "warmup");
+  if (priorSets.length === 0) return [];
   const hits: PrHit[] = [];
 
   if (set.weightKg > 0) {

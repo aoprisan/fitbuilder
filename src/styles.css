@@ -1883,6 +1883,15 @@ textarea {
   stroke: var(--navy);
 }
 
+/* Rest-alert target reached — the rest dial flips hot to call the next set. */
+.rest-over .dial-fill-rest {
+  stroke: var(--signal);
+}
+
+.rest-over .dial-num {
+  color: var(--signal);
+}
+
 .dial-center {
   position: absolute;
   inset: 0;
