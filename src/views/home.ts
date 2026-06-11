@@ -10,6 +10,7 @@ import { loadProgress } from "../liveProgress";
 import { getSession, loadSessions } from "../logStorage";
 import { loadMode } from "../mode";
 import { allMovements } from "../movements";
+import { draftNextSession } from "../nextSession";
 import { clearOneRm, loadOneRmMaxes, setOneRm } from "../oneRmStore";
 import { loadSheets } from "../sheetStorage";
 import {
@@ -56,6 +57,11 @@ registerTranslations({
   "{0} sets this week · {1}% recovered": "{0} serii săptămâna aceasta · {1}% recuperat",
   "Resume Session": "Reia sesiunea",
   "Start Live Session": "Pornește sesiune live",
+  "Draft session ▸": "Schiță de sesiune ▸",
+  "Today's session": "Sesiunea de azi",
+  Main: "Principal",
+  "Draft session turns these picks into a ready-to-run workout — your usual movement per muscle, one progression step ahead.":
+    "Schița de sesiune transformă aceste alegeri într-un antrenament gata de rulat — mișcarea ta obișnuită pentru fiecare mușchi, cu un pas de progresie înainte.",
   "Progress Stats": "Statistici progres",
   "Build a routine": "Construiește o rutină",
   Readiness: "Pregătire",
@@ -297,12 +303,32 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
         ),
       }),
       ...rows,
+      h("p", {
+        class: "plan-meta",
+        text: t(
+          "Draft session turns these picks into a ready-to-run workout — your usual movement per muscle, one progression step ahead.",
+        ),
+      }),
       h("div", { class: "btn-row" }, [
         h("button", {
           class: "btn btn-primary",
           text: liveRunning ? t("Resume Session") : t("Start Live Session"),
           on: { click: () => nav.go("live") },
         }),
+        ...(liveRunning
+          ? []
+          : [
+              h("button", {
+                class: "btn",
+                text: t("Draft session ▸"),
+                on: {
+                  click: () => {
+                    const draft = draftNextSession(sessions, t("Today's session"), t("Main"));
+                    if (draft) nav.startLive(draft.sheet);
+                  },
+                },
+              }),
+            ]),
       ]),
     ]);
   }
