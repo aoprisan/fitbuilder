@@ -1184,6 +1184,13 @@ textarea {
   text-transform: uppercase;
 }
 
+/* Mesocycle length — a narrow numeric field under the sheet name. */
+.meso-input {
+  width: 110px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
 .file-input {
   font-family: var(--font-mono);
   font-size: 12px;

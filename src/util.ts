@@ -159,6 +159,7 @@ export function cloneSheet(sheet: RoutineSheet): RoutineSheet {
     id: sheet.id,
     name: sheet.name,
     routines: sheet.routines.map(cloneRoutine),
+    ...(sheet.mesoWeeks !== undefined ? { mesoWeeks: sheet.mesoWeeks } : {}),
     ...(sheet.createdAt !== undefined ? { createdAt: sheet.createdAt } : {}),
     ...(sheet.updatedAt !== undefined ? { updatedAt: sheet.updatedAt } : {}),
   };

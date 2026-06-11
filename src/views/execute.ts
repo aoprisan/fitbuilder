@@ -1,3 +1,4 @@
+import { mesoStatus } from "../adherence";
 import { clear, h } from "../dom";
 import { latestBodyweight } from "../bodyweightStore";
 import { estimateCalories, readEffort } from "../effort";
@@ -14,6 +15,8 @@ import { isBodyweight, MUSCLE_GROUPS, MUSCLE_LABELS, type MuscleGroup, type Rout
 
 registerTranslations({
   "Brand logo": "Logo marcă",
+  "Week {0} of {1}": "Săptămâna {0} din {1}",
+  "Cycle complete — start a new block": "Ciclu încheiat — începe un bloc nou",
   Failure: "Eșec",
   "/": "/",
   reps: "repetări",
@@ -779,10 +782,23 @@ export function mountExecute(root: HTMLElement, nav: Nav): Cleanup {
   }
 
   const trainer = loadTrainer();
+  // Cycle position — "week N of M" when the sheet declares a mesocycle, clocked
+  // from its first logged run (Execute runs a snapshot clone, so the id matches).
+  const meso = mesoStatus(sheet, loadSessions());
   const container = h("div", { class: "view view-execute" }, [
     logoBanner(),
     h("h1", { class: "view-title", text: t("Execute") }),
     h("p", { class: "session-plan-name", text: sheet.name }),
+    meso
+      ? h("p", {
+          class: "session-trainer",
+          text: meso.complete
+            ? t("Cycle complete — start a new block")
+            : t("Week {0} of {1}")
+                .replace("{0}", String(meso.week))
+                .replace("{1}", String(meso.ofWeeks)),
+        })
+      : null,
     trainer ? h("p", { class: "session-trainer", text: t("Trainer · {0}").replace("{0}", trainer) }) : null,
     empty
       ? h("p", { class: "empty", text: t("This sheet has no exercises. Add some in Routines first.") })

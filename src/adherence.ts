@@ -1,6 +1,6 @@
 import { sessionAdherence } from "./benchmark";
 import { parseTargetReps } from "./execute";
-import type { TrainingSession } from "./types";
+import type { RoutineSheet, TrainingSession } from "./types";
 
 /**
  * Per-routine adherence summary built from logged sessions whose `fromSheetId`
@@ -94,6 +94,40 @@ export function summarizeAdherence(
         }
       : {}),
   };
+}
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+export interface MesoStatus {
+  /** Current cycle week, 1-based, clamped to {@link ofWeeks}. */
+  week: number;
+  ofWeeks: number;
+  /** True once the wall clock has run past the cycle's last week. */
+  complete: boolean;
+}
+
+/**
+ * Where a sheet's training cycle stands. The clock starts at the *first logged
+ * run* of the sheet — a cycle hasn't begun until it's trained — and advances
+ * with wall time in 7-day weeks, so skipped days don't stall it. Null when the
+ * sheet doesn't declare a cycle ({@link RoutineSheet.mesoWeeks} absent); week 1
+ * when a cycle is declared but never run.
+ */
+export function mesoStatus(
+  sheet: Pick<RoutineSheet, "id" | "mesoWeeks">,
+  sessions: readonly TrainingSession[],
+  now: Date = new Date(),
+): MesoStatus | null {
+  const ofWeeks = sheet.mesoWeeks ?? 0;
+  if (ofWeeks < 1) return null;
+  const runs = sessionsForSheet(sheet.id, sessions); // newest first
+  const firstRun = runs[runs.length - 1];
+  if (!firstRun) return { week: 1, ofWeeks, complete: false };
+  const startMs = new Date(firstRun.startedAt).getTime();
+  if (!Number.isFinite(startMs)) return { week: 1, ofWeeks, complete: false };
+  const week = Math.floor(Math.max(0, now.getTime() - startMs) / WEEK_MS) + 1;
+  if (week > ofWeeks) return { week: ofWeeks, ofWeeks, complete: true };
+  return { week, ofWeeks, complete: false };
 }
 
 /**

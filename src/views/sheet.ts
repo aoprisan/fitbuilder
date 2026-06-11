@@ -1,5 +1,5 @@
 import { track } from "../analytics";
-import { sessionsForSheet } from "../adherence";
+import { mesoStatus, sessionsForSheet } from "../adherence";
 import { clear, h } from "../dom";
 import { canShareFiles, exportRoutineQrPng, exportSheetPdf, exportSheetPng, shareAdherence, shareRoutineLink, shareSheet } from "../exporters";
 import { ImportError, importRoutineFile } from "../import";
@@ -61,6 +61,11 @@ registerTranslations({
     "Ai fișierul de sesiuni exportat de un elev (Statistici → Export · Partajare → JSON)? Importă-l ca să vezi rulările și aderența lui la rutinele tale.",
   "Imported {0} student sessions ({1} already here).":
     "S-au importat {0} sesiuni ale elevului ({1} erau deja aici).",
+  "Cycle (weeks)": "Ciclu (săptămâni)",
+  "Cycle length in weeks (blank = not a cycle)":
+    "Durata ciclului în săptămâni (gol = nu este un ciclu)",
+  "Week {0} of {1}": "Săptămâna {0} din {1}",
+  "Cycle complete — start a new block": "Ciclu încheiat — începe un bloc nou",
   "That file is not a session archive — ask the student to export JSON from Stats.":
     "Acel fișier nu este o arhivă de sesiuni — roagă elevul să exporte JSON din Statistici.",
   'share the adherence report for "{0}"': "partajează raportul de aderență pentru „{0}”",
@@ -1014,10 +1019,35 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
     sheet.name = nameInput.value;
   });
 
+  // ---- Cycle length -----------------------------------------------------------
+  // Optional mesocycle marker: how many weeks this sheet is meant to be run
+  // (e.g. 4 = three loading weeks + a deload). Execute and the library derive
+  // "week N of M" from the first logged run. Blank = not a cycle.
+  const mesoInput = h("input", {
+    class: "meso-input",
+    type: "number",
+    inputmode: "numeric",
+    min: "1",
+    max: "52",
+    step: "1",
+    value: sheet.mesoWeeks !== undefined ? String(sheet.mesoWeeks) : "",
+    placeholder: "—",
+    aria: { label: t("Cycle length in weeks (blank = not a cycle)") },
+  });
+  mesoInput.addEventListener("input", () => {
+    const n = Math.floor(Number(mesoInput.value));
+    if (Number.isFinite(n) && n >= 1) sheet.mesoWeeks = Math.min(52, n);
+    else delete sheet.mesoWeeks;
+  });
+
   const head = h("section", { class: "card builder-head" }, [
     h("label", { class: "field" }, [
       h("span", { class: "field-label", text: t("Sheet name") }),
       nameInput,
+    ]),
+    h("label", { class: "field" }, [
+      h("span", { class: "field-label", text: t("Cycle (weeks)") }),
+      mesoInput,
     ]),
     metaEl,
   ]);
@@ -1320,6 +1350,20 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
                   }),
                 ]
               : []),
+            ...((): HTMLElement[] => {
+              const meso = mesoStatus(s, sessions);
+              if (!meso) return [];
+              return [
+                h("p", {
+                  class: "plan-meta",
+                  text: meso.complete
+                    ? t("Cycle complete — start a new block")
+                    : t("Week {0} of {1}")
+                        .replace("{0}", String(meso.week))
+                        .replace("{1}", String(meso.ofWeeks)),
+                }),
+              ];
+            })(),
           ]),
           h("div", { class: "btn-row saved-actions" }, [
             h("button", {

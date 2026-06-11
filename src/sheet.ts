@@ -133,6 +133,9 @@ export function singleRoutineSheet(
     id: singleRoutineSheetId(parent, index),
     name: routineLabel(routine),
     routines: [cloneRoutine(routine)],
+    // The cycle is declared on the parent document; a runnable slice keeps it
+    // so Execute can still read "week N of M".
+    ...(parent.mesoWeeks !== undefined ? { mesoWeeks: parent.mesoWeeks } : {}),
     updatedAt: new Date().toISOString(),
   };
 }

@@ -235,6 +235,14 @@ export interface RoutineSheet {
   /** Document title, e.g. "Rutina Impins — Calisthenics". */
   name: string;
   routines: Routine[];
+  /**
+   * Length of the training cycle this sheet prescribes, in weeks — a mesocycle
+   * (e.g. 4 = three loading weeks + a deload). Metadata only: the current week
+   * is derived from the first logged run of the sheet, so Execute and the
+   * library can read "week 3 of 4" without storing any progress on the sheet.
+   * Absent = not a cycle (the default for every existing sheet).
+   */
+  mesoWeeks?: number;
   /** ISO timestamp of when the sheet was first created. Stamped on first save. */
   createdAt?: string;
   /** ISO timestamp of last save. */
