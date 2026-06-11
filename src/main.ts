@@ -1,5 +1,6 @@
 import "./styles.css";
 import { track } from "./analytics";
+import { backupFilename, buildBackup, restoreBackup } from "./backup";
 import { clear, h } from "./dom";
 import { forceAppUpdate, registerServiceWorker } from "./pwa";
 import { sheetToSession } from "./log";
@@ -40,6 +41,14 @@ registerTranslations({
     "Șterge definitiv fiecare rutină, sesiune înregistrată, record personal și setare stocate pe acest dispozitiv. Această acțiune nu poate fi anulată.",
   "Delete all saved data on this device? This permanently removes every routine, logged session, personal record and setting, and cannot be undone.":
     "Ștergi toate datele salvate pe acest dispozitiv? Aceasta elimină definitiv fiecare rutină, sesiune înregistrată, record personal și setare și nu poate fi anulată.",
+  Backup: "Copie de rezervă",
+  "Save everything stored on this device — routines, sessions, records and settings — as one file, or restore a backup file (e.g. on a new phone).":
+    "Salvează tot ce este stocat pe acest dispozitiv — rutine, sesiuni, recorduri și setări — într-un singur fișier, sau restaurează o copie de rezervă (de ex. pe un telefon nou).",
+  "Download backup": "Descarcă copia de rezervă",
+  "Restore backup": "Restaurează copia",
+  "Restore this backup? Routines, sessions, records and settings in the file will replace this device's copies.":
+    "Restaurezi această copie de rezervă? Rutinele, sesiunile, recordurile și setările din fișier vor înlocui copiile de pe acest dispozitiv.",
+  "That file is not a Gym Log backup.": "Acel fișier nu este o copie de rezervă Gym Log.",
 });
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -470,6 +479,61 @@ function boot(): void {
     text: t("Build {0}").replace("{0}", formatSessionDate(__BUILD_TIME__)),
   });
 
+  // Backup — download every gymlog.* entry as one JSON file, or restore one.
+  const backupLabel = h("span", { class: "settings-label", text: t("Backup") });
+  const backupDesc = h("p", {
+    class: "settings-disclaimer",
+    text: t(
+      "Save everything stored on this device — routines, sessions, records and settings — as one file, or restore a backup file (e.g. on a new phone).",
+    ),
+  });
+  const backupBtn = h("button", {
+    class: "btn btn-small",
+    type: "button",
+    text: t("Download backup"),
+  });
+  backupBtn.addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify(buildBackup(), null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = h("a", { href: url, download: backupFilename() });
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    track("backup", { action: "download" });
+  });
+  const restoreInput = h("input", { type: "file", accept: "application/json,.json" });
+  restoreInput.style.display = "none";
+  const restoreBtn = h("button", {
+    class: "btn btn-small",
+    type: "button",
+    text: t("Restore backup"),
+  });
+  restoreBtn.addEventListener("click", () => restoreInput.click());
+  restoreInput.addEventListener("change", () => {
+    const file = restoreInput.files?.[0];
+    restoreInput.value = ""; // allow re-picking the same file after a failed try
+    if (!file) return;
+    if (
+      !confirm(
+        t(
+          "Restore this backup? Routines, sessions, records and settings in the file will replace this device's copies.",
+        ),
+      )
+    )
+      return;
+    void file.text().then((text) => {
+      try {
+        restoreBackup(text);
+      } catch {
+        alert(t("That file is not a Gym Log backup."));
+        return;
+      }
+      track("backup", { action: "restore" });
+      window.location.reload(); // every store re-reads (and re-validates) on boot
+    });
+  });
+
   // Data — wipe everything this app stored on the device (all gymlog.* keys).
   const dataLabel = h("span", { class: "settings-label", text: t("Data") });
   const clearDataDesc = h("p", {
@@ -511,6 +575,12 @@ function boot(): void {
       h("div", { class: "settings-row" }, [langLabel, langToggle]),
       h("div", { class: "settings-row" }, [themeLabel, themeToggle]),
       h("div", { class: "settings-row" }, [updatesLabel, updateBtn, buildStamp]),
+      h("div", { class: "settings-row" }, [
+        backupLabel,
+        backupDesc,
+        h("div", { class: "settings-links" }, [backupBtn, restoreBtn]),
+        restoreInput,
+      ]),
       h("div", { class: "settings-row" }, [dataLabel, clearDataDesc, clearDataBtn]),
       h("div", { class: "settings-row" }, [
         aboutLabel,

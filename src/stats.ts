@@ -196,7 +196,7 @@ export function buildProgress(
         const eff = effectiveLoadKg(s.weightKg, eq);
         volume += s.reps * eff;
         strength = Math.max(strength, strengthScore(s, eq, compound));
-        if (s.reps >= HYPERTROPHY_MIN_REPS && s.reps <= HYPERTROPHY_MAX_REPS) {
+        if (s.reps >= HYPERTROPHY_MIN_REPS && s.reps <= HYPERTROPHY_MAX_REPS && s.setType !== "warmup") {
           // Effective reps: volume stopped far from failure stimulates less growth.
           hypertrophy += s.reps * eff * growthFactor * stimulusProximity(s.rir);
         }
@@ -494,6 +494,7 @@ export function weeklyMuscleVolume(
         continue;
       }
       for (const s of ex.sets) {
+        if (s.setType === "warmup") continue; // ramp-up work is no hard set
         const hardSet = stimulusProximity(s.rir); // a full near-failure set = 1
         credit(ex.muscle, hardSet);
         for (const sec of ex.secondaryMuscles ?? []) credit(sec, hardSet * SECONDARY_MUSCLE_SHARE);

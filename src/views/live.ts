@@ -50,6 +50,13 @@ import {
 import { latestBodyweight } from "../bodyweightStore";
 import { suggestOverload } from "../overload";
 import { platesPerSide, BAR_KG } from "../plates";
+import {
+  cueRestOver,
+  ensureNotifyPermission,
+  loadRestAlertSec,
+  REST_ALERT_OPTIONS,
+  saveRestAlertSec,
+} from "../restAlert";
 import { detectPrs, priorSetsFor, type PrHit } from "../records";
 import { muscleRecovery, type MuscleRecovery, recoveryColor } from "../recovery";
 import { exerciseKey, type ExerciseKey } from "../stats";
@@ -66,6 +73,7 @@ import {
   type LoggedExercise,
   type MuscleGroup,
   type SetTarget,
+  type SetType,
   type TrainingSession,
   type WorkSet,
 } from "../types";
@@ -80,6 +88,7 @@ import {
   sessionToSheet,
   sessionVolume,
 } from "../util";
+import { warmupRamp } from "../warmup";
 import { dialField } from "./dial";
 import { lookbackSlider } from "./lookback";
 import { registerTranslations, t } from "../i18n";
@@ -88,6 +97,28 @@ registerTranslations({
   // — RIR chips —
   Failure: "Cădere",
   "4+": "4+",
+  // — Set type chips —
+  "Set type (optional)": "Tip de set (opțional)",
+  "Set type": "Tip de set",
+  "Warm-up": "Încălzire",
+  "Drop set": "Drop set",
+  "warm-up": "încălzire",
+  "drop set": "drop set",
+  "Working set — counts toward records and weekly volume.":
+    "Set de lucru — contează la recorduri și volumul săptămânal.",
+  "Warm-up — won't count toward records or weekly volume.":
+    "Încălzire — nu contează la recorduri sau volumul săptămânal.",
+  "Drop set — a back-off set right after a working set.":
+    "Drop set — un set cu greutate redusă imediat după un set de lucru.",
+  // — Rest alert —
+  "Rest alert": "Alertă pauză",
+  Off: "Oprit",
+  "Rest over": "Pauza s-a terminat",
+  "Time to start your next set.": "E timpul pentru următorul set.",
+  // — Warm-up ramp —
+  "Warm-up ramp · working {0}": "Încălzire progresivă · lucru {0}",
+  Use: "Folosește",
+  "use warm-up step {0}": "folosește pasul de încălzire {0}",
   // — Recovery warning —
   "{0} · {1}% · ~{2}h to go": "{0} · {1}% · ~{2}h rămase",
   "⚠ Still fatigued — consider resting these": "⚠ Încă obosit — ia în calcul odihna",
@@ -480,6 +511,12 @@ const RIR_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
   { value: 4, label: t("4+") },
 ];
 
+/** Warm-up / drop-set chips shown when logging a set; untagged = working set. */
+const SET_TYPE_OPTIONS: ReadonlyArray<{ value: SetType; label: string }> = [
+  { value: "warmup", label: t("Warm-up") },
+  { value: "dropset", label: t("Drop set") },
+];
+
 // A target muscle below this readiness (0..1, from prior sessions) is flagged
 // before you train it again; below the severe mark it's a strong warning.
 const RECOVERY_WARN_BELOW = 0.6;
@@ -723,6 +760,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   let setInclinePct = 0;
   // Reps in reserve for the set being logged; null until tapped (optional).
   let pendingRir: number | null = null;
+  // Warm-up / drop-set tag for the set being logged; null = working set.
+  let pendingSetType: SetType | null = null;
 
   // Stopwatch. Anchored to wall-clock time (epoch ms) so it keeps correct time
   // across a reload or phone lock, not just within one page session.
@@ -732,6 +771,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
 
   // Rest clock — starts the moment a set is committed, runs until the next set.
   let restStartEpoch = 0;
+  // Pending rest-alert cue (setTimeout id); armed on the resting screen, 0 otherwise.
+  let restAlertTimer = 0;
 
   // After a render, bring this element to the top of the viewport instead of
   // jumping to page top. Used during a running set / rest so the action button
@@ -769,6 +810,11 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     if (rafId) {
       cancelAnimationFrame(rafId);
       rafId = 0;
+    }
+    // The rest-alert cue belongs to the resting screen; re-armed by its render.
+    if (restAlertTimer) {
+      clearTimeout(restAlertTimer);
+      restAlertTimer = 0;
     }
   }
 
@@ -883,6 +929,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       setSpeedKmh,
       setInclinePct,
       setRir: pendingRir,
+      setType: pendingSetType,
       setStartEpoch,
       setElapsedMs,
       restStartEpoch,
@@ -915,6 +962,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     setSpeedKmh = saved.setSpeedKmh;
     setInclinePct = saved.setInclinePct;
     pendingRir = saved.setRir;
+    pendingSetType = saved.setType;
     setStartEpoch = saved.setStartEpoch;
     setElapsedMs = saved.setElapsedMs;
     restStartEpoch = saved.restStartEpoch;
@@ -1076,6 +1124,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       setWeight = planned?.loadKg ?? fallbackWeight;
     }
     pendingRir = null; // proximity to failure is logged fresh per set
+    pendingSetType = null; // so a forgotten warm-up tag can't bleed into working sets
     sub = "logging";
     render();
   }
@@ -1098,6 +1147,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           weightKg: setWeight,
           durationSec,
           ...(pendingRir !== null ? { rir: pendingRir } : {}),
+          ...(pendingSetType !== null ? { setType: pendingSetType } : {}),
         };
     // Records check before the set joins the history: everything previously
     // logged for this movement — other sessions plus this exercise's earlier sets.
@@ -1849,6 +1899,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       const bits = isCardio(equipment)
         ? [formatCardioSet(s)]
         : [t("{0} reps").replace("{0}", String(s.reps)), formatLoad(equipment, s.weightKg)];
+      if (!isCardio(equipment) && s.setType !== undefined)
+        bits.unshift(s.setType === "warmup" ? t("warm-up") : t("drop set"));
       if (!isCardio(equipment) && s.rir !== undefined)
         bits.push(s.rir === 0 ? t("to failure") : t("RIR {0}").replace("{0}", String(s.rir)));
       if (!isCardio(equipment) && s.durationSec !== undefined) bits.push(formatClock(s.durationSec));
@@ -1913,6 +1965,96 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
               on: {
                 click: () => {
                   pendingRir = pendingRir === o.value ? null : o.value;
+                  snapshot();
+                  paint();
+                },
+              },
+            }),
+          ),
+        ),
+        h("p", { class: "rir-hint", text: hint }),
+      );
+    };
+    paint();
+    return field;
+  }
+
+  /**
+   * Warm-up ramp card — shown while an exercise has no working set logged yet
+   * (so it survives the ramp itself). Steps derive from the day's working
+   * weight: the trainer's prescribed load when the exercise carries one, else
+   * the overload suggestion from history, else the seeded dial weight. Tapping
+   * a step loads the dials and pre-tags the set as a warm-up.
+   */
+  function renderWarmupRamp(): HTMLElement | null {
+    if (isCardio(equipment)) return null;
+    const sets = currentEx?.sets ?? [];
+    if (sets.some((s) => s.setType !== "warmup")) return null;
+    const planned = currentEx ? nextSetTarget(currentEx) : null;
+    const others = loadSessions().filter((o) => o.id !== state.activeLog?.id);
+    const baseKg =
+      planned?.loadKg ?? suggestOverload(others, currentKey(), equipment)?.weightKg ?? setWeight;
+    const ramp = warmupRamp(baseKg, equipment);
+    if (ramp.length === 0) return null;
+    return h("section", { class: "card live-warmup" }, [
+      h("p", {
+        class: "now-eyebrow",
+        text: t("Warm-up ramp · working {0}").replace("{0}", formatLoad(equipment, baseKg)),
+      }),
+      ...ramp.map((step, i) =>
+        h("div", { class: "live-warmup-row" }, [
+          h("span", {
+            class: "live-warmup-step",
+            text: `${Math.round(step.pct * 100)}% · ${t("{0} reps").replace("{0}", String(step.reps))} · ${formatLoad(equipment, step.weightKg)}`,
+          }),
+          h("button", {
+            class: "btn btn-small",
+            type: "button",
+            text: t("Use"),
+            aria: { label: t("use warm-up step {0}").replace("{0}", String(i + 1)) },
+            on: {
+              click: () => {
+                setReps = step.reps;
+                setWeight = step.weightKg;
+                pendingSetType = "warmup";
+                snapshot();
+                render();
+              },
+            },
+          }),
+        ]),
+      ),
+    ]);
+  }
+
+  /**
+   * Optional warm-up / drop-set tag for the set being logged; tapping the active
+   * chip clears it back to a working set. Repaints in place like the RIR field.
+   */
+  function renderSetTypeField(): HTMLElement {
+    const field = h("div", { class: "field rir-field" });
+    const paint = (): void => {
+      const hint =
+        pendingSetType === null
+          ? t("Working set — counts toward records and weekly volume.")
+          : pendingSetType === "warmup"
+            ? t("Warm-up — won't count toward records or weekly volume.")
+            : t("Drop set — a back-off set right after a working set.");
+      clear(field);
+      field.append(
+        h("span", { class: "field-label", text: t("Set type (optional)") }),
+        h(
+          "div",
+          { class: "toggle rir-toggle", role: "group", aria: { label: t("Set type") } },
+          SET_TYPE_OPTIONS.map((o) =>
+            h("button", {
+              class: pendingSetType === o.value ? "toggle-btn active" : "toggle-btn",
+              type: "button",
+              text: o.label,
+              aria: { pressed: String(pendingSetType === o.value) },
+              on: {
+                click: () => {
+                  pendingSetType = pendingSetType === o.value ? null : o.value;
                   snapshot();
                   paint();
                 },
@@ -2076,6 +2218,56 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         h("div", { class: "dial-center" }, [num, h("span", { class: "dial-label", text: t("REST") })]),
       ]);
 
+      // Rest alert — optional target for the rest clock. Crossing it flips the
+      // dial hot and fires the audio/vibration/notification cue. The cue rides a
+      // wall-clock timeout (not the rAF loop, which pauses in background tabs).
+      let alertSec = loadRestAlertSec();
+      const armAlert = (): void => {
+        if (restAlertTimer) {
+          clearTimeout(restAlertTimer);
+          restAlertTimer = 0;
+        }
+        const remainingMs = restStartEpoch + alertSec * 1000 - Date.now();
+        dialWrap.classList.toggle("rest-over", alertSec > 0 && remainingMs <= 0);
+        // Already over when this screen rendered (e.g. resumed later): no late cue.
+        if (alertSec <= 0 || remainingMs <= 0) return;
+        restAlertTimer = window.setTimeout(() => {
+          restAlertTimer = 0;
+          dialWrap.classList.add("rest-over");
+          cueRestOver(t("Rest over"), t("Time to start your next set."));
+        }, remainingMs);
+      };
+      const alertField = h("div", { class: "field rest-alert-field" });
+      const paintAlert = (): void => {
+        clear(alertField);
+        alertField.append(
+          h("span", { class: "field-label", text: t("Rest alert") }),
+          h(
+            "div",
+            { class: "toggle rir-toggle", role: "group", aria: { label: t("Rest alert") } },
+            REST_ALERT_OPTIONS.map((sec) =>
+              h("button", {
+                class: alertSec === sec ? "toggle-btn active" : "toggle-btn",
+                type: "button",
+                text: sec === 0 ? t("Off") : formatClock(sec),
+                aria: { pressed: String(alertSec === sec) },
+                on: {
+                  click: () => {
+                    alertSec = sec;
+                    saveRestAlertSec(sec);
+                    if (sec > 0) ensureNotifyPermission();
+                    armAlert();
+                    paintAlert();
+                  },
+                },
+              }),
+            ),
+          ),
+        );
+      };
+      paintAlert();
+      armAlert();
+
       const summary = state.activeLog
         ? renderSessionSummary(state.activeLog, loadSessions())
         : null;
@@ -2096,6 +2288,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         ...(pr ? [pr] : []),
         h("p", { class: "set-time", text: t("Resting — recover, then start your next set") }),
         dialWrap,
+        alertField,
         ...loggedBlocks,
       );
       // Scroll so the Start-set button + rest timer are in view, past the header.
@@ -2219,6 +2412,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
               },
             }),
             ...(plateHint ? [plateHint] : []),
+            renderSetTypeField(),
             renderRirField(),
           ];
         })();
@@ -2226,6 +2420,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       class: "set-time live-scroll-anchor",
       text: t("Set time {0}").replace("{0}", formatClock(setElapsedMs / 1000)),
     });
+    const warmupCard = renderWarmupRamp();
     container.append(
       setTimeEl,
       h("div", { class: "btn-row live-actions" }, [
@@ -2237,6 +2432,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         }),
       ]),
       h("div", { class: "card live-dials" }, dials),
+      ...(warmupCard ? [warmupCard] : []),
       ...loggedBlocks,
     );
     // The timer reading + ✓ Done + dials cluster sits at the top; anchor the

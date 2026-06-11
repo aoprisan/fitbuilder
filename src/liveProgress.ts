@@ -1,4 +1,4 @@
-import { EQUIPMENT, MUSCLE_GROUPS, type Equipment, type MuscleGroup } from "./types";
+import { EQUIPMENT, MUSCLE_GROUPS, type Equipment, type MuscleGroup, type SetType } from "./types";
 
 const KEY = "gymlog.liveProgress";
 
@@ -41,6 +41,8 @@ export interface LiveProgress {
   setInclinePct: number;
   /** In-flight reps-in-reserve for the set being logged; null when not chosen. */
   setRir: number | null;
+  /** In-flight warm-up / drop-set tag for the set being logged; null for a working set. */
+  setType: SetType | null;
   /** Epoch ms when the running set started (sub === "running"); 0 otherwise. */
   setStartEpoch: number;
   /** Set duration captured at stop, in ms (sub === "logging"); 0 otherwise. */
@@ -116,6 +118,8 @@ export function loadProgress(): LiveProgress | null {
   const rawRir = raw["setRir"];
   const setRir =
     typeof rawRir === "number" && Number.isFinite(rawRir) && rawRir >= 0 ? rawRir : null;
+  const rawSetType = raw["setType"];
+  const setType = rawSetType === "warmup" || rawSetType === "dropset" ? rawSetType : null;
 
   return {
     sessionId,
@@ -132,6 +136,7 @@ export function loadProgress(): LiveProgress | null {
     setSpeedKmh: num(raw["setSpeedKmh"]),
     setInclinePct: num(raw["setInclinePct"]),
     setRir,
+    setType,
     setStartEpoch: num(raw["setStartEpoch"]),
     setElapsedMs: num(raw["setElapsedMs"]),
     restStartEpoch: num(raw["restStartEpoch"]),

@@ -14,6 +14,16 @@ export type Equipment =
   | "lateral-abs-machine"
   | "treadmill";
 
+/**
+ * How a set fits the working scheme. "warmup" is ramp-up work — real reps, but
+ * not a stimulus read: excluded from PR detection, weekly hard-set volume, the
+ * hypertrophy proxy and overload suggestions. "dropset" is a back-off
+ * continuation logged right after a working set; it counts everywhere a working
+ * set does and the tag is informational. Absent = a normal working set, so
+ * older logs behave exactly as before.
+ */
+export type SetType = "warmup" | "dropset";
+
 export interface WorkSet {
   reps: number;
   /** External load in kg. For bodyweight equipment this is *added* weight (0 = bodyweight only). */
@@ -27,6 +37,8 @@ export interface WorkSet {
    * exactly as before. The strongest per-set driver of both stimulus and fatigue.
    */
   rir?: number;
+  /** Warm-up / drop-set tag; absent for a normal working set (see {@link SetType}). */
+  setType?: SetType;
   /**
    * Cardio (treadmill / run) — distance covered in km. Present only for cardio
    * gear, where a "set" is a bout of steady work rather than reps × load: `reps`
@@ -223,6 +235,14 @@ export interface RoutineSheet {
   /** Document title, e.g. "Rutina Impins — Calisthenics". */
   name: string;
   routines: Routine[];
+  /**
+   * Length of the training cycle this sheet prescribes, in weeks — a mesocycle
+   * (e.g. 4 = three loading weeks + a deload). Metadata only: the current week
+   * is derived from the first logged run of the sheet, so Execute and the
+   * library can read "week 3 of 4" without storing any progress on the sheet.
+   * Absent = not a cycle (the default for every existing sheet).
+   */
+  mesoWeeks?: number;
   /** ISO timestamp of when the sheet was first created. Stamped on first save. */
   createdAt?: string;
   /** ISO timestamp of last save. */

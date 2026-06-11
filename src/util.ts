@@ -159,6 +159,7 @@ export function cloneSheet(sheet: RoutineSheet): RoutineSheet {
     id: sheet.id,
     name: sheet.name,
     routines: sheet.routines.map(cloneRoutine),
+    ...(sheet.mesoWeeks !== undefined ? { mesoWeeks: sheet.mesoWeeks } : {}),
     ...(sheet.createdAt !== undefined ? { createdAt: sheet.createdAt } : {}),
     ...(sheet.updatedAt !== undefined ? { updatedAt: sheet.updatedAt } : {}),
   };
@@ -336,7 +337,7 @@ export function sessionsToXml(sessions: TrainingSession[]): string {
       );
       for (const set of ex.sets) {
         lines.push(
-          `      <set${attr("reps", set.reps)}${attr("weightKg", set.weightKg)}${attr("durationSec", set.durationSec)}${attr("rir", set.rir)}` +
+          `      <set${attr("reps", set.reps)}${attr("weightKg", set.weightKg)}${attr("durationSec", set.durationSec)}${attr("rir", set.rir)}${attr("setType", set.setType)}` +
             `${attr("distanceKm", set.distanceKm)}${attr("speedKmh", set.speedKmh)}${attr("inclinePct", set.inclinePct)} />`,
         );
       }
@@ -435,13 +436,14 @@ function sessionToMarkdown(session: TrainingSession): string {
       });
       return;
     }
-    lines.push("| Set | Reps | Load | RIR | Time |");
-    lines.push("|----:|-----:|------|----:|-----:|");
+    lines.push("| Set | Type | Reps | Load | RIR | Time |");
+    lines.push("|----:|------|-----:|------|----:|-----:|");
     ex.sets.forEach((set, j) => {
       const time = set.durationSec !== undefined ? formatClock(set.durationSec) : "—";
       const rir = set.rir === undefined ? "—" : set.rir === 0 ? "0 (failure)" : String(set.rir);
+      const type = set.setType === "warmup" ? "warm-up" : set.setType === "dropset" ? "drop set" : "work";
       lines.push(
-        `| ${j + 1} | ${set.reps} | ${formatLoad(ex.equipment, set.weightKg)} | ${rir} | ${time} |`,
+        `| ${j + 1} | ${type} | ${set.reps} | ${formatLoad(ex.equipment, set.weightKg)} | ${rir} | ${time} |`,
       );
     });
   });

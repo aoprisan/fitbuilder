@@ -195,6 +195,11 @@ export function validateSheet(input: unknown): RoutineSheet {
   const id = typeof rawId === "string" && rawId.trim() !== "" ? rawId : uuid();
   const createdAt = input["createdAt"];
   const updatedAt = input["updatedAt"];
+  const rawMeso = input["mesoWeeks"];
+  const mesoWeeks =
+    typeof rawMeso === "number" && Number.isFinite(rawMeso) && rawMeso >= 1
+      ? Math.min(52, Math.floor(rawMeso))
+      : undefined;
 
   return {
     schema: SHEET_SCHEMA_ID,
@@ -202,6 +207,7 @@ export function validateSheet(input: unknown): RoutineSheet {
     id,
     name,
     routines: routines.map(validateRoutine),
+    ...(mesoWeeks !== undefined ? { mesoWeeks } : {}),
     ...(typeof createdAt === "string" ? { createdAt } : {}),
     ...(typeof updatedAt === "string" ? { updatedAt } : {}),
   };

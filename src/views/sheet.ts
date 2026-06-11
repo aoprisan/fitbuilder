@@ -1,9 +1,10 @@
 import { track } from "../analytics";
-import { sessionsForSheet } from "../adherence";
+import { mesoStatus, sessionsForSheet } from "../adherence";
 import { clear, h } from "../dom";
 import { canShareFiles, exportRoutineQrPng, exportSheetPdf, exportSheetPng, shareAdherence, shareRoutineLink, shareSheet } from "../exporters";
 import { ImportError, importRoutineFile } from "../import";
-import { loadSessions } from "../logStorage";
+import { importSessions, loadSessions } from "../logStorage";
+import { parseSessionArchive } from "../logValidate";
 import { renderRoutineQrCanvas } from "../qr";
 import { clearLogo, fileToLogoDataUrl, loadLogo, LogoError, saveLogo } from "../logo";
 import type { SelectMode } from "../liveProgress";
@@ -55,6 +56,18 @@ import { registerTranslations, t } from "../i18n";
 registerTranslations({
   "QR code for {0}": "Cod QR pentru {0}",
   "Report ▸": "Raport ▸",
+  "Import student log": "Importă jurnalul elevului",
+  "Got a student's exported session file (Stats → Export · Share → JSON)? Import it to count their runs and adherence for your routines.":
+    "Ai fișierul de sesiuni exportat de un elev (Statistici → Export · Partajare → JSON)? Importă-l ca să vezi rulările și aderența lui la rutinele tale.",
+  "Imported {0} student sessions ({1} already here).":
+    "S-au importat {0} sesiuni ale elevului ({1} erau deja aici).",
+  "Cycle (weeks)": "Ciclu (săptămâni)",
+  "Cycle length in weeks (blank = not a cycle)":
+    "Durata ciclului în săptămâni (gol = nu este un ciclu)",
+  "Week {0} of {1}": "Săptămâna {0} din {1}",
+  "Cycle complete — start a new block": "Ciclu încheiat — începe un bloc nou",
+  "That file is not a session archive — ask the student to export JSON from Stats.":
+    "Acel fișier nu este o arhivă de sesiuni — roagă elevul să exporte JSON din Statistici.",
   'share the adherence report for "{0}"': "partajează raportul de aderență pentru „{0}”",
   "1 run logged": "1 rulare înregistrată",
   "{0} runs logged": "{0} rulări înregistrate",
@@ -1006,10 +1019,35 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
     sheet.name = nameInput.value;
   });
 
+  // ---- Cycle length -----------------------------------------------------------
+  // Optional mesocycle marker: how many weeks this sheet is meant to be run
+  // (e.g. 4 = three loading weeks + a deload). Execute and the library derive
+  // "week N of M" from the first logged run. Blank = not a cycle.
+  const mesoInput = h("input", {
+    class: "meso-input",
+    type: "number",
+    inputmode: "numeric",
+    min: "1",
+    max: "52",
+    step: "1",
+    value: sheet.mesoWeeks !== undefined ? String(sheet.mesoWeeks) : "",
+    placeholder: "—",
+    aria: { label: t("Cycle length in weeks (blank = not a cycle)") },
+  });
+  mesoInput.addEventListener("input", () => {
+    const n = Math.floor(Number(mesoInput.value));
+    if (Number.isFinite(n) && n >= 1) sheet.mesoWeeks = Math.min(52, n);
+    else delete sheet.mesoWeeks;
+  });
+
   const head = h("section", { class: "card builder-head" }, [
     h("label", { class: "field" }, [
       h("span", { class: "field-label", text: t("Sheet name") }),
       nameInput,
+    ]),
+    h("label", { class: "field" }, [
+      h("span", { class: "field-label", text: t("Cycle (weeks)") }),
+      mesoInput,
     ]),
     metaEl,
   ]);
@@ -1312,6 +1350,20 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
                   }),
                 ]
               : []),
+            ...((): HTMLElement[] => {
+              const meso = mesoStatus(s, sessions);
+              if (!meso) return [];
+              return [
+                h("p", {
+                  class: "plan-meta",
+                  text: meso.complete
+                    ? t("Cycle complete — start a new block")
+                    : t("Week {0} of {1}")
+                        .replace("{0}", String(meso.week))
+                        .replace("{1}", String(meso.ofWeeks)),
+                }),
+              ];
+            })(),
           ]),
           h("div", { class: "btn-row saved-actions" }, [
             h("button", {
@@ -1382,6 +1434,53 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
     }
   }
 
+  // Student round-trip: a student exports their logged sessions as a JSON
+  // archive (Stats → Export · Share) and sends the file back over any channel;
+  // importing it merges those runs into this device's log (deduped by id), so
+  // the run counts and adherence reports in the library below cover remote
+  // students too — no accounts, no server.
+  const studentInput = h("input", { type: "file", accept: "application/json,.json" });
+  studentInput.style.display = "none";
+  studentInput.addEventListener("change", () => {
+    const file = studentInput.files?.[0];
+    studentInput.value = "";
+    if (!file) return;
+    void file.text().then((text) => {
+      let incoming;
+      try {
+        incoming = parseSessionArchive(text);
+      } catch {
+        setStatus(t("That file is not a session archive — ask the student to export JSON from Stats."), "err");
+        return;
+      }
+      const { added, skipped } = importSessions(incoming);
+      setStatus(
+        t("Imported {0} student sessions ({1} already here).")
+          .replace("{0}", String(added))
+          .replace("{1}", String(skipped)),
+        "ok",
+      );
+      renderSaved();
+    });
+  });
+  const studentImport = h("div", { class: "student-import" }, [
+    h("p", {
+      class: "plan-meta",
+      text: t(
+        "Got a student's exported session file (Stats → Export · Share → JSON)? Import it to count their runs and adherence for your routines.",
+      ),
+    }),
+    h("div", { class: "btn-row" }, [
+      h("button", {
+        class: "btn btn-small",
+        type: "button",
+        text: t("Import student log"),
+        on: { click: () => studentInput.click() },
+      }),
+    ]),
+    studentInput,
+  ]);
+
   const dataSection = h("section", { class: "card data" }, [
     h("h2", { class: "section-title", text: t("Save · Library") }),
     h("div", { class: "btn-row" }, [
@@ -1430,6 +1529,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
         },
       }),
     ]),
+    studentImport,
     savedHost,
   ]);
 
