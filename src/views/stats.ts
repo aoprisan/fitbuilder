@@ -35,6 +35,7 @@ import {
 } from "../stats";
 import { MUSCLE_LABELS, type TrainingSession } from "../types";
 import { formatClock, round2 } from "../util";
+import { sessionCalendar } from "./calendar";
 import { lineChart } from "./chart";
 import { lookbackSlider } from "./lookback";
 
@@ -270,6 +271,9 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
 
     const lifetime = lifetimeEffort(sessions, latestBodyweight()?.kg);
     if (lifetime.sessions > 0) container.append(renderLifetime(lifetime));
+
+    // Training journal — month grid of logged days, on the all-sessions scope.
+    if (filter === "all" && sessions.length > 0) container.append(sessionCalendar(sessions));
 
     if (keys.length > 0) container.append(renderFilter(keys));
 

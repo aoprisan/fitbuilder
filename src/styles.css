@@ -4663,3 +4663,109 @@ textarea:focus-visible {
   margin: 0;
   text-align: center;
 }
+
+/* =============================================================================
+   Session calendar — month grid of logged training days (Stats view).
+   ========================================================================== */
+
+.cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cal-title {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.cal-meta,
+.cal-hint {
+  margin: 4px 0 0;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--ink-soft);
+}
+
+.cal-grid {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.cal-weekday {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.cal-day {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  aspect-ratio: 1;
+  border: 1px solid transparent;
+  background: none;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--ink-soft);
+  cursor: default;
+}
+
+.cal-day.has-sessions {
+  color: var(--ink);
+  border-color: var(--ink);
+  cursor: pointer;
+}
+
+.cal-day.is-today .cal-day-num {
+  text-decoration: underline;
+}
+
+.cal-day.is-selected {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.cal-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--signal);
+}
+
+.cal-session {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--ink-soft);
+}
+
+.cal-session-name {
+  margin: 0;
+  font-weight: 700;
+}
+
+.cal-session-meta,
+.cal-session-muscles {
+  margin: 2px 0 0;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--ink-soft);
+}
