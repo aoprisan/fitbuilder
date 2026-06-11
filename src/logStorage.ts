@@ -51,6 +51,28 @@ export function saveSession(session: TrainingSession): TrainingSession & { updat
   return stored;
 }
 
+/**
+ * Merge externally sourced sessions (a student's exported archive) into the
+ * local log. Existing ids are skipped, never overwritten — re-importing the
+ * same archive is idempotent and a student's re-export can't clobber a session
+ * the trainer already has. Timestamps are kept as exported.
+ */
+export function importSessions(
+  incoming: readonly TrainingSession[],
+): { added: number; skipped: number } {
+  const sessions = loadSessions();
+  const have = new Set(sessions.map((s) => s.id));
+  let added = 0;
+  for (const s of incoming) {
+    if (have.has(s.id)) continue;
+    have.add(s.id);
+    sessions.push(s);
+    added += 1;
+  }
+  if (added > 0) writeAll(sessions);
+  return { added, skipped: incoming.length - added };
+}
+
 /** Remove a session by id. */
 export function deleteSession(id: string): void {
   writeAll(loadSessions().filter((s) => s.id !== id));

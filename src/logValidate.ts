@@ -3,6 +3,7 @@ import {
   LOG_SCHEMA_ID,
   LOG_SCHEMA_VERSION,
   MUSCLE_GROUPS,
+  SESSION_ARCHIVE_SCHEMA_ID,
   type Equipment,
   type ExerciseTarget,
   type LoggedExercise,
@@ -178,4 +179,28 @@ export function coerceSession(input: unknown): TrainingSession | null {
     ...(typeof fromSheetId === "string" && fromSheetId !== "" ? { fromSheetId } : {}),
     ...(typeof updatedAt === "string" ? { updatedAt } : {}),
   };
+}
+
+/**
+ * Parse the text of an exported session archive (the "Download JSON" bundle a
+ * student sends back) into its sessions. Strict on the envelope — the archive
+ * marker must be present — and forgiving on the rows, which go through the same
+ * repairing coercion as locally stored logs. Throws when the text isn't a
+ * session archive at all; an archive with zero salvageable sessions returns [].
+ */
+export function parseSessionArchive(text: string): TrainingSession[] {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    throw new Error("not JSON");
+  }
+  if (!isRecord(raw) || raw["schema"] !== SESSION_ARCHIVE_SCHEMA_ID) {
+    throw new Error("missing session-archive marker");
+  }
+  const sessions = raw["sessions"];
+  if (!Array.isArray(sessions)) return [];
+  return sessions
+    .map(coerceSession)
+    .filter((s): s is TrainingSession => s !== null);
 }
