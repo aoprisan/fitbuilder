@@ -1398,6 +1398,26 @@ textarea {
   margin-top: 2px;
 }
 
+/* Warm-up ramp card on the logging screen. */
+.live-warmup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.live-warmup-row + .live-warmup-row {
+  margin-top: 6px;
+}
+
+.live-warmup-step {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Barbell plate calculator under the weight dial. */
 .plate-hint {
   margin: 0;

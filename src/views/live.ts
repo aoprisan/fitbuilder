@@ -88,6 +88,7 @@ import {
   sessionToSheet,
   sessionVolume,
 } from "../util";
+import { warmupRamp } from "../warmup";
 import { dialField } from "./dial";
 import { lookbackSlider } from "./lookback";
 import { registerTranslations, t } from "../i18n";
@@ -114,6 +115,10 @@ registerTranslations({
   Off: "Oprit",
   "Rest over": "Pauza s-a terminat",
   "Time to start your next set.": "E timpul pentru următorul set.",
+  // — Warm-up ramp —
+  "Warm-up ramp · working {0}": "Încălzire progresivă · lucru {0}",
+  Use: "Folosește",
+  "use warm-up step {0}": "folosește pasul de încălzire {0}",
   // — Recovery warning —
   "{0} · {1}% · ~{2}h to go": "{0} · {1}% · ~{2}h rămase",
   "⚠ Still fatigued — consider resting these": "⚠ Încă obosit — ia în calcul odihna",
@@ -1975,6 +1980,54 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   }
 
   /**
+   * Warm-up ramp card — shown while an exercise has no working set logged yet
+   * (so it survives the ramp itself). Steps derive from the day's working
+   * weight: the trainer's prescribed load when the exercise carries one, else
+   * the overload suggestion from history, else the seeded dial weight. Tapping
+   * a step loads the dials and pre-tags the set as a warm-up.
+   */
+  function renderWarmupRamp(): HTMLElement | null {
+    if (isCardio(equipment)) return null;
+    const sets = currentEx?.sets ?? [];
+    if (sets.some((s) => s.setType !== "warmup")) return null;
+    const planned = currentEx ? nextSetTarget(currentEx) : null;
+    const others = loadSessions().filter((o) => o.id !== state.activeLog?.id);
+    const baseKg =
+      planned?.loadKg ?? suggestOverload(others, currentKey(), equipment)?.weightKg ?? setWeight;
+    const ramp = warmupRamp(baseKg, equipment);
+    if (ramp.length === 0) return null;
+    return h("section", { class: "card live-warmup" }, [
+      h("p", {
+        class: "now-eyebrow",
+        text: t("Warm-up ramp · working {0}").replace("{0}", formatLoad(equipment, baseKg)),
+      }),
+      ...ramp.map((step, i) =>
+        h("div", { class: "live-warmup-row" }, [
+          h("span", {
+            class: "live-warmup-step",
+            text: `${Math.round(step.pct * 100)}% · ${t("{0} reps").replace("{0}", String(step.reps))} · ${formatLoad(equipment, step.weightKg)}`,
+          }),
+          h("button", {
+            class: "btn btn-small",
+            type: "button",
+            text: t("Use"),
+            aria: { label: t("use warm-up step {0}").replace("{0}", String(i + 1)) },
+            on: {
+              click: () => {
+                setReps = step.reps;
+                setWeight = step.weightKg;
+                pendingSetType = "warmup";
+                snapshot();
+                render();
+              },
+            },
+          }),
+        ]),
+      ),
+    ]);
+  }
+
+  /**
    * Optional warm-up / drop-set tag for the set being logged; tapping the active
    * chip clears it back to a working set. Repaints in place like the RIR field.
    */
@@ -2367,6 +2420,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       class: "set-time live-scroll-anchor",
       text: t("Set time {0}").replace("{0}", formatClock(setElapsedMs / 1000)),
     });
+    const warmupCard = renderWarmupRamp();
     container.append(
       setTimeEl,
       h("div", { class: "btn-row live-actions" }, [
@@ -2378,6 +2432,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         }),
       ]),
       h("div", { class: "card live-dials" }, dials),
+      ...(warmupCard ? [warmupCard] : []),
       ...loggedBlocks,
     );
     // The timer reading + ✓ Done + dials cluster sits at the top; anchor the
