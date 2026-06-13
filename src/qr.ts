@@ -9,7 +9,7 @@
    canvasKit (theme-independent) on purpose: a QR must always be dark modules on
    a light ground to scan, regardless of the app's light/dark UI theme. */
 
-import { C } from "./canvasKit";
+import { APP_INSTALL_URL, C } from "./canvasKit";
 import { encodeRoutineLink } from "./shareRoutine";
 import type { RoutineSheet } from "./types";
 
@@ -21,14 +21,13 @@ const QUIET = 4;
 const MODULE = 6;
 
 /**
- * Render a routine's share link to a square QR canvas in the ledger palette.
- * Byte mode (base64url isn't QR-alphanumeric), error-correction level M, with a
- * fallback to L for large multi-routine sheets. Throws if the routine is too big
- * for even a max-size QR — the caller should fall back to the plain link.
+ * Render an arbitrary string to a square QR canvas in the ledger palette.
+ * Byte mode (so base64url / URLs encode cleanly), error-correction level M with
+ * a fallback to L for larger payloads. Throws if the data is too big for even a
+ * max-size QR — the caller should fall back to the plain link.
  */
-export async function renderRoutineQrCanvas(sheet: RoutineSheet): Promise<HTMLCanvasElement> {
+export async function renderQrCanvas(data: string): Promise<HTMLCanvasElement> {
   const qrcode = (await import("qrcode-generator")).default;
-  const url = encodeRoutineLink(sheet);
 
   // typeNumber 0 = auto-pick the smallest version that fits. Prefer M (more
   // robust to print smudges); fall back to L (more capacity) if M overflows.
@@ -36,7 +35,7 @@ export async function renderRoutineQrCanvas(sheet: RoutineSheet): Promise<HTMLCa
   for (const level of ["M", "L"] as const) {
     try {
       const candidate = qrcode(0, level);
-      candidate.addData(url, "Byte");
+      candidate.addData(data, "Byte");
       candidate.make();
       qr = candidate;
       break;
@@ -45,7 +44,7 @@ export async function renderRoutineQrCanvas(sheet: RoutineSheet): Promise<HTMLCa
     }
   }
   if (!qr) {
-    throw new Error("This routine is too large for a QR code — share the link instead.");
+    throw new Error("This data is too large for a QR code — share the link instead.");
   }
 
   const count = qr.getModuleCount();
@@ -70,4 +69,21 @@ export async function renderRoutineQrCanvas(sheet: RoutineSheet): Promise<HTMLCa
     }
   }
   return canvas;
+}
+
+/**
+ * Render a routine's share link to a square QR canvas in the ledger palette.
+ * A trainer prints or shows it so students joining a group session can scan to
+ * load the routine. Throws if the routine is too big for even a max-size QR.
+ */
+export async function renderRoutineQrCanvas(sheet: RoutineSheet): Promise<HTMLCanvasElement> {
+  return renderQrCanvas(encodeRoutineLink(sheet));
+}
+
+/**
+ * Render the app's install URL to a scannable QR canvas — a friend points their
+ * phone camera at it to open the app, no link to type or paste.
+ */
+export async function renderAppQrCanvas(): Promise<HTMLCanvasElement> {
+  return renderQrCanvas(APP_INSTALL_URL);
 }

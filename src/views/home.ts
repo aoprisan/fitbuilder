@@ -4,8 +4,10 @@ import {
   loadBodyweights,
   logBodyweight,
 } from "../bodyweightStore";
+import { APP_URL } from "../canvasKit";
 import { clear, h } from "../dom";
 import { registerTranslations, t } from "../i18n";
+import { renderAppQrCanvas } from "../qr";
 import { loadProgress } from "../liveProgress";
 import { getSession, loadSessions } from "../logStorage";
 import { loadMode } from "../mode";
@@ -20,7 +22,7 @@ import {
   systemicRecovery,
 } from "../recovery";
 import { weeklyStreak } from "../records";
-import type { Nav } from "../router";
+import type { Cleanup, Nav } from "../router";
 import { exerciseKeyLabel } from "../stats";
 import { trainTodayPicks } from "../trainToday";
 import { MUSCLE_LABELS } from "../types";
@@ -127,9 +129,67 @@ registerTranslations({
     "Imaginea de invitație a fost salvată — linkul a fost copiat în clipboard.",
   "Couldn't share just now — please try again.":
     "Nu s-a putut distribui acum — încearcă din nou.",
+  "Show QR code": "Afișează codul QR",
+  "Scan to install": "Scanează pentru a instala",
+  "Point a phone camera at this code to open the app — no link to type.":
+    "Îndreaptă camera telefonului spre acest cod pentru a deschide aplicația — fără niciun link de tastat.",
+  "Building QR…": "Se generează codul QR…",
+  "Couldn't build the QR code — share the link instead.":
+    "Nu s-a putut genera codul QR — distribuie linkul în schimb.",
+  Close: "Închide",
 });
 
-export function mountHome(root: HTMLElement, nav: Nav): void {
+/**
+ * Show the app's install QR in a modal overlay so a friend can scan it straight
+ * off the screen. Lives on document.body (outside the view host), so the caller
+ * holds the returned close fn and runs it on view teardown. Mirrors the QR
+ * overlay in sheet.ts; reuses its .qr-overlay styles.
+ */
+function showAppQrOverlay(canvas: HTMLCanvasElement): () => void {
+  const onKey = (e: KeyboardEvent): void => {
+    if (e.key === "Escape") close();
+  };
+  function close(): void {
+    document.removeEventListener("keydown", onKey);
+    overlay.remove();
+  }
+
+  canvas.classList.add("qr-overlay__canvas");
+  const card = h(
+    "div",
+    {
+      class: "qr-overlay__card",
+      role: "dialog",
+      aria: { modal: "true", label: t("Scan to install") },
+    },
+    [
+      h("p", { class: "qr-overlay__title", text: t("Scan to install") }),
+      canvas,
+      h("p", { class: "qr-overlay__hint", text: APP_URL.toUpperCase() }),
+      h("p", {
+        class: "qr-overlay__hint",
+        text: t("Point a phone camera at this code to open the app — no link to type."),
+      }),
+      h("div", { class: "btn-row qr-overlay__actions" }, [
+        h("button", { class: "btn btn-small", type: "button", text: t("Close"), on: { click: () => close() } }),
+      ]),
+    ],
+  );
+  const overlay = h(
+    "div",
+    { class: "qr-overlay", on: { click: (e) => { if (e.target === overlay) close(); } } },
+    [card],
+  );
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(overlay);
+  return close;
+}
+
+export function mountHome(root: HTMLElement, nav: Nav): Cleanup {
+  // The QR overlay lives on document.body (outside the view host), so we hold
+  // its disposer and tear it down when the view is unmounted.
+  let dismissQrOverlay: (() => void) | null = null;
+
   const sessions = loadSessions().sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   const last = sessions[0];
 
@@ -616,6 +676,24 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
       }
     });
 
+    // Show-QR — the in-person counterpart to sharing a link: a friend scans the
+    // code off the screen and the app opens, nothing to type or paste.
+    const qrBtn = h("button", { class: "btn", type: "button", text: t("Show QR code") });
+    qrBtn.addEventListener("click", async () => {
+      qrBtn.disabled = true;
+      status.textContent = t("Building QR…");
+      try {
+        const canvas = await renderAppQrCanvas();
+        dismissQrOverlay?.();
+        dismissQrOverlay = showAppQrOverlay(canvas);
+        status.textContent = "";
+      } catch {
+        status.textContent = t("Couldn't build the QR code — share the link instead.");
+      } finally {
+        qrBtn.disabled = false;
+      }
+    });
+
     return h("section", { class: "card" }, [
       h("p", { class: "eyebrow", text: t("Spread the word") }),
       h("h2", { class: "section-title", text: t("Share app") }),
@@ -625,7 +703,7 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
           "Send a friend the app — a branded card with the install link, copied to your clipboard too.",
         ),
       }),
-      h("div", { class: "btn-row" }, [shareBtn]),
+      h("div", { class: "btn-row" }, [shareBtn, qrBtn]),
       status,
     ]);
   }
@@ -678,4 +756,9 @@ export function mountHome(root: HTMLElement, nav: Nav): void {
         ];
 
   root.appendChild(h("div", { class: "view view-home" }, cards));
+
+  return () => {
+    dismissQrOverlay?.();
+    dismissQrOverlay = null;
+  };
 }
