@@ -39,7 +39,6 @@ import {
   saveSession,
 } from "../logStorage";
 import {
-  compoundMovements,
   findMovement,
   isCompoundMovement,
   isolationMovementsForMuscle,
@@ -59,7 +58,7 @@ import {
 } from "../restAlert";
 import { detectPrs, priorSetsFor, type PrHit } from "../records";
 import { muscleRecovery, type MuscleRecovery, recoveryColor } from "../recovery";
-import { exerciseKey, type ExerciseKey } from "../stats";
+import { compoundMovementsByFrequency, exerciseKey, type ExerciseKey } from "../stats";
 import type { Cleanup, Nav } from "../router";
 import { saveSheet } from "../sheetStorage";
 import { setActiveLog, setEditingSheet, setSheetFlash, state } from "../state";
@@ -732,9 +731,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     }
   }
 
-  /** Ensure the selection points at a compound lift; default to the first one if not. */
+  /** Ensure the selection points at a compound lift; default to the most-trained one if not. */
   function ensureCompound(): void {
-    const compounds = compoundMovements();
+    const compounds = compoundMovementsByFrequency(loadSessions());
     if (!compounds.some((mv) => mv.id === movementId)) {
       const first = compounds[0];
       if (first) selectMovement(first.id);
@@ -1717,8 +1716,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       ]);
 
     // The exercise picker swaps shape by mode: muscle + gear, or compound lifts
-    // with their muscle split. The mode toggle sits above both.
-    const compounds = compoundMovements();
+    // with their muscle split. The mode toggle sits above both. Compounds are
+    // ordered most-trained first so the user's staples sit at the top.
+    const compounds = compoundMovementsByFrequency(allSessions);
     const selectedCompound = findMovement(movementId);
     const picker =
       selectMode === "compound"

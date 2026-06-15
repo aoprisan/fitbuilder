@@ -1,6 +1,6 @@
 import { CARDIO_LEG_CREDIT, cardioLegDose, stimulusProximity } from "./effort";
 import { effectiveLoadKg, hypertrophyFactor, strengthFactor } from "./loadProfile";
-import { findMovement, SECONDARY_MUSCLE_SHARE } from "./movements";
+import { compoundMovements, findMovement, type Movement, SECONDARY_MUSCLE_SHARE } from "./movements";
 import {
   EQUIPMENT_LABELS,
   isCardio,
@@ -93,6 +93,39 @@ export function exerciseKeyLabel(key: ExerciseKey): string {
   }
   const movement = findMovement(key);
   return movement ? `${MUSCLE_LABELS[movement.primaryMuscle]} · ${movement.name}` : key;
+}
+
+/**
+ * For each distinct exercise, the number of sessions it appears in with at least
+ * one logged set (counted once per session, even when repeated mid-session).
+ * Drives frequency-ordered exercise menus — the user's staples first.
+ */
+export function sessionCountsByExercise(sessions: readonly TrainingSession[]): Map<ExerciseKey, number> {
+  const counts = new Map<ExerciseKey, number>();
+  for (const session of sessions) {
+    const seen = new Set<ExerciseKey>();
+    for (const ex of session.exercises) {
+      if (ex.sets.length === 0) continue;
+      const key = exerciseKey(ex);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
+/**
+ * The curated compound catalog ordered by how often the user has trained each
+ * lift — most-trained first, with catalog order preserved among lifts trained
+ * equally often (including the never-trained, which keep their catalog sequence).
+ * Powers the compound pickers in Live and the Routines builder so a lifter's most
+ * frequent compounds surface at the top. Relies on `Array.prototype.sort` being
+ * stable (ES2019+) to keep equal-frequency ties in catalog order.
+ */
+export function compoundMovementsByFrequency(sessions: readonly TrainingSession[]): readonly Movement[] {
+  const counts = sessionCountsByExercise(sessions);
+  return [...compoundMovements()].sort((a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0));
 }
 
 /** Distinct exercises that have at least one logged set, sorted for stable menus. */
