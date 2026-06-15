@@ -6,10 +6,10 @@ import { ImportError, importRoutineFile } from "../import";
 import { importSessions, loadSessions } from "../logStorage";
 import { parseSessionArchive } from "../logValidate";
 import { renderRoutineQrCanvas } from "../qr";
+import { compoundMovementsByFrequency } from "../stats";
 import { clearLogo, fileToLogoDataUrl, loadLogo, LogoError, saveLogo } from "../logo";
 import type { SelectMode } from "../liveProgress";
 import {
-  compoundMovements,
   findMovement,
   isCompoundMovement,
   isolationMovementsForMuscle,
@@ -565,6 +565,8 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
     // A compound row defaults to the Compound picker — the isolation-only Custom
     // picker can't represent it. Once the user picks a mode, that choice sticks.
     const mode = rowMode.get(ex) ?? (selected && isCompoundMovement(selected) ? "compound" : "custom");
+    // Compounds are ordered most-trained first so the lifter's staples lead the picker.
+    const compounds = compoundMovementsByFrequency(loadSessions());
 
     // Adopt a catalog movement as this row's identity (name + muscle/load/compound).
     const pick = (id: string): void => {
@@ -588,7 +590,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
       // Custom lists only isolation movements, so each drops a stale selection to
       // the first valid option for the picker it's switching to.
       if (m === "compound" && (!selected || !isCompoundMovement(selected))) {
-        const first = compoundMovements()[0];
+        const first = compounds[0];
         if (first) {
           pick(first.id);
           return;
@@ -608,7 +610,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
         ? [
             chipToggle(
               t("Compound lift"),
-              compoundMovements().map((mv) => mv.id),
+              compounds.map((mv) => mv.id),
               (id) => findMovement(id)?.name ?? id,
               movementId,
               pick,

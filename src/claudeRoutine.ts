@@ -1,6 +1,13 @@
 import { findMovement, isCompoundMovement } from "./movements";
 import { exerciseHistoryLines } from "./progression";
-import { bestOneRm, exerciseKey, exerciseKeyLabel, type ExerciseKey, presentExerciseKeys } from "./stats";
+import {
+  bestOneRm,
+  exerciseKey,
+  exerciseKeyLabel,
+  type ExerciseKey,
+  presentExerciseKeys,
+  sessionCountsByExercise,
+} from "./stats";
 import {
   EQUIPMENT,
   MUSCLE_GROUPS,
@@ -184,18 +191,8 @@ export interface CompoundOption {
  * the full compound catalog so the feature still drafts a starting block.
  */
 export function loggedCompoundOptions(sessions: TrainingSession[]): CompoundOption[] {
-  const counts = new Map<ExerciseKey, number>();
-  for (const session of sessions) {
-    const seen = new Set<ExerciseKey>();
-    for (const ex of session.exercises) {
-      if (ex.sets.length === 0) continue;
-      const key = exerciseKey(ex);
-      if (!isCompoundKey(key) || seen.has(key)) continue;
-      seen.add(key);
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-  }
-  return [...counts.entries()]
+  return [...sessionCountsByExercise(sessions).entries()]
+    .filter(([key]) => isCompoundKey(key))
     .map(([key, sessionCount]) => ({ key, label: exerciseKeyLabel(key), sessionCount }))
     .sort((a, b) => b.sessionCount - a.sessionCount || a.label.localeCompare(b.label));
 }
