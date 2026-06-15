@@ -6,7 +6,7 @@ import { ImportError, importRoutineFile } from "../import";
 import { importSessions, loadSessions } from "../logStorage";
 import { parseSessionArchive } from "../logValidate";
 import { renderRoutineQrCanvas } from "../qr";
-import { compoundMovementsByFrequency } from "../stats";
+import { compoundMovementsByFrequency, musclesByFrequency } from "../stats";
 import { clearLogo, fileToLogoDataUrl, loadLogo, LogoError, saveLogo } from "../logo";
 import type { SelectMode } from "../liveProgress";
 import {
@@ -30,7 +30,6 @@ import { deleteSheet, loadSheets, saveSheet } from "../sheetStorage";
 import { setSheetFlash, state, takeSheetFlash } from "../state";
 import { loadTrainer, saveTrainer } from "../trainer";
 import {
-  MUSCLE_GROUPS,
   MUSCLE_LABELS,
   type MuscleGroup,
   type Routine,
@@ -565,8 +564,11 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
     // A compound row defaults to the Compound picker — the isolation-only Custom
     // picker can't represent it. Once the user picks a mode, that choice sticks.
     const mode = rowMode.get(ex) ?? (selected && isCompoundMovement(selected) ? "compound" : "custom");
-    // Compounds are ordered most-trained first so the lifter's staples lead the picker.
-    const compounds = compoundMovementsByFrequency(loadSessions());
+    // Compounds and muscle groups are ordered most-trained first so the lifter's
+    // staples lead each picker.
+    const sessions = loadSessions();
+    const compounds = compoundMovementsByFrequency(sessions);
+    const muscles = musclesByFrequency(sessions);
 
     // Adopt a catalog movement as this row's identity (name + muscle/load/compound).
     const pick = (id: string): void => {
@@ -619,7 +621,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
         : [
             chipToggle(
               t("Muscle group"),
-              MUSCLE_GROUPS,
+              muscles,
               (m) => t(MUSCLE_LABELS[m as MuscleGroup]),
               muscle,
               pickMuscle,
