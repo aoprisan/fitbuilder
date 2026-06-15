@@ -58,7 +58,7 @@ import {
 } from "../restAlert";
 import { detectPrs, priorSetsFor, type PrHit } from "../records";
 import { muscleRecovery, type MuscleRecovery, recoveryColor } from "../recovery";
-import { compoundMovementsByFrequency, exerciseKey, type ExerciseKey } from "../stats";
+import { compoundMovementsByFrequency, exerciseKey, type ExerciseKey, musclesByFrequency } from "../stats";
 import type { Cleanup, Nav } from "../router";
 import { saveSheet } from "../sheetStorage";
 import { setActiveLog, setEditingSheet, setSheetFlash, state } from "../state";
@@ -1737,7 +1737,13 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
                 : []),
             ]
         : [
-            renderToggle(t("Muscle group"), MUSCLE_GROUPS, (m) => t(MUSCLE_LABELS[m as MuscleGroup]), muscle, pickMuscle),
+            renderToggle(
+              t("Muscle group"),
+              musclesByFrequency(allSessions),
+              (m) => t(MUSCLE_LABELS[m as MuscleGroup]),
+              muscle,
+              pickMuscle,
+            ),
             renderToggle(
               t("Exercise"),
               isolationMovementsForMuscle(muscle).map((mv) => mv.id),

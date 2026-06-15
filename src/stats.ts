@@ -128,6 +128,36 @@ export function compoundMovementsByFrequency(sessions: readonly TrainingSession[
   return [...compoundMovements()].sort((a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0));
 }
 
+/**
+ * For each muscle group, the number of sessions in which it was the primary
+ * muscle of at least one logged exercise (counted once per session). Drives the
+ * frequency-ordered muscle picker so the user's most-trained muscles lead.
+ */
+export function sessionCountsByMuscle(sessions: readonly TrainingSession[]): Map<MuscleGroup, number> {
+  const counts = new Map<MuscleGroup, number>();
+  for (const session of sessions) {
+    const seen = new Set<MuscleGroup>();
+    for (const ex of session.exercises) {
+      if (ex.sets.length === 0 || seen.has(ex.muscle)) continue;
+      seen.add(ex.muscle);
+      counts.set(ex.muscle, (counts.get(ex.muscle) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
+/**
+ * The muscle groups ordered by how often the user has trained each — most-trained
+ * first, with catalog order preserved among muscles trained equally often
+ * (including the never-trained, which keep their catalog sequence). Powers the
+ * custom muscle pickers in Live and the Routines builder so a lifter's staples
+ * surface at the top. Relies on `Array.prototype.sort` being stable (ES2019+).
+ */
+export function musclesByFrequency(sessions: readonly TrainingSession[]): readonly MuscleGroup[] {
+  const counts = sessionCountsByMuscle(sessions);
+  return [...MUSCLE_GROUPS].sort((a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0));
+}
+
 /** Distinct exercises that have at least one logged set, sorted for stable menus. */
 export function presentExerciseKeys(sessions: TrainingSession[]): ExerciseKey[] {
   const keys = new Set<ExerciseKey>();
