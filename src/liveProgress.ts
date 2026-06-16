@@ -35,6 +35,8 @@ export interface LiveProgress {
   /** In-flight reps/weight while logging a set. */
   setReps: number;
   setWeight: number;
+  /** In-flight hold time (seconds) while logging an isometric set (plank, dead hang). */
+  setHoldSec: number;
   /** In-flight cardio values while logging a treadmill bout (distance km / speed km/h / incline %). */
   setDistanceKm: number;
   setSpeedKmh: number;
@@ -132,6 +134,7 @@ export function loadProgress(): LiveProgress | null {
     hasCurrentEx: raw["hasCurrentEx"] === true,
     setReps: num(raw["setReps"]),
     setWeight: num(raw["setWeight"]),
+    setHoldSec: num(raw["setHoldSec"]),
     setDistanceKm: num(raw["setDistanceKm"]),
     setSpeedKmh: num(raw["setSpeedKmh"]),
     setInclinePct: num(raw["setInclinePct"]),

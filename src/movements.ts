@@ -33,6 +33,13 @@ export interface Movement {
    * muscle in the Custom picker instead. Credit/analytics still use the secondary.
    */
   isolation?: boolean;
+  /**
+   * Isometric hold — measured by *time held* rather than reps (plank, dead hang).
+   * The live logger drops the reps dial for these and logs the stopwatch hold as
+   * the set's {@link WorkSet.durationSec}, leaving `reps` at 0. Absent → a normal
+   * reps × load movement, so every other movement behaves exactly as before.
+   */
+  hold?: boolean;
   /** Load type — reused as the LoggedExercise equipment. */
   equipment: Equipment;
   /**
@@ -110,7 +117,7 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
     { id: "chin-up", name: "Chin-Up", primaryMuscle: "back", secondaryMuscles: ["biceps"], equipment: "calisthenics", aliases: ["Chin-Ups", "Chin Ups", "Tractiuni Supinate"] },
     { id: "inverted-row", name: "Inverted Row", primaryMuscle: "back", secondaryMuscles: ["biceps", "rear-delts"], equipment: "calisthenics", aliases: ["Australian Pull-Up", "Australian Pull-Ups", "Australiene", "Ramat", "Ramat Banda Elastica"] },
     { id: "muscle-up", name: "Muscle-Up", primaryMuscle: "back", secondaryMuscles: ["chest", "triceps"], equipment: "calisthenics", aliases: ["Muscle-Ups", "Muscle Up", "Muscle Ups"] },
-    { id: "dead-hang", name: "Dead Hang", primaryMuscle: "forearms", secondaryMuscles: ["back"], isolation: true, equipment: "calisthenics", aliases: ["Dead Hangs"] },
+    { id: "dead-hang", name: "Dead Hang", primaryMuscle: "forearms", secondaryMuscles: ["back"], isolation: true, hold: true, equipment: "calisthenics", aliases: ["Dead Hangs"] },
     { id: "pronated-grip-pulldown", name: "Pronated Grip Pulldown", primaryMuscle: "back", secondaryMuscles: ["biceps", "forearms"], equipment: "lat-pulldown", aliases: ["Pronated Pulldown", "Wide Grip Pulldown", "Lat Pulldown Pronated"] },
     { id: "neutral-grip-pulldown", name: "Neutral Grip Pulldown", primaryMuscle: "back", secondaryMuscles: ["biceps", "forearms"], equipment: "lat-pulldown", aliases: ["Neutral Pulldown", "Neutral Grip Lat Pulldown", "Close Grip Pulldown"] },
     { id: "cable-row", name: "Cable Row Machine", primaryMuscle: "back", secondaryMuscles: ["biceps", "traps", "rear-delts"], equipment: "cable", aliases: ["Cable Row", "Seated Cable Row", "Ramat la Cablu"] },
@@ -192,7 +199,7 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
     genericMovement("calves", "barbell"),
   ],
   core: [
-    { id: "plank", name: "Plank", primaryMuscle: "core", secondaryMuscles: ["front-delts", "glutes"], equipment: "calisthenics", aliases: ["Front Plank", "Forearm Plank", "Planca"] },
+    { id: "plank", name: "Plank", primaryMuscle: "core", secondaryMuscles: ["front-delts", "glutes"], hold: true, equipment: "calisthenics", aliases: ["Front Plank", "Forearm Plank", "Planca"] },
     { id: "bench-crunches", name: "Bench Crunches", primaryMuscle: "core", secondaryMuscles: [], equipment: "calisthenics" },
     { id: "knee-raises", name: "Knee Raises", primaryMuscle: "core", secondaryMuscles: [], equipment: "calisthenics", aliases: ["Knee Raise", "Lying Knee Raises", "Captain's Chair Knee Raises"] },
     { id: "hanging-knee-raises", name: "Hanging Knee Raises", primaryMuscle: "core", secondaryMuscles: ["forearms"], isolation: true, equipment: "calisthenics", aliases: ["Hanging Knee Raise", "Hanging Leg Raises", "Hanging Leg Raise"] },
@@ -244,6 +251,15 @@ const REGISTRY: ReadonlyMap<string, Movement> = new Map(
 /** Look up a movement by id, or undefined for an unknown/legacy id. */
 export function findMovement(id: string): Movement | undefined {
   return REGISTRY.get(id);
+}
+
+/**
+ * Whether an exercise is an isometric hold (plank, dead hang) — logged by time
+ * held, not reps. Looks the movement up by its catalog id; an unknown/legacy id
+ * (or undefined) is treated as a normal reps × load movement.
+ */
+export function isIsometricHold(exerciseId: string | undefined): boolean {
+  return exerciseId !== undefined && REGISTRY.get(exerciseId)?.hold === true;
 }
 
 /**
