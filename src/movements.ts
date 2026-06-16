@@ -192,7 +192,7 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
     genericMovement("calves", "barbell"),
   ],
   core: [
-    { id: "plank", name: "Plank", primaryMuscle: "core", secondaryMuscles: [], equipment: "calisthenics" },
+    { id: "plank", name: "Plank", primaryMuscle: "core", secondaryMuscles: ["front-delts", "glutes"], equipment: "calisthenics", aliases: ["Front Plank", "Forearm Plank", "Planca"] },
     { id: "bench-crunches", name: "Bench Crunches", primaryMuscle: "core", secondaryMuscles: [], equipment: "calisthenics" },
     { id: "knee-raises", name: "Knee Raises", primaryMuscle: "core", secondaryMuscles: [], equipment: "calisthenics", aliases: ["Knee Raise", "Lying Knee Raises", "Captain's Chair Knee Raises"] },
     { id: "hanging-knee-raises", name: "Hanging Knee Raises", primaryMuscle: "core", secondaryMuscles: ["forearms"], isolation: true, equipment: "calisthenics", aliases: ["Hanging Knee Raise", "Hanging Leg Raises", "Hanging Leg Raise"] },
