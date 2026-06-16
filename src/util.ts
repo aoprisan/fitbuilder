@@ -22,6 +22,7 @@ import {
   type VolumeTarget,
   type WorkSet,
 } from "./types";
+import { isIsometricHold } from "./movements";
 
 /** Generate a RFC4122 v4 uuid, falling back when crypto.randomUUID is absent. */
 export function uuid(): string {
@@ -433,6 +434,17 @@ function sessionToMarkdown(session: TrainingSession): string {
         const incline = set.inclinePct !== undefined ? `${round2(set.inclinePct)}%` : "—";
         const time = set.durationSec !== undefined ? formatClock(set.durationSec) : "—";
         lines.push(`| ${j + 1} | ${dist} | ${speed} | ${incline} | ${time} |`);
+      });
+      return;
+    }
+    if (isIsometricHold(ex.exerciseId)) {
+      // Isometric holds (plank, dead hang) read by time held, not reps × load.
+      lines.push("| Hold | Time | Added load |");
+      lines.push("|----:|-----:|-----------:|");
+      ex.sets.forEach((set, j) => {
+        const time = set.durationSec !== undefined ? formatClock(set.durationSec) : "—";
+        const load = set.weightKg > 0 ? formatLoad(ex.equipment, set.weightKg) : "—";
+        lines.push(`| ${j + 1} | ${time} | ${load} |`);
       });
       return;
     }

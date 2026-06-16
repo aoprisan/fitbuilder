@@ -41,6 +41,7 @@ import {
 import {
   findMovement,
   isCompoundMovement,
+  isIsometricHold,
   isolationMovementsForMuscle,
   type Movement,
   movementsForMuscle,
@@ -305,6 +306,7 @@ registerTranslations({
   "Set time {0}": "Timp serie {0}",
   "✓ Done": "✓ Gata",
   Reps: "Repetări",
+  "Hold (sec)": "Menținere (sec)",
   "Added (kg)": "Adăugat (kg)",
   "Weight (kg)": "Greutate (kg)",
   "Distance (km)": "Distanță (km)",
@@ -387,6 +389,12 @@ function fmtPlanSet(st: SetTarget): string {
 function fmtLoggedSet(equipment: Equipment, s: WorkSet): string {
   if (isBodyweight(equipment) && s.weightKg === 0) return `${s.reps} ${t("reps")}`;
   return `${s.reps} @ ${formatLoad(equipment, s.weightKg)}`;
+}
+
+/** A logged isometric hold as "0:45" (plus added load when weighted). */
+function fmtHoldSet(equipment: Equipment, s: WorkSet): string {
+  const time = formatClock(s.durationSec ?? 0);
+  return s.weightKg > 0 ? `${time} · ${formatLoad(equipment, s.weightKg)}` : time;
 }
 
 /**
@@ -603,8 +611,11 @@ function lastPerformance(
  */
 function renderLastPerformance(date: string, ex: LoggedExercise): HTMLElement {
   const cardio = isCardio(ex.equipment);
+  const hold = isIsometricHold(ex.exerciseId);
   const setText = ex.sets
-    .map((s) => (cardio ? formatCardioSet(s) : fmtLoggedSet(ex.equipment, s)))
+    .map((s) =>
+      cardio ? formatCardioSet(s) : hold ? fmtHoldSet(ex.equipment, s) : fmtLoggedSet(ex.equipment, s),
+    )
     .join("   ");
   return h("section", { class: "card live-last" }, [
     h("p", {
@@ -694,6 +705,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   let editingSetIndex: number | null = null;
   let editReps = 0;
   let editWeight = 0;
+  // Hold time (seconds) for the open inline editor when the set is an isometric hold.
+  let editHoldSec = 0;
   // Records broken by the most recently committed set — shown while resting,
   // cleared when the next set starts. Transient; not part of the resume snapshot.
   let prFlash: PrHit[] = [];
@@ -753,6 +766,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   // In-flight set values.
   let setReps = 10;
   let setWeight = 10;
+  // In-flight hold time (seconds) for an isometric set (plank, dead hang).
+  let setHoldSec = 30;
   // In-flight cardio values (treadmill bout): distance km, speed km/h, incline %.
   let setDistanceKm = 1;
   let setSpeedKmh = 8;
@@ -924,6 +939,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       hasCurrentEx: currentEx !== null,
       setReps,
       setWeight,
+      setHoldSec,
       setDistanceKm,
       setSpeedKmh,
       setInclinePct,
@@ -957,6 +973,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         : null;
     setReps = saved.setReps;
     setWeight = saved.setWeight;
+    setHoldSec = saved.setHoldSec;
     setDistanceKm = saved.setDistanceKm;
     setSpeedKmh = saved.setSpeedKmh;
     setInclinePct = saved.setInclinePct;
@@ -1076,6 +1093,15 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   }
 
   /**
+   * Whether the exercise being trained is an isometric hold (plank, dead hang) —
+   * logged by time held rather than reps. Reads the logged exercise's identity
+   * when one exists, else the pending movement selection.
+   */
+  function holdActive(): boolean {
+    return isIsometricHold(currentEx?.exerciseId ?? movementId);
+  }
+
+  /**
    * The matching set from the last *prior* session this movement was trained —
    * the ghost value the dials seed from when nothing is logged yet this
    * exercise. Falls back to that session's final set when it had fewer sets.
@@ -1108,6 +1134,13 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       setSpeedKmh = last?.speedKmh ?? setSpeedKmh;
       setInclinePct = last?.inclinePct ?? setInclinePct;
       setDistanceKm = round2((setSpeedKmh * setElapsedMs) / 3_600_000) || (last?.distanceKm ?? setDistanceKm);
+    } else if (holdActive()) {
+      // Isometric hold: the stopwatch *is* the measurement — seed the hold dial
+      // from the time just held (falling back to the last hold), and carry any
+      // added load forward.
+      const held = Math.round(setElapsedMs / 1000);
+      setHoldSec = held > 0 ? held : last?.durationSec ?? setHoldSec;
+      setWeight = last?.weightKg ?? (isBodyweight(equipment) ? 0 : setWeight);
     } else {
       // Seed the dials from the trainer's prescription for this set when the
       // exercise carries a per-set guideline — so following the plan is a tap, and
@@ -1141,13 +1174,22 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           speedKmh: setSpeedKmh,
           inclinePct: setInclinePct,
         }
-      : {
-          reps: setReps,
-          weightKg: setWeight,
-          durationSec,
-          ...(pendingRir !== null ? { rir: pendingRir } : {}),
-          ...(pendingSetType !== null ? { setType: pendingSetType } : {}),
-        };
+      : holdActive()
+        ? {
+            // Isometric hold: the hold time is the work, so it (not the raw
+            // stopwatch) is stored as the duration, with reps left at 0.
+            reps: 0,
+            weightKg: setWeight,
+            durationSec: setHoldSec,
+            ...(pendingSetType !== null ? { setType: pendingSetType } : {}),
+          }
+        : {
+            reps: setReps,
+            weightKg: setWeight,
+            durationSec,
+            ...(pendingRir !== null ? { rir: pendingRir } : {}),
+            ...(pendingSetType !== null ? { setType: pendingSetType } : {}),
+          };
     // Records check before the set joins the history: everything previously
     // logged for this movement — other sessions plus this exercise's earlier sets.
     const prior = priorSetsFor(
@@ -1186,22 +1228,27 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     render();
   }
 
-  /** Open the inline reps/weight editor for an already-logged strength set. */
+  /** Open the inline editor for an already-logged set (reps/weight, or hold/weight). */
   function startEditSet(i: number): void {
     const set = currentEx?.sets[i];
     if (!set) return;
     editingSetIndex = i;
     editReps = set.reps;
     editWeight = set.weightKg;
+    editHoldSec = set.durationSec ?? 0;
     render();
   }
 
-  /** Persist the edited reps/weight back onto the logged set. */
+  /** Persist the edited values back onto the logged set (hold time, or reps × load). */
   function saveEditSet(): void {
     if (!currentEx || editingSetIndex === null) return;
     const set = currentEx.sets[editingSetIndex];
     if (set) {
-      set.reps = editReps;
+      if (holdActive()) {
+        set.durationSec = editHoldSec;
+      } else {
+        set.reps = editReps;
+      }
       set.weightKg = editWeight;
       persist();
     }
@@ -1846,31 +1893,46 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
 
   function renderSetList(): HTMLElement {
     const sets = currentEx?.sets ?? [];
+    const hold = holdActive();
     const host = h("div", { class: "live-set-list" });
     if (sets.length === 0) {
       host.appendChild(h("p", { class: "empty", text: t("No sets yet — hit “Start set”.") }));
       return host;
     }
     sets.forEach((s, i) => {
-      // Inline reps/weight editor for a previously-logged strength set. Cardio
-      // bouts (distance/speed/incline) aren't editable here — only reps + load.
+      // Inline editor for a previously-logged set: hold time + load for an
+      // isometric hold, reps + load otherwise. Cardio bouts (distance/speed/
+      // incline) aren't editable here.
       if (!isCardio(equipment) && editingSetIndex === i) {
         host.appendChild(
           h("div", { class: "live-set live-set-edit" }, [
             h("span", { class: "set-no", text: t("Set {0}").replace("{0}", String(i + 1)) }),
             h("div", { class: "live-set-edit-dials" }, [
-              dialField({
-                label: t("Reps"),
-                value: editReps,
-                step: 1,
-                min: 0,
-                integer: true,
-                unit: t("reps"),
-                tone: "signal",
-                onCommit: (n) => {
-                  editReps = n;
-                },
-              }),
+              hold
+                ? dialField({
+                    label: t("Hold (sec)"),
+                    value: editHoldSec,
+                    step: 5,
+                    min: 0,
+                    integer: true,
+                    unit: "sec",
+                    tone: "signal",
+                    onCommit: (n) => {
+                      editHoldSec = n;
+                    },
+                  })
+                : dialField({
+                    label: t("Reps"),
+                    value: editReps,
+                    step: 1,
+                    min: 0,
+                    integer: true,
+                    unit: t("reps"),
+                    tone: "signal",
+                    onCommit: (n) => {
+                      editReps = n;
+                    },
+                  }),
               dialField({
                 label: isBodyweight(equipment) ? t("Added (kg)") : t("Weight (kg)"),
                 value: editWeight,
@@ -1904,12 +1966,17 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       }
       const bits = isCardio(equipment)
         ? [formatCardioSet(s)]
-        : [t("{0} reps").replace("{0}", String(s.reps)), formatLoad(equipment, s.weightKg)];
+        : hold
+          ? [fmtHoldSet(equipment, s)]
+          : [t("{0} reps").replace("{0}", String(s.reps)), formatLoad(equipment, s.weightKg)];
       if (!isCardio(equipment) && s.setType !== undefined)
         bits.unshift(s.setType === "warmup" ? t("warm-up") : t("drop set"));
-      if (!isCardio(equipment) && s.rir !== undefined)
+      if (!isCardio(equipment) && !hold && s.rir !== undefined)
         bits.push(s.rir === 0 ? t("to failure") : t("RIR {0}").replace("{0}", String(s.rir)));
-      if (!isCardio(equipment) && s.durationSec !== undefined) bits.push(formatClock(s.durationSec));
+      // A hold's duration is already its primary read-out (fmtHoldSet), so only
+      // the strength path appends the stopwatch time as an extra detail.
+      if (!isCardio(equipment) && !hold && s.durationSec !== undefined)
+        bits.push(formatClock(s.durationSec));
       host.appendChild(
         h("div", { class: "live-set" }, [
           h("span", { class: "set-no", text: t("Set {0}").replace("{0}", String(i + 1)) }),
@@ -1993,7 +2060,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
    * a step loads the dials and pre-tags the set as a warm-up.
    */
   function renderWarmupRamp(): HTMLElement | null {
-    if (isCardio(equipment)) return null;
+    if (isCardio(equipment) || holdActive()) return null;
     const sets = currentEx?.sets ?? [];
     if (sets.some((s) => s.setType !== "warmup")) return null;
     const planned = currentEx ? nextSetTarget(currentEx) : null;
@@ -2368,7 +2435,38 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
             },
           }),
         ]
-      : (() => {
+      : holdActive()
+        ? [
+            // Isometric hold: log the time held (seeded from the stopwatch) plus
+            // any added load — no reps dial, plate calculator, or RIR.
+            dialField({
+              label: t("Hold (sec)"),
+              value: setHoldSec,
+              step: 5,
+              min: 0,
+              integer: true,
+              unit: "sec",
+              tone: "signal",
+              onCommit: (n) => {
+                setHoldSec = n;
+                snapshot();
+              },
+            }),
+            dialField({
+              label: isBodyweight(equipment) ? t("Added (kg)") : t("Weight (kg)"),
+              value: setWeight,
+              step: 2.5,
+              min: 0,
+              integer: false,
+              unit: "kg",
+              tone: "navy",
+              onCommit: (n) => {
+                setWeight = n;
+                snapshot();
+              },
+            }),
+          ]
+        : (() => {
           // Plate calculator: for a barbell load, what to put on each side of a
           // standard 20 kg bar. Repainted in place as the weight dial turns.
           const plateHint = equipment === "barbell" ? h("p", { class: "plate-hint" }) : null;
