@@ -1,6 +1,8 @@
 import { renderAdherenceToCanvas } from "./adherenceRender";
 import { track } from "./analytics";
 import { renderAppCardToCanvas } from "./appCardRender";
+import { BODY_METRIC_LABELS, type BodyMetric } from "./bodyMap";
+import { renderBodyMapToCanvas } from "./bodyMapRender";
 import { APP_INSTALL_URL } from "./canvasKit";
 import { dataUrlToBytes, jpegToPdf } from "./pdf";
 import { renderRecoveryToCanvas } from "./recoveryRender";
@@ -470,4 +472,28 @@ export async function exportRecoveryPdf(sessions: TrainingSession[]): Promise<vo
 /** Share the recovery board as a PNG (native share sheet, download fallback). */
 export async function shareRecovery(sessions: TrainingSession[]): Promise<ShareResult> {
   return shareCanvas(await renderRecoveryToCanvas(sessions), `${recoverySlug()}.png`, "Recovery");
+}
+
+/** Date-stamped filename for a body map, e.g. "gym-body-map-fatigue-2026-05-22". */
+function bodyMapSlug(metric: BodyMetric): string {
+  return `gym-body-map-${metric}-${new Date().toISOString().slice(0, 10)}`;
+}
+
+/** Render the body map (front/back/side figures) for a metric and download it as a PNG. */
+export async function exportBodyMapPng(metric: BodyMetric, sessions: TrainingSession[]): Promise<void> {
+  await downloadCanvasPng(await renderBodyMapToCanvas(metric, sessions), `${bodyMapSlug(metric)}.png`);
+}
+
+/** Render the body map and download it as a PDF. */
+export async function exportBodyMapPdf(metric: BodyMetric, sessions: TrainingSession[]): Promise<void> {
+  downloadCanvasPdf(await renderBodyMapToCanvas(metric, sessions), `${bodyMapSlug(metric)}.pdf`);
+}
+
+/** Share the body map as a PNG (native share sheet, download fallback). */
+export async function shareBodyMap(metric: BodyMetric, sessions: TrainingSession[]): Promise<ShareResult> {
+  return shareCanvas(
+    await renderBodyMapToCanvas(metric, sessions),
+    `${bodyMapSlug(metric)}.png`,
+    `Body map — ${BODY_METRIC_LABELS[metric]}`,
+  );
 }
