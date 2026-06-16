@@ -176,6 +176,8 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
     { id: "barbell-squat", name: "Barbell Squat", primaryMuscle: "legs", secondaryMuscles: ["glutes", "lower-back"], equipment: "barbell", referenceLoadKg: 130, aliases: ["Back Squat", "Genuflexiuni cu Bara"] },
     { id: "dumbbell-squat", name: "Dumbbell Squat", primaryMuscle: "legs", secondaryMuscles: ["glutes"], equipment: "dumbbell", referenceLoadKg: 40, aliases: ["Goblet Squat", "Goblet Squats", "Genuflexiuni cu Gantere"] },
     { id: "bodyweight-squat", name: "Bodyweight Squat", primaryMuscle: "legs", secondaryMuscles: ["glutes"], equipment: "calisthenics", aliases: ["Squat", "Squats", "Genuflexiuni"] },
+    { id: "barbell-lunge", name: "Barbell Lunge", primaryMuscle: "legs", secondaryMuscles: ["glutes"], equipment: "barbell", referenceLoadKg: 60, aliases: ["Lunge", "Lunges", "Walking Lunge", "Fandari cu Bara"] },
+    { id: "dumbbell-lunge", name: "Dumbbell Lunge", primaryMuscle: "legs", secondaryMuscles: ["glutes"], equipment: "dumbbell", referenceLoadKg: 24, aliases: ["Walking Lunges", "Dumbbell Lunges", "Fandari cu Gantere"] },
     { id: "leg-press", name: "Leg Press", primaryMuscle: "legs", secondaryMuscles: [], equipment: "machine", referenceLoadKg: 200 },
     { id: "leg-extension", name: "Leg Extension", primaryMuscle: "legs", secondaryMuscles: [], equipment: "machine", referenceLoadKg: 70 },
     { id: "prone-leg-curl", name: "Prone Leg Curl", primaryMuscle: "legs", secondaryMuscles: [], equipment: "machine", referenceLoadKg: 55 },
