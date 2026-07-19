@@ -354,6 +354,26 @@ export interface LoggedExercise {
   sets: WorkSet[];
 }
 
+/**
+ * Self-reported fatigue coming *into* a session — how fresh or worn-down the
+ * lifter feels before the first set (1 = fully fresh, 5 = exhausted). It captures
+ * readiness / accumulated fatigue that the logged work can't see: two identical
+ * sessions performed fresh vs. exhausted are very different reads, so this is
+ * surfaced in the UI and the analysis prompt as a modifier on performance.
+ */
+export type FatigueLevel = 1 | 2 | 3 | 4 | 5;
+
+export const FATIGUE_LEVELS: readonly FatigueLevel[] = [1, 2, 3, 4, 5] as const;
+
+/** Human-readable label for each pre-session fatigue level. */
+export const FATIGUE_LABELS: Record<FatigueLevel, string> = {
+  1: "Fresh",
+  2: "Good",
+  3: "Moderate",
+  4: "Tired",
+  5: "Exhausted",
+};
+
 export interface TrainingSession {
   schema: "gymlog.training-session";
   version: 1;
@@ -363,6 +383,17 @@ export interface TrainingSession {
   name: string;
   /** ISO timestamp of when the session was started. */
   startedAt: string;
+  /**
+   * ISO timestamp of when the session was ended (the "end session" tap). With
+   * {@link startedAt} it gives the session's wall-clock duration. Absent on older
+   * logs and on an in-progress session that hasn't been ended yet.
+   */
+  endedAt?: string;
+  /**
+   * Self-reported fatigue coming into the session, logged at the start (see
+   * {@link FatigueLevel}). Absent on older logs and when the lifter skips it.
+   */
+  startFatigue?: FatigueLevel;
   exercises: LoggedExercise[];
   /**
    * How the session was logged: "live" (the Live tab, set-by-set with timers) or
