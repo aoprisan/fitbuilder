@@ -6,6 +6,7 @@ import {
   SESSION_ARCHIVE_SCHEMA_ID,
   type Equipment,
   type ExerciseTarget,
+  type FatigueLevel,
   type LoggedExercise,
   type MuscleGroup,
   type SetTarget,
@@ -161,6 +162,16 @@ export function coerceSession(input: unknown): TrainingSession | null {
       ? rawStarted
       : new Date().toISOString();
 
+  const rawEnded = input["endedAt"];
+  const endedAt =
+    typeof rawEnded === "string" && rawEnded.trim() !== "" ? rawEnded : undefined;
+
+  const rawFatigue = input["startFatigue"];
+  const startFatigue =
+    typeof rawFatigue === "number" && Number.isInteger(rawFatigue) && rawFatigue >= 1 && rawFatigue <= 5
+      ? (rawFatigue as FatigueLevel)
+      : undefined;
+
   const rawExercises = input["exercises"];
   const exercises = Array.isArray(rawExercises) ? rawExercises.map(coerceExercise) : [];
 
@@ -174,6 +185,8 @@ export function coerceSession(input: unknown): TrainingSession | null {
     id,
     name: typeof input["name"] === "string" ? input["name"] : "",
     startedAt,
+    ...(endedAt !== undefined ? { endedAt } : {}),
+    ...(startFatigue !== undefined ? { startFatigue } : {}),
     exercises,
     ...(source === "live" || source === "routine" ? { source } : {}),
     ...(typeof fromSheetId === "string" && fromSheetId !== "" ? { fromSheetId } : {}),

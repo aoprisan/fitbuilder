@@ -27,6 +27,7 @@ import { epley1RM } from "./stats";
 import { loadTrainer } from "./trainer";
 import {
   EQUIPMENT_LABELS,
+  FATIGUE_LABELS,
   isCardio,
   MUSCLE_LABELS,
   type TrainingSession,
@@ -34,8 +35,11 @@ import {
 import {
   formatCardioSet,
   formatClock,
+  formatDuration,
   formatSessionDate,
+  formatSessionTime,
   round2,
+  sessionDurationSec,
   sessionSetCount,
   sessionVolume,
 } from "./util";
@@ -246,6 +250,26 @@ function drawSession(
     ctx.fillText(meta.toUpperCase(), PAD, y);
   }
   y += 24;
+
+  // Timing (start → end · duration) and pre-session fatigue, when recorded — the
+  // readiness/pace context that the set ledger alone can't convey.
+  const detailParts: string[] = [`STARTED ${formatSessionTime(session.startedAt)}`];
+  if (session.endedAt !== undefined) {
+    detailParts.push(`ENDED ${formatSessionTime(session.endedAt)}`);
+  }
+  const durSec = sessionDurationSec(session);
+  if (durSec !== null) detailParts.push(formatDuration(durSec).toUpperCase());
+  if (session.startFatigue !== undefined) {
+    detailParts.push(`FATIGUE ${FATIGUE_LABELS[session.startFatigue].toUpperCase()}`);
+  }
+  if (detailParts.length > 1) {
+    ctx.font = `400 11px ${MONO}`;
+    if (paint) {
+      ctx.fillStyle = C.inkFaint;
+      ctx.fillText(detailParts.join(" · "), PAD, y);
+    }
+    y += 24;
+  }
 
   if (summary) {
     y = drawSummaryBlock(ctx, PAD, y, CW, summary, paint);

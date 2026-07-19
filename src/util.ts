@@ -1,5 +1,6 @@
 import {
   EQUIPMENT_LABELS,
+  FATIGUE_LABELS,
   isBodyweight,
   isCardio,
   MUSCLE_LABELS,
@@ -330,7 +331,7 @@ export function sessionsToXml(sessions: TrainingSession[]): string {
   );
   for (const s of sessions) {
     lines.push(
-      `  <session${attr("id", s.id)}${attr("name", s.name)}${attr("startedAt", s.startedAt)}${attr("updatedAt", s.updatedAt)}>`,
+      `  <session${attr("id", s.id)}${attr("name", s.name)}${attr("startedAt", s.startedAt)}${attr("endedAt", s.endedAt)}${attr("startFatigue", s.startFatigue)}${attr("updatedAt", s.updatedAt)}>`,
     );
     for (const ex of s.exercises) {
       lines.push(
@@ -361,6 +362,36 @@ export function formatSessionDate(iso: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+/** Format an ISO timestamp as just the clock time, like "14:30". */
+export function formatSessionTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
+/**
+ * Wall-clock duration of a session in seconds — from {@link TrainingSession.startedAt}
+ * to {@link TrainingSession.endedAt}. Returns null when the session hasn't been
+ * ended yet or either timestamp is unparseable / out of order.
+ */
+export function sessionDurationSec(session: TrainingSession): number | null {
+  if (session.endedAt === undefined) return null;
+  const start = new Date(session.startedAt).getTime();
+  const end = new Date(session.endedAt).getTime();
+  if (Number.isNaN(start) || Number.isNaN(end) || end < start) return null;
+  return Math.round((end - start) / 1000);
+}
+
+/** Format a duration in seconds compactly: "1h 05m", "42 min", or "38 sec". */
+export function formatDuration(totalSeconds: number): string {
+  const s = Math.max(0, Math.round(totalSeconds));
+  const hours = Math.floor(s / 3600);
+  const mins = Math.floor((s % 3600) / 60);
+  if (hours > 0) return `${hours}h ${mins.toString().padStart(2, "0")}m`;
+  if (mins > 0) return `${mins} min`;
+  return `${s} sec`;
 }
 
 /** Format an ISO timestamp as a short, time-less date like "22 May 2026". */
@@ -404,7 +435,9 @@ export const SESSION_ANALYSIS_PROMPT =
   "You are an expert strength & conditioning coach. Analyse my training log below " +
   "and give me: progression trends per exercise, muscle-group balance, " +
   "effort/recovery observations, and 2-3 concrete recommendations for my next " +
-  "sessions. The log follows.";
+  "sessions. Each session notes my fatigue level coming in plus its start/end time " +
+  "and total duration — factor these into your read, since high pre-session fatigue " +
+  "and unusually long or rushed sessions affect performance. The log follows.";
 
 /** Markdown block for one logged session (no analysis prompt). */
 function sessionToMarkdown(session: TrainingSession): string {
@@ -413,6 +446,19 @@ function sessionToMarkdown(session: TrainingSession): string {
   const vol = sessionVolume(session);
   const summary = `${session.exercises.length} exercises · ${sessionSetCount(session)} sets`;
   lines.push(vol > 0 ? `${summary} · ${vol} kg total volume` : summary);
+
+  // Timing (start → end · duration) and pre-session fatigue — context the raw sets
+  // can't show, so the coach can weigh performance against readiness and pace.
+  const timing: string[] = [`Started ${formatSessionDate(session.startedAt)}`];
+  if (session.endedAt !== undefined) timing.push(`ended ${formatSessionTime(session.endedAt)}`);
+  const durSec = sessionDurationSec(session);
+  if (durSec !== null) timing.push(`duration ${formatDuration(durSec)}`);
+  lines.push(timing.join(" · "));
+  if (session.startFatigue !== undefined) {
+    lines.push(
+      `Fatigue at start: ${FATIGUE_LABELS[session.startFatigue]} (${session.startFatigue}/5)`,
+    );
+  }
 
   session.exercises.forEach((ex, i) => {
     lines.push("");

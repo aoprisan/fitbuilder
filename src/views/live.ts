@@ -65,6 +65,8 @@ import { saveSheet } from "../sheetStorage";
 import { setActiveLog, setEditingSheet, setSheetFlash, state } from "../state";
 import {
   EQUIPMENT_LABELS,
+  FATIGUE_LABELS,
+  FATIGUE_LEVELS,
   isBodyweight,
   isCardio,
   MUSCLE_GROUPS,
@@ -81,9 +83,12 @@ import {
   cloneSheet,
   formatCardioSet,
   formatClock,
+  formatDuration,
   formatLoad,
   formatSessionDate,
+  formatSessionTime,
   round2,
+  sessionDurationSec,
   sessionSetCount,
   sessionToSheet,
   sessionVolume,
@@ -167,6 +172,20 @@ registerTranslations({
   glasses: "pahare",
   Bodyweight: "Greutate corporală",
   "Session effort": "Efort sesiune",
+  // — Fatigue at start —
+  "Fatigue coming in": "Oboseală la start",
+  Fresh: "Odihnit",
+  Good: "Bun",
+  Moderate: "Moderat",
+  Tired: "Obosit",
+  Exhausted: "Epuizat",
+  "Logged at the start — pre-session fatigue affects performance.":
+    "Notat la început — oboseala de dinainte afectează performanța.",
+  "Started {0}": "Început {0}",
+  "Ended {0}": "Terminat {0}",
+  "Duration {0}": "Durată {0}",
+  "In progress": "În desfășurare",
+  "Fatigue: {0}": "Oboseală: {0}",
   "Muscles worked": "Mușchi lucrați",
   Hydration: "Hidratare",
   "Protein to recover": "Proteine pentru recuperare",
@@ -1056,8 +1075,11 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     stopRaf();
     const s = state.activeLog;
     if (s) {
-      if (s.exercises.some((ex) => ex.sets.length > 0)) saveSession(s);
-      else deleteSession(s.id); // discard a session with nothing logged
+      if (s.exercises.some((ex) => ex.sets.length > 0)) {
+        // Stamp the end so the session carries its wall-clock duration (start → end).
+        s.endedAt = new Date().toISOString();
+        saveSession(s);
+      } else deleteSession(s.id); // discard a session with nothing logged
     }
     clearProgress();
     setActiveLog(null);
@@ -1516,11 +1538,34 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         .replace("{1}", String(sets)) +
       (vol > 0 ? ` · ${t("{0} kg lifted").replace("{0}", String(vol))}` : "");
     const summary = renderSessionSummary(s, allSessions);
+    // Timing (start → end · duration) and pre-session fatigue, when recorded.
+    const durSec = sessionDurationSec(s);
+    const timingParts = [t("Started {0}").replace("{0}", formatSessionTime(s.startedAt))];
+    if (s.endedAt !== undefined) {
+      timingParts.push(t("Ended {0}").replace("{0}", formatSessionTime(s.endedAt)));
+    }
+    timingParts.push(
+      durSec !== null
+        ? t("Duration {0}").replace("{0}", formatDuration(durSec))
+        : t("In progress"),
+    );
     return h("section", { class: "card saved-item" }, [
       h("div", { class: "saved-info" }, [
         h("p", { class: "plan-name", text: s.name || t("Untitled session") }),
         h("p", { class: "plan-meta", text: formatSessionDate(s.startedAt) }),
         h("p", { class: "plan-meta", text: meta }),
+        h("p", { class: "plan-meta", text: timingParts.join(" · ") }),
+        ...(s.startFatigue !== undefined
+          ? [
+              h("p", {
+                class: "plan-meta",
+                text: t("Fatigue: {0}").replace(
+                  "{0}",
+                  `${t(FATIGUE_LABELS[s.startFatigue])} (${s.startFatigue}/5)`,
+                ),
+              }),
+            ]
+          : []),
       ]),
       ...(summary
         ? [
@@ -1602,6 +1647,42 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
             sessionExportRow(s),
           ]
         : []),
+    ]);
+  }
+
+  /**
+   * Pre-session fatigue picker (Fresh … Exhausted), logged at the start of the
+   * session. Tapping the active chip clears it. Captures readiness the logged work
+   * can't see — high fatigue coming in depresses performance — and feeds the UI
+   * read-out and the analysis prompt.
+   */
+  function renderFatiguePicker(session: TrainingSession): HTMLElement {
+    return h("div", { class: "field" }, [
+      h("span", { class: "field-label", text: t("Fatigue coming in") }),
+      h(
+        "div",
+        { class: "toggle", role: "group", aria: { label: t("Fatigue coming in") } },
+        FATIGUE_LEVELS.map((lvl) =>
+          h("button", {
+            class: session.startFatigue === lvl ? "toggle-btn active" : "toggle-btn",
+            type: "button",
+            text: t(FATIGUE_LABELS[lvl]),
+            aria: { pressed: String(session.startFatigue === lvl) },
+            on: {
+              click: () => {
+                if (session.startFatigue === lvl) delete session.startFatigue;
+                else session.startFatigue = lvl;
+                persist();
+                render();
+              },
+            },
+          }),
+        ),
+      ),
+      h("p", {
+        class: "plan-meta",
+        text: t("Logged at the start — pre-session fatigue affects performance."),
+      }),
     ]);
   }
 
@@ -1702,6 +1783,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           nameInput,
         ]),
         h("p", { class: "session-date", text: formatSessionDate(session.startedAt) }),
+        renderFatiguePicker(session),
       ]),
     );
 
