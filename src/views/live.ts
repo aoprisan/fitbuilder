@@ -726,6 +726,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   let editWeight = 0;
   // Hold time (seconds) for the open inline editor when the set is an isometric hold.
   let editHoldSec = 0;
+  // Reps-in-reserve for the open inline editor (null = leave intensity unweighted).
+  let editRir: number | null = null;
   // Records broken by the most recently committed set — shown while resting,
   // cleared when the next set starts. Transient; not part of the resume snapshot.
   let prFlash: PrHit[] = [];
@@ -1258,6 +1260,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     editReps = set.reps;
     editWeight = set.weightKg;
     editHoldSec = set.durationSec ?? 0;
+    editRir = set.rir ?? null;
     render();
   }
 
@@ -1270,6 +1273,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         set.durationSec = editHoldSec;
       } else {
         set.reps = editReps;
+        // RIR only applies to strength (non-hold) sets; drop it when cleared.
+        if (editRir === null) delete set.rir;
+        else set.rir = editRir;
       }
       set.weightKg = editWeight;
       persist();
@@ -2028,6 +2034,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
                 },
               }),
             ]),
+            // RIR only applies to strength (non-hold) sets, matching the logging flow.
+            ...(hold ? [] : [renderEditRirField()]),
             h("div", { class: "btn-row live-set-edit-actions" }, [
               h("button", {
                 class: "btn btn-primary btn-small",
@@ -2131,6 +2139,40 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       );
     };
     paint();
+    return field;
+  }
+
+  /**
+   * Reps-in-reserve selector for a previously-logged set, bound to `editRir`
+   * (the in-flight edit value). Mirrors {@link renderRirField} but repaints the
+   * whole editor via `render()` since it lives inside the inline edit card.
+   */
+  function renderEditRirField(): HTMLElement {
+    const field = h("div", { class: "field rir-field" });
+    field.append(
+      h("span", { class: "field-label", text: t("Reps in reserve (optional)") }),
+      h(
+        "div",
+        { class: "toggle rir-toggle", role: "group", aria: { label: t("Reps in reserve") } },
+        RIR_OPTIONS.map((o) =>
+          h("button", {
+            class: editRir === o.value ? "toggle-btn active" : "toggle-btn",
+            type: "button",
+            text: o.label,
+            aria: {
+              pressed: String(editRir === o.value),
+              label: o.value === 0 ? t("trained to failure") : t("{0} reps in reserve").replace("{0}", o.label),
+            },
+            on: {
+              click: () => {
+                editRir = editRir === o.value ? null : o.value;
+                render();
+              },
+            },
+          }),
+        ),
+      ),
+    );
     return field;
   }
 
