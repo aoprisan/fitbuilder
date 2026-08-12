@@ -2424,6 +2424,29 @@ textarea {
   border-left: 8px solid var(--navy);
 }
 
+/* Stats "reps at a weight" block — the card plus its two rep charts, stacked
+   with the same rhythm as the view's own children. */
+.reps-at-load {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.reps-at-load-card {
+  border-left: 8px solid var(--mustard);
+}
+
+.load-filter {
+  margin-top: 12px;
+}
+
+.load-cell-note {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+
 .typical-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -3094,6 +3117,22 @@ textarea {
   font-weight: 700;
   font-size: 9px;
   fill: var(--ink-faint);
+}
+
+/* Target / estimate guide — the series colour, dashed and dimmed so the plotted
+   line still reads as the record and this as the mark to hit. */
+.stat-chart-ref {
+  fill: none;
+  stroke-width: 1.5;
+  stroke-dasharray: 6 4;
+  opacity: 0.5;
+}
+
+.stat-chart-ref-label {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 9px;
+  fill: var(--ink-soft);
 }
 
 .stat-chart-area {

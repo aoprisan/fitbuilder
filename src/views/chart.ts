@@ -30,6 +30,12 @@ export interface LineChartOpts {
   hint?: string;
   /** Formats a value for display. Defaults to a 2-decimal round. */
   format?: (n: number) => string;
+  /**
+   * A dashed target/estimate line drawn into the same scale as the series (its
+   * value is folded into the y-domain so the line always lands inside the plot).
+   * Labelled at the left edge, opposite the peak readout.
+   */
+  reference?: { value: number; label: string };
 }
 
 // Internal viewBox; CSS scales the svg to its container width.
@@ -52,8 +58,11 @@ export function lineChart(opts: LineChartOpts): HTMLElement {
   const { values, labels, unit, title } = opts;
   const n = values.length;
 
-  const max = Math.max(...values);
-  const min = Math.min(...values);
+  const reference = opts.reference;
+  // The reference line shares the series' scale, so it has to widen the domain.
+  const domain = reference ? [...values, reference.value] : values;
+  const max = Math.max(...domain);
+  const min = Math.min(...domain);
   const span = max - min || 1;
   const first = values[0] ?? 0;
   const last = values[n - 1] ?? 0;
@@ -72,24 +81,47 @@ export function lineChart(opts: LineChartOpts): HTMLElement {
 
   const baselineY = PAD_T + PLOT_H;
 
-  // Faint peak guide line + its value at the right end.
+  // Faint peak guide line + its value at the right end. Pinned to the series'
+  // own peak, which a reference line may sit above.
+  const peak = Math.max(...values);
   svg.appendChild(
     svgEl("line", {
       class: "stat-chart-guide",
       x1: String(PAD_L),
-      y1: String(yAt(max)),
+      y1: String(yAt(peak)),
       x2: String(PAD_L + PLOT_W),
-      y2: String(yAt(max)),
+      y2: String(yAt(peak)),
     }),
   );
   const peakText = svgEl("text", {
     class: "stat-chart-peak",
     x: String(PAD_L + PLOT_W),
-    y: String(Math.max(9, yAt(max) - 3)),
+    y: String(Math.max(9, yAt(peak) - 3)),
     "text-anchor": "end",
   });
-  peakText.textContent = fmt(max);
+  peakText.textContent = fmt(peak);
   svg.appendChild(peakText);
+
+  // The target/estimate line, labelled at the left so it clears the peak value.
+  if (reference) {
+    svg.appendChild(
+      svgEl("line", {
+        class: "stat-chart-ref",
+        x1: String(PAD_L),
+        y1: String(yAt(reference.value)),
+        x2: String(PAD_L + PLOT_W),
+        y2: String(yAt(reference.value)),
+        stroke: color,
+      }),
+    );
+    const refText = svgEl("text", {
+      class: "stat-chart-ref-label",
+      x: String(PAD_L),
+      y: String(Math.max(9, yAt(reference.value) - 3)),
+    });
+    refText.textContent = reference.label;
+    svg.appendChild(refText);
+  }
 
   // Baseline.
   svg.appendChild(

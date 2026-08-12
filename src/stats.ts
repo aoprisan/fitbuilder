@@ -397,6 +397,227 @@ export function typicalSession(
 }
 
 /* =============================================================================
+   Reps at one load — "how many reps do I get with 100 kg?". The series above
+   move reps and weight at the same time, so a jump in load reads as a drop in
+   reps and progress hides in the middle. Pinning the load isolates the rep side
+   of progressive overload: each weight the user has actually handled becomes
+   its own scope with a rep series over time, the best set ever performed at it,
+   and what their current 1RM says should be possible there.
+   ========================================================================== */
+
+/** A load the user has actually handled on one movement. */
+export interface LoadOption {
+  /** The load, kg. */
+  weightKg: number;
+  /** Working sets logged at it. */
+  sets: number;
+  /** Sessions it appears in. */
+  sessions: number;
+}
+
+/**
+ * Every distinct load logged for one movement, heaviest first. Warm-up sets are
+ * excluded (they're deliberately submaximal, so their rep counts say nothing
+ * about capacity) and so is bodyweight-only work, which has no load to pin.
+ * Loads are bucketed at 2 decimals, matching how they're stored and displayed.
+ */
+export function loadsForExercise(sessions: TrainingSession[], key: ExerciseKey): LoadOption[] {
+  const setCounts = new Map<number, number>();
+  const sessionCounts = new Map<number, number>();
+
+  for (const session of sessions) {
+    const seen = new Set<number>();
+    for (const ex of session.exercises) {
+      if (exerciseKey(ex) !== key) continue;
+      for (const s of ex.sets) {
+        if (s.setType === "warmup" || s.weightKg <= 0) continue;
+        const w = round2(s.weightKg);
+        setCounts.set(w, (setCounts.get(w) ?? 0) + 1);
+        if (!seen.has(w)) {
+          seen.add(w);
+          sessionCounts.set(w, (sessionCounts.get(w) ?? 0) + 1);
+        }
+      }
+    }
+  }
+
+  return [...setCounts.entries()]
+    .map(([weightKg, sets]): LoadOption => ({
+      weightKg,
+      sets,
+      sessions: sessionCounts.get(weightKg) ?? 0,
+    }))
+    .sort((a, b) => b.weightKg - a.weightKg);
+}
+
+/**
+ * The load worth charting first: the one trained across the most sessions —
+ * the user's working weight, which has the longest history to trend. Ties go to
+ * the heavier load (the options come in heaviest-first).
+ */
+export function defaultLoad(options: readonly LoadOption[]): number | undefined {
+  let best: LoadOption | undefined;
+  for (const option of options) {
+    if (best === undefined || option.sessions > best.sessions) best = option;
+  }
+  return best?.weightKg;
+}
+
+/** One session's rep work at a single load. */
+export interface LoadRepsPoint {
+  /** ISO timestamp the session started — used for ordering. */
+  date: string;
+  /** Short x-axis label, e.g. "22 May". */
+  label: string;
+  /** Most reps in a single set at this load — the capacity read. */
+  topReps: number;
+  /** Every rep logged at this load that session — the volume read. */
+  totalReps: number;
+  /** Sets logged at this load. */
+  sets: number;
+}
+
+/**
+ * Chronological rep series for one movement at one load. Sessions that never
+ * touched the load are skipped, so the line reads as "each time I trained this
+ * weight", not "each session". Warm-ups are excluded, as in
+ * {@link loadsForExercise}.
+ */
+export function buildLoadReps(
+  sessions: TrainingSession[],
+  key: ExerciseKey,
+  weightKg: number,
+): LoadRepsPoint[] {
+  const target = round2(weightKg);
+  const ordered = [...sessions].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+  const points: LoadRepsPoint[] = [];
+
+  for (const session of ordered) {
+    let topReps = 0;
+    let totalReps = 0;
+    let sets = 0;
+
+    for (const ex of session.exercises) {
+      if (exerciseKey(ex) !== key) continue;
+      for (const s of ex.sets) {
+        if (s.setType === "warmup" || round2(s.weightKg) !== target) continue;
+        sets += 1;
+        totalReps += s.reps;
+        topReps = Math.max(topReps, s.reps);
+      }
+    }
+
+    if (sets === 0) continue;
+    points.push({ date: session.startedAt, label: shortDate(session.startedAt), topReps, totalReps, sets });
+  }
+
+  return points;
+}
+
+/** The best one-rep max known for a movement, in raw kilos. */
+export interface RawOneRm {
+  /** The max, kg; 0 when the movement has no loaded working set and no tested max. */
+  kg: number;
+  /** Whether it's a max the user tested and logged, or an Epley estimate off a set. */
+  source: "logged" | "estimated";
+}
+
+/**
+ * Best raw 1RM for one movement: the heaviest tested max the user logged,
+ * against the best Epley estimate from their working sets — whichever is
+ * higher. Unlike {@link bestOneRm} this is *unscaled* (no equipment or compound
+ * factors), because it's used to predict reps at a real bar weight, where the
+ * only honest comparison is kilos against kilos.
+ */
+export function bestRawOneRm(
+  sessions: TrainingSession[],
+  key: ExerciseKey,
+  loggedMaxes: Record<ExerciseKey, number> = {},
+): RawOneRm {
+  let logged = loggedMaxes[key] ?? 0;
+  let estimated = 0;
+
+  for (const session of sessions) {
+    for (const ex of session.exercises) {
+      if (exerciseKey(ex) !== key) continue;
+      if (ex.oneRmKg !== undefined) logged = Math.max(logged, ex.oneRmKg);
+      for (const s of ex.sets) {
+        if (s.setType === "warmup") continue;
+        estimated = Math.max(estimated, epley1RM(s));
+      }
+    }
+  }
+
+  return logged >= estimated
+    ? { kg: round2(logged), source: "logged" }
+    : { kg: round2(estimated), source: "estimated" };
+}
+
+/**
+ * Reps a given 1RM predicts at a given load — the Epley formula solved for reps
+ * (`1RM = w × (1 + reps/30)`). 0 once the load reaches the max itself, and
+ * increasingly optimistic past ~10 reps, where Epley's linearity breaks down.
+ */
+export function estimatedRepsAt(oneRmKg: number, weightKg: number): number {
+  if (oneRmKg <= 0 || weightKg <= 0) return 0;
+  return Math.max(0, Math.round(30 * (oneRmKg / weightKg - 1)));
+}
+
+/** What the user can do at one load: their best set there, beside the estimate. */
+export interface RepCapacity {
+  /** The load in question, kg. */
+  weightKg: number;
+  /** Most reps ever performed in a single working set at it; 0 when never trained there. */
+  performed: number;
+  /** Short label of the session that set it, e.g. "22 May". */
+  performedLabel?: string;
+  /** Reps the best 1RM predicts at this load; 0 when there's no max to predict from. */
+  estimated: number;
+  /** The 1RM the estimate rests on. */
+  oneRm: RawOneRm;
+}
+
+/**
+ * The performed-vs-estimated read for one movement at one load: the best set
+ * the user has actually hit there, and what {@link bestRawOneRm} says they
+ * should be capable of. A performed number that trails the estimate usually
+ * means the load simply hasn't been pushed for reps yet; beating it is a sign
+ * the max itself is out of date.
+ */
+export function repCapacity(
+  sessions: TrainingSession[],
+  key: ExerciseKey,
+  weightKg: number,
+  loggedMaxes: Record<ExerciseKey, number> = {},
+): RepCapacity {
+  const target = round2(weightKg);
+  let performed = 0;
+  let performedLabel: string | undefined;
+
+  for (const session of sessions) {
+    for (const ex of session.exercises) {
+      if (exerciseKey(ex) !== key) continue;
+      for (const s of ex.sets) {
+        if (s.setType === "warmup" || round2(s.weightKg) !== target) continue;
+        if (s.reps > performed) {
+          performed = s.reps;
+          performedLabel = shortDate(session.startedAt);
+        }
+      }
+    }
+  }
+
+  const oneRm = bestRawOneRm(sessions, key, loggedMaxes);
+  return {
+    weightKg: target,
+    performed,
+    ...(performedLabel !== undefined ? { performedLabel } : {}),
+    estimated: estimatedRepsAt(oneRm.kg, target),
+    oneRm,
+  };
+}
+
+/* =============================================================================
    Cardio progress — distance, pace, time and climb per session. Cardio sets
    carry no reps or load, so the strength series above read flat zero for them;
    this is the parallel read the Stats view shows when the scope is a cardio
