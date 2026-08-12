@@ -24,12 +24,17 @@ import {
   bestOneRm,
   type BestOneRm,
   buildCardioProgress,
+  buildLoadReps,
   buildProgress,
   type CardioPoint,
+  defaultLoad,
+  type ExerciseKey,
   exerciseKeyLabel,
   isCardioExerciseKey,
+  loadsForExercise,
   presentExerciseKeys,
   type ProgressFilter,
+  repCapacity,
   type TypicalSession,
   typicalSession,
 } from "../stats";
@@ -113,6 +118,27 @@ registerTranslations({
     "proiectează antrenamentul meu următor cu Claude",
   "copy my next-session prompt for any AI":
     "copiază promptul pentru antrenamentul următor pentru orice AI",
+  // — Reps at one weight —
+  "Reps at a weight": "Repetări la o greutate",
+  "Pin the load and watch the reps move — progressive overload on one weight.":
+    "Fixează greutatea și urmărește cum evoluează repetările — supraîncărcare progresivă la o singură greutate.",
+  "Max performed": "Maxim realizat",
+  "Best set on {0}.": "Cea mai bună serie pe {0}.",
+  "Predicted by your best 1RM.": "Estimat după cel mai bun 1RM al tău.",
+  "From your logged max of {0} kg.": "După maximul înregistrat de {0} kg.",
+  "From your best estimated 1RM of {0} kg.": "După cel mai bun 1RM estimat de {0} kg.",
+  "Never trained at this load yet.": "Încă nu ai lucrat la această greutate.",
+  "You're past the estimate by {0} — your max is due a retest.":
+    "Ai depășit estimarea cu {0} — maximul tău merită retestat.",
+  "{0} short of the estimate.": "La {0} de estimare.",
+  "You're on the estimate.": "Ești exact pe estimare.",
+  rep: "repetare",
+  "Reps at {0} kg": "Repetări la {0} kg",
+  "Most reps in a single set at this load.":
+    "Cele mai multe repetări într-o singură serie la această greutate.",
+  "Total reps at {0} kg": "Total repetări la {0} kg",
+  "Every rep logged at this load each session.":
+    "Toate repetările înregistrate la această greutate în fiecare antrenament.",
   "Best one-rep max": "Cel mai bun 1RM",
   Logged: "Înregistrat",
   Estimated: "Estimat",
@@ -190,6 +216,8 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
   root.appendChild(container);
 
   let filter: ProgressFilter = "all";
+  /** Load pinned in the "Reps at a weight" card; reset whenever the exercise changes. */
+  let loadPick: number | undefined;
 
   // Export / share — the element is reused so its message survives re-renders.
   const statusEl = h("p", { class: "status", role: "status", aria: { live: "polite" } });
@@ -339,6 +367,13 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
     }
 
     if (best.logged > 0 || best.estimated > 0) container.append(renderOneRmHeadline(best));
+
+    // Reps at one fixed load — only meaningful once the scope is a single
+    // movement, since a weight means nothing pooled across exercises.
+    if (filter !== "all") {
+      const repsAtLoad = renderRepsAtLoad(sessions, filter);
+      if (repsAtLoad) container.append(repsAtLoad);
+    }
 
     container.append(
       lineChart({
@@ -734,6 +769,139 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
   }
 
   /**
+   * "Reps at a weight" — the per-load deep dive for a single movement. The user
+   * pins one of the loads they've actually handled and gets the two answers that
+   * matter at it: the best set they've performed there, and the reps their best
+   * 1RM predicts (Epley, in reverse). Below sit the rep series over time — top
+   * set, with the estimate drawn as the mark to hit, and the session's total
+   * reps at that load. Returns `null` for movements with no loaded working set
+   * (bodyweight-only work has no weight to pin).
+   */
+  function renderRepsAtLoad(sessions: TrainingSession[], key: ExerciseKey): HTMLElement | null {
+    const options = loadsForExercise(sessions, key);
+    // Keep the pinned load only while it still exists on this movement.
+    if (loadPick === undefined || !options.some((o) => o.weightKg === loadPick)) {
+      loadPick = defaultLoad(options);
+    }
+    if (loadPick === undefined) return null;
+
+    const wrap = h("div", { class: "reps-at-load" });
+    const reps = (n: number): string => `${n} ${n === 1 ? t("rep") : t("reps")}`;
+
+    const cell = (label: string, value: string, note: string): HTMLElement =>
+      h("div", { class: "onerm-cell" }, [
+        h("span", { class: "field-label", text: label }),
+        h("span", { class: "onerm-calc", text: value }),
+        h("span", { class: "load-cell-note", text: note }),
+      ]);
+
+    const draw = (): void => {
+      const weight = loadPick ?? 0;
+      clear(wrap);
+
+      const cap = repCapacity(sessions, key, weight, loadOneRmMaxes());
+      const points = buildLoadReps(sessions, key, weight);
+      const labels = points.map((p) => p.label);
+
+      const select = h(
+        "select",
+        { class: "stat-filter-select", aria: { label: t("Weight") } },
+        options.map((o) =>
+          h("option", {
+            value: String(o.weightKg),
+            text: `${round2(o.weightKg)} kg · ${o.sets} ${o.sets === 1 ? t("set") : t("sets")} · ${o.sessions} ${o.sessions === 1 ? t("session") : t("sessions")}`,
+          }),
+        ),
+      );
+      select.value = String(weight);
+      select.addEventListener("change", () => {
+        loadPick = Number(select.value);
+        draw();
+      });
+
+      // How the best set sits against the estimate — the reason both are shown.
+      const gap = cap.performed - cap.estimated;
+      const verdict =
+        cap.performed <= 0 || cap.estimated <= 0
+          ? null
+          : gap > 0
+            ? t("You're past the estimate by {0} — your max is due a retest.").replace("{0}", reps(gap))
+            : gap < 0
+              ? t("{0} short of the estimate.").replace("{0}", reps(-gap))
+              : t("You're on the estimate.");
+
+      wrap.append(
+        h("section", { class: "card reps-at-load-card" }, [
+          h("span", { class: "effort-eyebrow", text: t("Reps at a weight") }),
+          h("p", {
+            class: "effort-meta",
+            text: t("Pin the load and watch the reps move — progressive overload on one weight."),
+          }),
+          h("label", { class: "field stat-filter load-filter" }, [
+            h("span", { class: "field-label", text: t("Weight") }),
+            select,
+          ]),
+          h("div", { class: "onerm-grid" }, [
+            cell(
+              t("Max performed"),
+              cap.performed > 0 ? reps(cap.performed) : "—",
+              cap.performedLabel !== undefined
+                ? t("Best set on {0}.").replace("{0}", cap.performedLabel)
+                : t("Never trained at this load yet."),
+            ),
+            cell(
+              t("Estimated"),
+              cap.estimated > 0 ? reps(cap.estimated) : "—",
+              t("Predicted by your best 1RM."),
+            ),
+          ]),
+          ...(verdict !== null ? [h("p", { class: "typical-range", text: verdict })] : []),
+          ...(cap.oneRm.kg > 0
+            ? [
+                h("p", {
+                  class: "onerm-note",
+                  text: (cap.oneRm.source === "logged"
+                    ? t("From your logged max of {0} kg.")
+                    : t("From your best estimated 1RM of {0} kg.")
+                  ).replace("{0}", String(round2(cap.oneRm.kg))),
+                }),
+              ]
+            : []),
+        ]),
+      );
+
+      if (points.length === 0) return;
+
+      wrap.append(
+        lineChart({
+          title: t("Reps at {0} kg").replace("{0}", String(round2(weight))),
+          unit: t("reps"),
+          values: points.map((p) => p.topReps),
+          labels,
+          color: "var(--navy)",
+          hint: t("Most reps in a single set at this load."),
+          format: (n) => String(Math.round(n)),
+          ...(cap.estimated > 0
+            ? { reference: { value: cap.estimated, label: `${t("Estimated")} ${cap.estimated}` } }
+            : {}),
+        }),
+        lineChart({
+          title: t("Total reps at {0} kg").replace("{0}", String(round2(weight))),
+          unit: t("reps"),
+          values: points.map((p) => p.totalReps),
+          labels,
+          color: "var(--mustard)",
+          hint: t("Every rep logged at this load each session."),
+          format: (n) => String(Math.round(n)),
+        }),
+      );
+    };
+
+    draw();
+    return wrap;
+  }
+
+  /**
    * The live-session summary stats (effort, per-muscle work, hydration, protein)
    * pooled across every logged session — the all-time counterpart to the gauge
    * shown during a workout. Per-muscle rows are ranked by effort so the biggest
@@ -896,6 +1064,7 @@ export function mountStats(root: HTMLElement, nav: Nav): Cleanup {
     select.value = filter;
     select.addEventListener("change", () => {
       filter = select.value as ProgressFilter;
+      loadPick = undefined; // a new movement has its own loads
       render();
     });
     return h("label", { class: "field stat-filter" }, [
