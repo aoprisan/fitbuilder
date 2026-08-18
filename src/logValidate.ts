@@ -129,6 +129,7 @@ function coerceExercise(value: unknown): LoggedExercise {
   const target = coerceTarget(rec["target"]);
   const section = rec["section"];
   const oneRm = rec["oneRmKg"];
+  const ssGroup = rec["supersetGroup"];
   return {
     name: typeof rec["name"] === "string" ? rec["name"] : "",
     muscle: coerceMuscle(rec["muscle"]),
@@ -139,6 +140,9 @@ function coerceExercise(value: unknown): LoggedExercise {
     ...(target ? { target } : {}),
     ...(typeof section === "string" && section !== "" ? { section } : {}),
     ...(typeof oneRm === "number" && Number.isFinite(oneRm) && oneRm > 0 ? { oneRmKg: oneRm } : {}),
+    ...(typeof ssGroup === "number" && Number.isInteger(ssGroup) && ssGroup >= 0
+      ? { supersetGroup: ssGroup }
+      : {}),
     sets,
   };
 }

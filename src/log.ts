@@ -60,6 +60,7 @@ export function repeatSession(src: TrainingSession): TrainingSession {
       ...(ex.prescription !== undefined ? { prescription: ex.prescription } : {}),
       ...(ex.target !== undefined ? { target: cloneTarget(ex.target) } : {}),
       ...(ex.section !== undefined ? { section: ex.section } : {}),
+      ...(ex.supersetGroup !== undefined ? { supersetGroup: ex.supersetGroup } : {}),
       sets: [],
     })),
   };
@@ -102,6 +103,7 @@ export function sheetToSession(sheet: RoutineSheet): TrainingSession {
         ...(item.sectionTitle && item.sectionTitle.trim() !== ""
           ? { section: item.sectionTitle }
           : {}),
+        ...(item.supersetGroup !== undefined ? { supersetGroup: item.supersetGroup } : {}),
         sets: [],
       };
     }),
@@ -142,6 +144,7 @@ export function executeRunToSession(
       ...(item.sectionTitle && item.sectionTitle.trim() !== ""
         ? { section: item.sectionTitle }
         : {}),
+      ...(item.supersetGroup !== undefined ? { supersetGroup: item.supersetGroup } : {}),
       sets: sets.map((s) => ({ ...s })),
     });
   });

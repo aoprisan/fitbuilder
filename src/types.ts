@@ -180,6 +180,13 @@ export interface RoutineExercise {
   muscle?: MuscleGroup;
   equipment?: Equipment;
   secondaryMuscles?: readonly MuscleGroup[];
+  /**
+   * Marks this exercise as supersetted with the exercise directly before it in
+   * its list (or section) — the pair/run is performed back-to-back, alternating
+   * with shared rest. Consecutive linked rows chain into one superset group.
+   * Absent = a standalone exercise, so every older sheet is unchanged.
+   */
+  supersetWithPrevious?: boolean;
 }
 
 /**
@@ -351,6 +358,13 @@ export interface LoggedExercise {
   section?: string;
   /** User-logged one-rep max in kg; the calculated estimate is derived from the sets. */
   oneRmKg?: number;
+  /**
+   * Superset group id within the session, carried from a routine whose rows were
+   * linked (`RoutineExercise.supersetWithPrevious`). Exercises sharing a group
+   * are meant back-to-back; the live flow offers a jump to the partner between
+   * sets. Absent for standalone exercises and on all older logs.
+   */
+  supersetGroup?: number;
   sets: WorkSet[];
 }
 

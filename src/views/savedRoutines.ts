@@ -1,5 +1,6 @@
-import { h } from "../dom";
+import { clear, h } from "../dom";
 import { flattenSheet } from "../execute";
+import { filterField, matchesFilter } from "./filter";
 import { registerTranslations, t } from "../i18n";
 import type { Cleanup, Nav } from "../router";
 import { loadSheets } from "../sheetStorage";
@@ -24,6 +25,9 @@ registerTranslations({
   "This routine has no exercises yet.": "Această rutină nu are încă exerciții.",
   Routine: "Rutină",
   Close: "Închide",
+  "Filter saved routines": "Filtrează rutinele salvate",
+  "No saved routines match this filter.": "Nicio rutină salvată nu se potrivește filtrului.",
+  Superset: "Superset",
 });
 
 /**
@@ -60,6 +64,9 @@ function stepsList(sheet: RoutineSheet): HTMLElement {
         h("span", { class: "steps-no", text: String(stepNo) }),
         h("div", { class: "steps-body" }, [
           h("span", { class: "steps-name", text: item.name }),
+          item.supersetGroup !== undefined
+            ? h("span", { class: "ss-chip", title: t("Superset"), text: "SS" })
+            : null,
           item.prescription ? h("span", { class: "steps-pres", text: item.prescription }) : null,
         ]),
       ]),
@@ -131,15 +138,34 @@ export function mountSavedRoutines(root: HTMLElement, nav: Nav): Cleanup {
 
   const listHost = h("div", { class: "saved-list saved-sheets" });
 
-  if (sheets.length === 0) {
-    listHost.appendChild(
-      h("p", {
-        class: "empty",
-        text: t("No saved routines yet. Open a routine link from your coach to add one here."),
-      }),
-    );
-  } else {
-    for (const s of sheets) {
+  // Name filter above the list — shown once the library is long enough to need
+  // one; the list repaints in place per keystroke so the input keeps focus.
+  let filter = "";
+  const filterEl = filterField(t("Filter saved routines"), (q) => {
+    filter = q;
+    paintList();
+  });
+  filterEl.hidden = sheets.length < 4;
+
+  function paintList(): void {
+    clear(listHost);
+    if (sheets.length === 0) {
+      listHost.appendChild(
+        h("p", {
+          class: "empty",
+          text: t("No saved routines yet. Open a routine link from your coach to add one here."),
+        }),
+      );
+      return;
+    }
+    const shown = sheets.filter((s) => matchesFilter(s.name, filter));
+    if (shown.length === 0) {
+      listHost.appendChild(
+        h("p", { class: "empty", text: t("No saved routines match this filter.") }),
+      );
+      return;
+    }
+    for (const s of shown) {
       const exCount = s.routines.reduce((sum, r) => sum + routineExerciseCount(r), 0);
       listHost.appendChild(
         h("section", { class: "card saved-item" }, [
@@ -195,7 +221,8 @@ export function mountSavedRoutines(root: HTMLElement, nav: Nav): Cleanup {
     }
   }
 
-  root.appendChild(h("div", { class: "view view-saved-routines" }, [head, listHost]));
+  paintList();
+  root.appendChild(h("div", { class: "view view-saved-routines" }, [head, filterEl, listHost]));
   return () => {
     dismissOverlay?.();
   };

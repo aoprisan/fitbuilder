@@ -29,6 +29,7 @@ import {
   exportSessionsXml,
   shareSession,
 } from "../exporters";
+import { filterField, matchesFilter } from "./filter";
 import { newLoggedExercise, newTrainingSession, repeatSession } from "../log";
 import { clearProgress, loadProgress, saveProgress, type SelectMode } from "../liveProgress";
 import {
@@ -61,6 +62,7 @@ import { detectPrs, priorSetsFor, type PrHit } from "../records";
 import { muscleRecovery, type MuscleRecovery, recoveryColor } from "../recovery";
 import { compoundMovementsByFrequency, exerciseKey, type ExerciseKey, musclesByFrequency } from "../stats";
 import type { Cleanup, Nav } from "../router";
+import { showUndo } from "./snackbar";
 import { saveSheet } from "../sheetStorage";
 import { setActiveLog, setEditingSheet, setSheetFlash, state } from "../state";
 import {
@@ -221,8 +223,8 @@ registerTranslations({
   Repeat: "Repetă",
   "repeat {0} as a new session": "repetă {0} ca o sesiune nouă",
   Delete: "Șterge",
-  'Delete "{0}"? This cannot be undone.':
-    "Ștergi „{0}”? Această acțiune nu poate fi anulată.",
+  'Deleted "{0}".': "S-a șters „{0}”.",
+  "Deleted set {0}.": "S-a șters seria {0}.",
   "Save as routine": "Salvează ca rutină",
   "save {0} as a shareable routine": "salvează {0} ca o rutină partajabilă",
   "Export JSON": "Exportă JSON",
@@ -257,8 +259,6 @@ registerTranslations({
   "RIR {0}": "RIR {0}",
   "Set {0}": "Seria {0}",
   "delete set {0}": "șterge seria {0}",
-  "Delete set {0}? This cannot be undone.":
-    "Ștergi seria {0}? Această acțiune nu poate fi anulată.",
   "edit set {0}": "editează seria {0}",
   "✓ Save": "✓ Salvează",
   Cancel: "Anulează",
@@ -293,6 +293,13 @@ registerTranslations({
   "+{0} kg short — use micro-plates or round": "+{0} kg lipsă — folosește micro-discuri sau rotunjește",
   "Empty bar — {0} kg": "Bară goală — {0} kg",
   "Below the empty bar ({0} kg)": "Sub bara goală ({0} kg)",
+  // — Exercise-chip filter —
+  "Filter exercises": "Filtrează exercițiile",
+  // — Supersets —
+  "Superset with {0}": "Superset cu {0}",
+  "Superset — up next": "Superset — urmează",
+  "Go to {0} →": "Mergi la {0} →",
+  "switch to superset partner {0}": "treci la partenerul de superset {0}",
   // — History filters —
   "Search sessions": "Caută sesiuni",
   "search sessions by name or exercise": "caută sesiuni după nume sau exercițiu",
@@ -734,6 +741,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   // Session-history filters on the list screen (kept across repaints).
   let filterText = "";
   let filterMuscle: MuscleGroup | "" = "";
+  // Name filter over the select screen's exercise chips (long muscle catalogs).
+  let movementFilter = "";
 
   /** Point the selection at a movement id, syncing the derived muscle + load type. */
   function selectMovement(id: string): void {
@@ -747,6 +756,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   /** Switch muscle group and reset the movement to that group's first isolation option. */
   function selectMuscle(m: MuscleGroup): void {
     muscle = m;
+    movementFilter = ""; // each muscle's chip list starts unfiltered
     const first = isolationMovementsForMuscle(m)[0];
     if (first) selectMovement(first.id);
   }
@@ -1244,12 +1254,21 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   }
 
   function deleteSet(i: number): void {
-    if (!currentEx) return;
-    if (!confirm(t("Delete set {0}? This cannot be undone.").replace("{0}", String(i + 1)))) return;
-    currentEx.sets.splice(i, 1);
+    const ex = currentEx;
+    const removed = ex?.sets[i];
+    if (!ex || !removed) return;
+    ex.sets.splice(i, 1);
     if (editingSetIndex !== null) editingSetIndex = null;
     persist();
     render();
+    // Undo re-inserts the captured set — only while the exercise still belongs
+    // to the open session (leaving the view dismisses the snackbar anyway).
+    showUndo(t("Deleted set {0}.").replace("{0}", String(i + 1)), () => {
+      if (!state.activeLog?.exercises.includes(ex)) return;
+      ex.sets.splice(Math.min(i, ex.sets.length), 0, removed);
+      persist();
+      render();
+    });
   }
 
   /** Open the inline editor for an already-logged set (reps/weight, or hold/weight). */
@@ -1601,9 +1620,14 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           text: t("Delete"),
           on: {
             click: () => {
-              if (!confirm(t('Delete "{0}"? This cannot be undone.').replace("{0}", s.name || t("this session")))) return;
+              // Immediate delete with an Undo window; restoring re-saves the
+              // captured session (its id is kept, so it slots back in place).
               deleteSession(s.id);
               render();
+              showUndo(t('Deleted "{0}".').replace("{0}", s.name || t("this session")), () => {
+                saveSession(s);
+                render();
+              });
             },
           },
         }),
@@ -1771,6 +1795,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
               [
                 h("span", { class: "live-done-muscle", text: muscleLabel }),
                 h("span", { class: "live-done-name", text: setsText }),
+                ...(ex.supersetGroup !== undefined
+                  ? [h("span", { class: "ss-chip", text: "SS" })]
+                  : []),
               ],
             ),
           );
@@ -1879,13 +1906,35 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
               muscle,
               pickMuscle,
             ),
-            renderToggle(
-              t("Exercise"),
-              isolationMovementsForMuscle(muscle).map((mv) => mv.id),
-              (id) => findMovement(id)?.name ?? id,
-              movementId,
-              pickMovement,
-            ),
+            // Exercise chips with a name filter above them once the muscle's
+            // catalog runs long. Only the chip block repaints per keystroke, so
+            // the filter input keeps focus; picking a chip still re-renders the
+            // whole screen (movementFilter survives at view level).
+            (() => {
+              const movements = isolationMovementsForMuscle(muscle);
+              const chipsHost = h("div");
+              const paintChips = (): void => {
+                clear(chipsHost);
+                const shown = movements.filter((mv) => matchesFilter(mv.name, movementFilter));
+                chipsHost.append(
+                  renderToggle(
+                    t("Exercise"),
+                    (shown.length > 0 ? shown : movements).map((mv) => mv.id),
+                    (id) => findMovement(id)?.name ?? id,
+                    movementId,
+                    pickMovement,
+                  ),
+                );
+              };
+              const filterEl = filterField(t("Filter exercises"), (q) => {
+                movementFilter = q;
+                paintChips();
+              });
+              filterEl.value = movementFilter;
+              filterEl.hidden = movements.length <= 8;
+              paintChips();
+              return h("div", {}, [filterEl, chipsHost]);
+            })(),
           ];
 
     // The last time this exact movement was trained, so the user picks a load to
@@ -1929,6 +1978,23 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         h("h2", { class: "section-title", text: planned ? planned.name || t("Next exercise") : t("Next exercise") }),
         ...(planned && planned.prescription
           ? [h("p", { class: "now-target", text: planned.prescription })]
+          : []),
+        // Planned superset: name the partner exercise(s) so the pairing is
+        // visible before the first set starts.
+        ...(planned && planned.supersetGroup !== undefined
+          ? [
+              (() => {
+                const partners = session.exercises
+                  .filter((e) => e !== planned && e.supersetGroup === planned.supersetGroup)
+                  .map((e) => e.name);
+                return partners.length > 0
+                  ? h("p", {
+                      class: "plan-meta live-ss-note",
+                      text: t("Superset with {0}").replace("{0}", partners.join(" · ")),
+                    })
+                  : null;
+              })(),
+            ]
           : []),
         renderToggle(
           t("Mode"),
@@ -2479,9 +2545,35 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           on: { click: startSet },
         }),
       ]);
+      // Superset partner: between sets of a linked exercise, offer the one-tap
+      // jump to the paired movement so the alternation is the path of least
+      // resistance (rest keeps running either way).
+      const partnerCard = (() => {
+        const g = currentEx?.supersetGroup;
+        const s = state.activeLog;
+        if (g === undefined || !s || !currentEx) return null;
+        const group = s.exercises.filter((e) => e.supersetGroup === g);
+        const idx = group.indexOf(currentEx);
+        if (idx < 0 || group.length < 2) return null;
+        const partner = group[(idx + 1) % group.length]!;
+        return h("section", { class: "card live-superset" }, [
+          h("p", { class: "now-eyebrow", text: t("Superset — up next") }),
+          h("p", { class: "now-target", text: partner.name }),
+          h("div", { class: "btn-row" }, [
+            h("button", {
+              class: "btn btn-small btn-accent",
+              type: "button",
+              text: t("Go to {0} →").replace("{0}", partner.name),
+              aria: { label: t("switch to superset partner {0}").replace("{0}", partner.name) },
+              on: { click: () => resumeExercise(partner) },
+            }),
+          ]),
+        ]);
+      })();
       const pr = renderPrFlash(prFlash);
       container.append(
         actionRow,
+        ...(partnerCard ? [partnerCard] : []),
         ...(pr ? [pr] : []),
         h("p", { class: "set-time", text: t("Resting — recover, then start your next set") }),
         dialWrap,

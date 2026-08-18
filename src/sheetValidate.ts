@@ -135,6 +135,7 @@ function validateExercise(value: unknown): RoutineExercise {
     ...(muscle !== undefined ? { muscle } : {}),
     ...(equipment !== undefined ? { equipment } : {}),
     ...(secondary.length > 0 ? { secondaryMuscles: secondary } : {}),
+    ...(value["supersetWithPrevious"] === true ? { supersetWithPrevious: true } : {}),
   };
 }
 
