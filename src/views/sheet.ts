@@ -2,6 +2,7 @@ import { track } from "../analytics";
 import { mesoStatus, sessionsForSheet } from "../adherence";
 import { clear, h } from "../dom";
 import { canShareFiles, exportRoutineQrPng, exportSheetPdf, exportSheetPng, shareAdherence, shareRoutineLink, shareSheet } from "../exporters";
+import { filterField, matchesFilter } from "./filter";
 import { ImportError, importRoutineFile } from "../import";
 import { importSessions, loadSessions } from "../logStorage";
 import { parseSessionArchive } from "../logValidate";
@@ -27,6 +28,7 @@ import {
   singleRoutineSheet,
 } from "../sheet";
 import { deleteSheet, loadSheets, saveSheet } from "../sheetStorage";
+import { showUndo } from "./snackbar";
 import { setSheetFlash, state, takeSheetFlash } from "../state";
 import { loadTrainer, saveTrainer } from "../trainer";
 import {
@@ -99,6 +101,12 @@ registerTranslations({
   Exercise: "Exercițiu",
   "exercise {0} name": "numele exercițiului {0}",
   "remove exercise {0}": "elimină exercițiul {0}",
+  "reorder exercise {0}": "reordonează exercițiul {0}",
+  "Drag to reorder — arrow keys also move": "Trage pentru a reordona — și săgețile mută",
+  "superset exercise {0} with the previous exercise":
+    "superset exercițiul {0} cu exercițiul anterior",
+  "Superset with the previous exercise — performed back-to-back":
+    "Superset cu exercițiul anterior — executate consecutiv",
   "Routine title": "Titlu rutină",
   "routine {0} title": "titlu rutină {0}",
   "INTERMEDIAR+, PARC, 60-100 antrenamente": "INTERMEDIAR+, PARC, 60-100 antrenamente",
@@ -212,7 +220,11 @@ registerTranslations({
   Open: "Deschide",
   "share an importable link to \"{0}\"": "distribuie un link importabil către „{0}”",
   "show a scannable QR code for \"{0}\"": "arată un cod QR scanabil pentru „{0}”",
-  "Delete \"{0}\"? This cannot be undone.": "Ștergi „{0}”? Această acțiune nu poate fi anulată.",
+  "Deleted \"{0}\".": "S-a șters „{0}”.",
+  "Deleted routine \"{0}\".": "S-a șters rutina „{0}”.",
+  Routine: "Rutină",
+  "Filter saved sheets": "Filtrează foile salvate",
+  "No saved sheets match this filter.": "Nicio foaie salvată nu se potrivește filtrului.",
   "Save · Library": "Salvează · Bibliotecă",
   "Saved \"{0}\" to this browser.": "Ai salvat „{0}” în acest browser.",
   "Download JSON": "Descarcă JSON",
@@ -648,6 +660,71 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
     ]);
   };
 
+  // ---- Drag-to-reorder ------------------------------------------------------
+  // Each exercise row carries a grab handle: a pointer drag lifts the card and
+  // re-slots it live within its own list (a routine's flat list, or one section
+  // of a structured session); arrow keys on the focused handle move it one slot.
+  // On drop the array order is committed from the DOM order, then the routines
+  // re-render (renumbering the rows).
+  let pendingFocusEx: RoutineExercise | null = null;
+
+  const attachReorder = (
+    handle: HTMLButtonElement,
+    wrap: HTMLElement,
+    list: RoutineExercise[],
+    ex: RoutineExercise,
+  ): void => {
+    handle.addEventListener("keydown", (e) => {
+      if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+      e.preventDefault();
+      const from = list.indexOf(ex);
+      const to = e.key === "ArrowUp" ? from - 1 : from + 1;
+      if (from < 0 || to < 0 || to >= list.length) return;
+      list.splice(from, 1);
+      list.splice(to, 0, ex);
+      pendingFocusEx = ex;
+      renderRoutines();
+    });
+
+    handle.addEventListener("pointerdown", (e) => {
+      const listEl = wrap.parentElement;
+      if (!listEl || list.length <= 1) return;
+      e.preventDefault();
+      handle.setPointerCapture(e.pointerId);
+      wrap.classList.add("is-dragging");
+      const onMove = (ev: PointerEvent): void => {
+        // Re-slot live: insert before the first sibling whose midpoint is below
+        // the pointer, else drop to the end.
+        const siblings = [...listEl.children].filter(
+          (c): c is HTMLElement => c instanceof HTMLElement && c !== wrap,
+        );
+        const after = siblings.find((sib) => {
+          const box = sib.getBoundingClientRect();
+          return ev.clientY < box.top + box.height / 2;
+        });
+        if (after) listEl.insertBefore(wrap, after);
+        else listEl.appendChild(wrap);
+      };
+      let done = false;
+      const finish = (): void => {
+        if (done) return;
+        done = true;
+        handle.removeEventListener("pointermove", onMove);
+        wrap.classList.remove("is-dragging");
+        const from = list.indexOf(ex);
+        const to = [...listEl.children].indexOf(wrap);
+        if (from >= 0 && to >= 0 && from !== to) {
+          list.splice(from, 1);
+          list.splice(to, 0, ex);
+        }
+        renderRoutines();
+      };
+      handle.addEventListener("pointermove", onMove);
+      handle.addEventListener("pointerup", finish, { once: true });
+      handle.addEventListener("pointercancel", finish, { once: true });
+    });
+  };
+
   // ---- Exercise row ---------------------------------------------------------
   // `list` is the parent exercise array the row lives in — a routine's flat
   // `exercises` for a movement list, or a section's `exercises` for a structured
@@ -673,19 +750,65 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
       },
     });
 
+    const dragHandle = h("button", {
+      class: "icon-btn rex-drag",
+      type: "button",
+      text: "≡",
+      title: t("Drag to reorder — arrow keys also move"),
+      aria: { label: t("reorder exercise {0}").replace("{0}", String(exIndex + 1)) },
+      disabled: list.length <= 1,
+    });
+
+    // Superset link — chains this row to the one above (back-to-back pair).
+    // The first row of a list has nothing above it, so it carries no toggle.
+    const linked = ex.supersetWithPrevious === true;
+    const linkBtn =
+      exIndex > 0
+        ? h("button", {
+            class: linked ? "icon-btn rex-link active" : "icon-btn rex-link",
+            type: "button",
+            text: "⧉",
+            title: t("Superset with the previous exercise — performed back-to-back"),
+            aria: {
+              label: t("superset exercise {0} with the previous exercise").replace(
+                "{0}",
+                String(exIndex + 1),
+              ),
+              pressed: String(linked),
+            },
+            on: {
+              click: () => {
+                if (linked) delete ex.supersetWithPrevious;
+                else ex.supersetWithPrevious = true;
+                renderRoutines();
+              },
+            },
+          })
+        : null;
+    if (pendingFocusEx === ex) {
+      // A keyboard move just re-rendered everything: put focus back on the
+      // moved row's handle so repeated arrow presses keep working.
+      pendingFocusEx = null;
+      queueMicrotask(() => dragHandle.focus());
+    }
+
     // Structured session: catalog-only. The name is read-only (it comes from the
     // picked movement); the chip picker below the row chooses the movement.
     if (kind === "session") {
       const row = h("div", { class: "routine-ex-row" }, [
+        dragHandle,
         h("span", { class: "rex-index", text: String(exIndex + 1) }),
         h("span", { class: "rex-name-static", text: ex.name || t("Pick an exercise") }),
+        linkBtn,
         removeBtn,
       ]);
-      return h("div", { class: "routine-ex" }, [
+      const wrap = h("div", { class: linked ? "routine-ex is-superset" : "routine-ex" }, [
         row,
         renderMovementPicker(ex, exIndex),
         renderEditor(ex, exIndex, kind),
       ]);
+      attachReorder(dragHandle, wrap, list, ex);
+      return wrap;
     }
 
     // Movement list: free-form. A free-text name, matched against the catalog on
@@ -709,12 +832,19 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
     });
 
     const row = h("div", { class: "routine-ex-row" }, [
+      dragHandle,
       h("span", { class: "rex-index", text: String(exIndex + 1) }),
       nameInput,
+      linkBtn,
       removeBtn,
     ]);
 
-    return h("div", { class: "routine-ex" }, [row, renderEditor(ex, exIndex, kind)]);
+    const wrap = h("div", { class: linked ? "routine-ex is-superset" : "routine-ex" }, [
+      row,
+      renderEditor(ex, exIndex, kind),
+    ]);
+    attachReorder(dragHandle, wrap, list, ex);
+    return wrap;
   };
 
   // ---- Routine card ---------------------------------------------------------
@@ -872,6 +1002,13 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
             click: () => {
               sheet.routines.splice(rIndex, 1);
               renderRoutines();
+              showUndo(
+                t("Deleted routine \"{0}\".").replace("{0}", routine.title.trim() || t("Routine")),
+                () => {
+                  sheet.routines.splice(Math.min(rIndex, sheet.routines.length), 0, routine);
+                  renderRoutines();
+                },
+              );
             },
           },
         }),
@@ -1305,17 +1442,31 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
   const savedHost = h("div", { class: "saved-list saved-sheets" });
   // Oxblood count stamp on the Library tab; kept in sync by renderSaved().
   const libraryBadge = h("span", { class: "ledger-tab__badge", aria: { hidden: "true" } });
+  // Library name filter — shown once the list is long enough to need one.
+  let libraryFilter = "";
+  const libraryFilterInput = filterField(t("Filter saved sheets"), (q) => {
+    libraryFilter = q;
+    renderSaved();
+  });
 
   function renderSaved(): void {
     clear(savedHost);
-    const sheets = loadSheets().sort(
+    const all = loadSheets().sort(
       (a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""),
     );
-    libraryBadge.textContent = String(sheets.length);
-    libraryBadge.hidden = sheets.length === 0;
-    if (sheets.length === 0) {
+    libraryBadge.textContent = String(all.length);
+    libraryBadge.hidden = all.length === 0;
+    libraryFilterInput.hidden = all.length < 4;
+    if (all.length === 0) {
       savedHost.appendChild(
         h("p", { class: "empty", text: t("No saved sheets yet. Press Save to keep this one.") }),
+      );
+      return;
+    }
+    const sheets = all.filter((s) => matchesFilter(s.name, libraryFilter));
+    if (sheets.length === 0) {
+      savedHost.appendChild(
+        h("p", { class: "empty", text: t("No saved sheets match this filter.") }),
       );
       return;
     }
@@ -1426,9 +1577,14 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
               text: t("Delete"),
               on: {
                 click: () => {
-                  if (!confirm(t("Delete \"{0}\"? This cannot be undone.").replace("{0}", String(s.name)))) return;
+                  // Delete immediately, offer a short Undo instead of a blocking
+                  // confirm — restoring just re-saves the captured sheet.
                   deleteSheet(s.id);
                   renderSaved();
+                  showUndo(t("Deleted \"{0}\".").replace("{0}", String(s.name)), () => {
+                    saveSheet(s);
+                    renderSaved();
+                  });
                 },
               },
             }),
@@ -1534,6 +1690,7 @@ export function mountSheet(root: HTMLElement, nav: Nav): Cleanup {
       }),
     ]),
     studentImport,
+    libraryFilterInput,
     savedHost,
   ]);
 

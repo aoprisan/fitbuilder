@@ -57,6 +57,13 @@ export interface RunItem {
   muscle?: MuscleGroup;
   equipment?: Equipment;
   secondaryMuscles?: readonly MuscleGroup[];
+  /**
+   * Superset group id, sheet-wide unique, assigned by {@link flattenSheet} to
+   * runs of consecutive `supersetWithPrevious`-linked exercises within one
+   * section. Rows sharing an id are performed back-to-back. Absent for
+   * standalone rows.
+   */
+  supersetGroup?: number;
 }
 
 /** Read a trailing "x N" multiplier (e.g. " x 5", " x3", " ×3"); defaults to 1. */
@@ -221,6 +228,9 @@ function runItemFor(ex: RoutineExercise, ctx: FlattenContext): RunItem | null {
 
 export function flattenSheet(sheet: RoutineSheet): RunItem[] {
   const items: RunItem[] = [];
+  // Superset ids are assigned here, sheet-wide unique: a linked row joins the
+  // previous emitted row of its section, minting the group id on first use.
+  let nextSupersetGroup = 0;
   sheet.routines.forEach((routine, routineIndex) => {
     // Iterate sections so a structured session's phase labels ride along; a
     // movement list reads as one unlabelled section. `exerciseIndex` runs across
@@ -228,6 +238,7 @@ export function flattenSheet(sheet: RoutineSheet): RunItem[] {
     // run item back to its routine still line up.
     let exerciseIndex = 0;
     routineSections(routine).forEach((section) => {
+      let prevItem: RunItem | null = null;
       section.exercises.forEach((ex) => {
         const item = runItemFor(ex, {
           routineIndex,
@@ -236,7 +247,13 @@ export function flattenSheet(sheet: RoutineSheet): RunItem[] {
           sectionTitle: section.title,
         });
         exerciseIndex++;
-        if (item) items.push(item);
+        if (!item) return;
+        if (ex.supersetWithPrevious === true && prevItem) {
+          if (prevItem.supersetGroup === undefined) prevItem.supersetGroup = nextSupersetGroup++;
+          item.supersetGroup = prevItem.supersetGroup;
+        }
+        items.push(item);
+        prevItem = item;
       });
     });
   });

@@ -23,6 +23,7 @@ import { mountLive } from "./views/live";
 import { mountRecovery } from "./views/recovery";
 import { mountSavedRoutines } from "./views/savedRoutines";
 import { mountSheet } from "./views/sheet";
+import { dismissSnackbar } from "./views/snackbar";
 import { mountStats } from "./views/stats";
 import { mountTrain } from "./views/train";
 import { mountWeekly } from "./views/weekly";
@@ -176,6 +177,23 @@ function boot(): void {
 
   const navButtons = new Map<ViewName, HTMLButtonElement>();
 
+  // Every view name navigate() can mount — the whitelist popstate restores from,
+  // so a stale or foreign history entry can never mount an unknown view.
+  const ALL_VIEWS: ReadonlyArray<ViewName> = [
+    "home",
+    "train",
+    "sheet",
+    "savedRoutines",
+    "execute",
+    "live",
+    "stats",
+    "weekly",
+    "recovery",
+    "body",
+    "claudeStart",
+    "claudeRoutine",
+  ];
+
   const nav: Nav = {
     go: (view) => navigate(view),
     editSheet: (sheet) => {
@@ -203,7 +221,17 @@ function boot(): void {
     },
   };
 
-  function navigate(view: ViewName): void {
+  function navigate(view: ViewName, opts?: { push?: boolean }): void {
+    // Record each screen change as a history entry so the browser / Android
+    // hardware back button walks back through views instead of exiting the app.
+    // Re-selecting the current view replaces its entry (no self-stacking), and
+    // popstate-driven navigation passes push:false so restoring doesn't re-push.
+    if (opts?.push !== false) {
+      if (view === currentView) history.replaceState({ view }, "");
+      else history.pushState({ view }, "");
+    }
+    // A pending Undo belongs to the view that offered it — leaving commits it.
+    dismissSnackbar();
     if (cleanup) {
       cleanup();
       cleanup = null;
@@ -662,7 +690,7 @@ function boot(): void {
     relabelTheme();
     relabelSettings();
     renderNav();
-    navigate(currentView);
+    navigate(currentView, { push: false });
   });
 
   const header = h("header", { class: "app-header" }, [
@@ -680,13 +708,27 @@ function boot(): void {
     navRow,
   ]);
 
+  // Browser / hardware back: restore the view stamped on the history entry.
+  // Views re-read their data from `state` and storage on mount, so remounting
+  // from a popped entry is always safe.
+  window.addEventListener("popstate", (e) => {
+    const view = (e.state as { view?: unknown } | null)?.view;
+    if (typeof view === "string" && (ALL_VIEWS as readonly string[]).includes(view)) {
+      navigate(view as ViewName, { push: false });
+    }
+  });
+
   app.append(header, viewHost);
   document.body.append(scrim);
   highlightMode();
   highlightLang();
   highlightTheme();
   renderNav();
-  navigate(consumeSharedRoutine(mode) ?? (mode === "trainer" ? "sheet" : "home"));
+  const initialView = consumeSharedRoutine(mode) ?? (mode === "trainer" ? "sheet" : "home");
+  navigate(initialView, { push: false });
+  // Stamp the first history entry with its view so backing all the way up
+  // still restores a known screen (instead of a null state).
+  history.replaceState({ view: initialView }, "");
   track("pageview", { mode });
 }
 

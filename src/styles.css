@@ -1450,6 +1450,23 @@ textarea {
   font-size: 16px;
 }
 
+/* Shared list-filter input (views/filter.ts) — the compact search stamp above
+   any long list: saved sheets, the student library, the live exercise chips. */
+.filter-input {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 16px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 2.5px solid var(--ink);
+  padding: 9px 12px;
+  width: 100%;
+  margin: 0 0 12px;
+  border-radius: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 .live-filter-muscle {
   font-family: var(--font-mono);
   font-weight: 600;
@@ -2200,6 +2217,65 @@ textarea {
    floating button clear of it. */
 @media (max-width: 559px) {
   .live-fab {
+    bottom: calc(86px + env(safe-area-inset-bottom));
+  }
+}
+
+/* ───────────────── UNDO SNACKBAR · inked correction strip ─────────────────
+   Surfaces after a delete with a short Undo window (see views/snackbar.ts).
+   Sits above the bottom nav rail; same hard-shadow stamp language. */
+.snackbar {
+  position: fixed;
+  left: 50%;
+  bottom: max(env(safe-area-inset-bottom), 22px);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: min(92vw, 480px);
+  padding: 11px 14px;
+  background: var(--ink);
+  color: var(--paper);
+  border: 2px solid var(--ink);
+  box-shadow: 4px 4px 0 0 rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(10px);
+  transition:
+    opacity 160ms var(--ease),
+    transform 160ms var(--ease),
+    visibility 160ms var(--ease);
+}
+
+.snackbar.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+
+.snackbar-msg {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.snackbar-undo {
+  flex: none;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 6px 8px 4px;
+  background: transparent;
+  border: none;
+  color: var(--signal);
+  cursor: pointer;
+}
+
+@media (max-width: 559px) {
+  .snackbar {
     bottom: calc(86px + env(safe-area-inset-bottom));
   }
 }
@@ -3837,6 +3913,85 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+/* Grab handle + lifted-card state for drag-to-reorder (see views/sheet.ts).
+   touch-action: none keeps a touch drag from scrolling the page instead. */
+.rex-drag {
+  cursor: grab;
+  touch-action: none;
+  font-size: 16px;
+  color: var(--ink-soft);
+}
+
+.rex-drag:disabled {
+  visibility: hidden;
+}
+
+.routine-ex.is-dragging {
+  position: relative;
+  z-index: 5;
+  background: var(--paper);
+  outline: 2px solid var(--ink);
+  box-shadow: 6px 6px 0 0 var(--ink);
+  opacity: 0.95;
+}
+
+.routine-ex.is-dragging .rex-drag {
+  cursor: grabbing;
+}
+
+/* Superset link toggle + the linked row's bracket. A linked row is chained to
+   the row above it (performed back-to-back); the signal-red spine and stamp
+   make the pair read as one block. */
+.rex-link {
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.rex-link.active {
+  background: var(--signal);
+  color: var(--on-press);
+  border-color: var(--ink);
+}
+
+.routine-ex.is-superset {
+  border-left: 3px solid var(--signal);
+  padding-left: 10px;
+  position: relative;
+}
+
+.routine-ex.is-superset::before {
+  content: "SUPERSET ↑";
+  display: block;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: var(--signal);
+  margin-bottom: 2px;
+}
+
+/* Live: the between-sets superset partner card + planned-pairing note. */
+.live-superset {
+  border-left: 4px solid var(--signal);
+}
+
+.live-ss-note {
+  color: var(--signal);
+  font-weight: 600;
+}
+
+/* Superset stamp on read-only lists (steps overlay, live logged rows). */
+.ss-chip {
+  flex: none;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  padding: 2px 5px 1px;
+  border: 1.5px solid var(--signal);
+  color: var(--signal);
 }
 
 .routine-ex-row {

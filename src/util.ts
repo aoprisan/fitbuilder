@@ -102,6 +102,7 @@ export function cloneRoutineExercise(e: RoutineExercise): RoutineExercise {
     ...(e.secondaryMuscles && e.secondaryMuscles.length > 0
       ? { secondaryMuscles: [...e.secondaryMuscles] }
       : {}),
+    ...(e.supersetWithPrevious === true ? { supersetWithPrevious: true } : {}),
   };
 }
 
@@ -254,9 +255,17 @@ export function sessionToSheet(session: TrainingSession): RoutineSheet {
       {
         title: session.name || "Session",
         tags: [formatSessionDate(session.startedAt)],
-        exercises: session.exercises.map((ex) => {
+        exercises: session.exercises.map((ex, i, all) => {
           const target = loggedSetsToTarget(ex);
-          return { name: ex.name, ...(target ? { target } : {}) };
+          // Re-link supersets: a row sharing the previous row's group id was
+          // performed back-to-back with it, so the shareable sheet keeps the pair.
+          const linked =
+            ex.supersetGroup !== undefined && all[i - 1]?.supersetGroup === ex.supersetGroup;
+          return {
+            name: ex.name,
+            ...(target ? { target } : {}),
+            ...(linked ? { supersetWithPrevious: true } : {}),
+          };
         }),
       },
     ],
