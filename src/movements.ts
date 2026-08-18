@@ -180,11 +180,16 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
   legs: [
     { id: "deadlift", name: "Deadlift", primaryMuscle: "legs", secondaryMuscles: ["glutes", "lower-back"], equipment: "barbell", referenceLoadKg: 150 },
     { id: "romanian-deadlift", name: "Romanian Deadlift", primaryMuscle: "legs", secondaryMuscles: ["glutes", "lower-back"], equipment: "barbell", referenceLoadKg: 120 },
-    { id: "barbell-squat", name: "Barbell Squat", primaryMuscle: "legs", secondaryMuscles: ["glutes", "lower-back"], equipment: "barbell", referenceLoadKg: 130, aliases: ["Back Squat", "Genuflexiuni cu Bara"] },
+    { id: "barbell-squat", name: "Barbell Squat", primaryMuscle: "legs", secondaryMuscles: ["glutes", "lower-back"], equipment: "barbell", referenceLoadKg: 130, aliases: ["Back Squat", "Barbell Back Squat", "Squat cu Bara", "Genuflexiuni cu Bara"] },
     { id: "dumbbell-squat", name: "Dumbbell Squat", primaryMuscle: "legs", secondaryMuscles: ["glutes"], equipment: "dumbbell", referenceLoadKg: 40, aliases: ["Goblet Squat", "Goblet Squats", "Genuflexiuni cu Gantere"] },
     { id: "bodyweight-squat", name: "Bodyweight Squat", primaryMuscle: "legs", secondaryMuscles: ["glutes"], equipment: "calisthenics", aliases: ["Squat", "Squats", "Genuflexiuni"] },
+    // Partner-loaded squat: the training partner riding on your back *is* the
+    // load, so it logs as bodyweight gear with their weight as the added kg —
+    // hence a reference near a person rather than the leg baseline.
+    { id: "partner-back-squat", name: "Partner Squat (Human on Back)", primaryMuscle: "legs", secondaryMuscles: ["glutes", "lower-back"], equipment: "calisthenics", referenceLoadKg: 70, aliases: ["Human on Back Squat", "Human Back Squat", "Piggyback Squat", "Partner Squat", "Partner Back Squat", "Genuflexiuni cu Partener", "Genuflexiuni cu Om in Spate"] },
     { id: "barbell-lunge", name: "Barbell Lunge", primaryMuscle: "legs", secondaryMuscles: ["glutes"], equipment: "barbell", referenceLoadKg: 60, aliases: ["Lunge", "Lunges", "Walking Lunge", "Fandari cu Bara"] },
     { id: "dumbbell-lunge", name: "Dumbbell Lunge", primaryMuscle: "legs", secondaryMuscles: ["glutes"], equipment: "dumbbell", referenceLoadKg: 24, aliases: ["Walking Lunges", "Dumbbell Lunges", "Fandari cu Gantere"] },
+    { id: "bodyweight-lunge", name: "Bodyweight Lunge", primaryMuscle: "legs", secondaryMuscles: ["glutes"], equipment: "calisthenics", aliases: ["Bodyweight Lunges", "Alternating Lunge", "Reverse Lunge", "Reverse Lunges", "Split Squat", "Fandari", "Fandari pe Loc"] },
     { id: "leg-press", name: "Leg Press", primaryMuscle: "legs", secondaryMuscles: [], equipment: "machine", referenceLoadKg: 200 },
     { id: "leg-extension", name: "Leg Extension", primaryMuscle: "legs", secondaryMuscles: [], equipment: "machine", referenceLoadKg: 70 },
     { id: "prone-leg-curl", name: "Prone Leg Curl", primaryMuscle: "legs", secondaryMuscles: [], equipment: "machine", referenceLoadKg: 55 },
@@ -195,6 +200,11 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
   calves: [
     { id: "calf-raise", name: "Standing Calf Raise", primaryMuscle: "calves", secondaryMuscles: [], equipment: "machine", aliases: ["Calf Raise", "Standing Calf Raise", "Standing Calf Raises"] },
     { id: "seated-calf-raise", name: "Seated Calf Raise", primaryMuscle: "calves", secondaryMuscles: [], equipment: "machine", aliases: ["Seated Calf Raises", "Sitting Calf Raise"] },
+    // Tibialis anterior (shin) work — the antagonist of the calf, so it rides the
+    // calves group. It handles a fraction of a calf raise's load, hence the low
+    // reference: each kg on the shins must count for far more than a kg of calves.
+    { id: "tibialis-raise", name: "Tibialis Raise", primaryMuscle: "calves", secondaryMuscles: [], equipment: "calisthenics", referenceLoadKg: 20, aliases: ["Tibia", "Tibia Raise", "Tibia Raises", "Tibialis", "Tibialis Raises", "Tibialis Anterior Raise", "Toe Raise", "Toe Raises", "Ridicari Varfuri", "Tibie"] },
+    { id: "tibialis-raise-machine", name: "Tibialis Raise Machine", primaryMuscle: "calves", secondaryMuscles: [], equipment: "machine", referenceLoadKg: 30, aliases: ["Tib Bar", "Tib Bar Raise", "Machine Tibialis Raise", "Dorsiflexion Machine"] },
     genericMovement("calves", "dumbbell"),
     genericMovement("calves", "barbell"),
   ],
