@@ -334,7 +334,10 @@ export function mountHistory(root: HTMLElement, nav: Nav): Cleanup {
     return h("section", { class: "card saved-item" }, [
       h("div", { class: "saved-info" }, [
         h("p", { class: "plan-name", text: s.name || t("Untitled session") }),
-        h("p", { class: "plan-meta", text: formatSessionDate(s.startedAt) }),
+        // Sessions named by their default date would repeat it verbatim here.
+        ...(s.name !== formatSessionDate(s.startedAt)
+          ? [h("p", { class: "plan-meta", text: formatSessionDate(s.startedAt) })]
+          : []),
         h("p", { class: "plan-meta", text: meta }),
         h("p", { class: "plan-meta", text: timingParts.join(" · ") }),
         ...(s.startFatigue !== undefined

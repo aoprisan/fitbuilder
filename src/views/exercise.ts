@@ -432,12 +432,12 @@ export function mountExercise(root: HTMLElement, _nav: Nav): Cleanup {
             setsLine.append(h("span", { class: "past-set-rir", text: `@${s.rir}` }));
           }
         });
+        // Sessions named by their default date would read "date · same date".
+        const date = formatSessionDate(e.session.startedAt);
+        const label = e.session.name && e.session.name !== date ? `${date} · ${e.session.name}` : date;
         groupsHost.append(
           h("div", { class: "past-session" }, [
-            h("p", {
-              class: "now-eyebrow",
-              text: `${formatSessionDate(e.session.startedAt)} · ${e.session.name}`,
-            }),
+            h("p", { class: "now-eyebrow", text: label }),
             setsLine,
           ]),
         );
