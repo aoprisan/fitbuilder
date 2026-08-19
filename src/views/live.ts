@@ -3,18 +3,9 @@ import {
   type ExerciseBenchmark,
   exerciseBenchmark,
   nextSetTarget,
-  type SessionAdherence,
-  sessionAdherence,
   type SetComparison,
 } from "../benchmark";
 import { clear, h } from "../dom";
-import {
-  estimateCalories,
-  estimateProteinG,
-  muscleBreakdown,
-  readEffort,
-  readHydration,
-} from "../effort";
 import { parseTargetReps } from "../execute";
 import {
   analyzeSessionInClaude,
@@ -48,7 +39,6 @@ import {
   movementsForMuscle,
   muscleShares,
 } from "../movements";
-import { latestBodyweight } from "../bodyweightStore";
 import { suggestOverload } from "../overload";
 import { platesPerSide, BAR_KG } from "../plates";
 import {
@@ -62,9 +52,9 @@ import { detectPrs, priorSetsFor, type PrHit } from "../records";
 import { muscleRecovery, type MuscleRecovery, recoveryColor } from "../recovery";
 import { compoundMovementsByFrequency, exerciseKey, type ExerciseKey, musclesByFrequency } from "../stats";
 import type { Cleanup, Nav } from "../router";
+import { bySectionRuns, renderSessionSummary } from "./sessionSummary";
 import { showUndo } from "./snackbar";
-import { saveSheet } from "../sheetStorage";
-import { setActiveLog, setEditingSheet, setSheetFlash, state } from "../state";
+import { setActiveLog, state } from "../state";
 import {
   EQUIPMENT_LABELS,
   FATIGUE_LABELS,
@@ -82,7 +72,6 @@ import {
   type WorkSet,
 } from "../types";
 import {
-  cloneSheet,
   formatCardioSet,
   formatClock,
   formatDuration,
@@ -92,7 +81,6 @@ import {
   round2,
   sessionDurationSec,
   sessionSetCount,
-  sessionToSheet,
   sessionVolume,
 } from "../util";
 import { warmupRamp } from "../warmup";
@@ -386,24 +374,6 @@ function repTally(done: number, target: number): HTMLElement[] {
   ];
 }
 
-/**
- * Group consecutive items by their (optional) `section`, preserving order — the
- * one place the "emit a phase header when the section changes" logic lives, so
- * the logged list and the adherence panel stay in sync.
- */
-function bySectionRuns<T extends { section?: string }>(
-  items: readonly T[],
-): { section: string; items: T[] }[] {
-  const runs: { section: string; items: T[] }[] = [];
-  for (const it of items) {
-    const section = it.section ?? "";
-    const last = runs[runs.length - 1];
-    if (last && last.section === section) last.items.push(it);
-    else runs.push({ section, items: [it] });
-  }
-  return runs;
-}
-
 /** A prescribed set as "10 @ 20 kg" (or "10 reps" when bodyweight / no load). */
 function fmtPlanSet(st: SetTarget): string {
   return st.loadKg !== undefined && st.loadKg > 0
@@ -489,50 +459,6 @@ function renderBenchmark(ex: LoggedExercise, bm: ExerciseBenchmark): HTMLElement
     children.push(h("div", { class: "bench-sets" }, bm.sets.map((c) => renderBenchRow(ex.equipment, c))));
   }
   return h("section", { class: "card live-bench" }, children);
-}
-
-/** Session "adherence to plan" panel — overall % bar + per-exercise prescribed-vs-done. */
-function renderAdherence(a: SessionAdherence): HTMLElement {
-  const pct = Math.min(100, a.pct);
-  const fill = h("div", { class: "effort-bar-fill" });
-  fill.style.width = `${pct}%`;
-  // Per-exercise rows, with a phase sub-header inserted whenever the section
-  // changes — so a followed structured session reads Warm-up / Main / … in order.
-  const rows: HTMLElement[] = [];
-  bySectionRuns(a.rows).forEach((run) => {
-    if (run.section !== "") {
-      rows.push(h("p", { class: "live-section-label", text: run.section }));
-    }
-    run.items.forEach((r) => {
-      const bm = r.benchmark;
-      const stat =
-        bm.targetLoadKg !== null
-          ? `${bm.doneReps}/${bm.prescribedReps} ${t("reps")} · ${bm.loggedLoadKg ?? 0}/${bm.targetLoadKg} kg`
-          : `${bm.doneReps}/${bm.prescribedReps} ${t("reps")}`;
-      rows.push(
-        h("div", { class: "muscle-row" }, [
-          h("span", { class: "muscle-name", text: r.name }),
-          h("span", { class: "muscle-stat", text: stat }),
-        ]),
-      );
-    });
-  });
-  return h("div", { class: "summary-adherence" }, [
-    h("div", { class: "adherence-head" }, [
-      h("span", { class: "summary-label", text: t("Adherence to plan") }),
-      h("span", { class: "adherence-pct", text: t("{0}% to plan").replace("{0}", String(a.pct)) }),
-    ]),
-    h(
-      "div",
-      {
-        class: "effort-bar",
-        role: "progressbar",
-        aria: { valuemin: "0", valuemax: "100", valuenow: String(pct), label: t("Adherence to plan") },
-      },
-      [fill],
-    ),
-    ...rows,
-  ]);
 }
 
 /** Reps-in-reserve chips shown when logging a set. "4+" stores 4 (fresh — minimal stimulus). */
@@ -711,7 +637,7 @@ type Stage = "list" | "select" | "exercise";
 /** Where we are within a single exercise. */
 type SetSub = "idle" | "running" | "logging" | "resting";
 
-export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
+export function mountLive(root: HTMLElement, _nav: Nav): Cleanup {
   const container = h("div", { class: "view view-live" });
   root.appendChild(container);
 
@@ -1071,18 +997,6 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     render();
   }
 
-  /** Save a logged session as a shareable routine, then open it in the Routines view. */
-  function saveAsRoutine(s: TrainingSession): void {
-    if (sessionSetCount(s) === 0) return;
-    const sheet = saveSheet(sessionToSheet(s));
-    setEditingSheet(cloneSheet(sheet));
-    setSheetFlash(
-      t("Saved “{0}” as a routine — share it from here.").replace("{0}", sheet.name),
-      "ok",
-    );
-    nav.go("sheet");
-  }
-
   function endSession(): void {
     stopRaf();
     const s = state.activeLog;
@@ -1306,91 +1220,6 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   function cancelEditSet(): void {
     editingSetIndex = null;
     render();
-  }
-
-  // ──────────────────────── Session summary panel ─────────────────────────────
-
-  /**
-   * Effort gauge, hydration cue, per-muscle work (volume + time) and a recovery
-   * protein estimate for a session — running or completed. The effort gauge is
-   * calibrated against the user's other sessions in `allSessions`. Returns null
-   * until the session has at least one logged set.
-   */
-  function renderSessionSummary(
-    session: TrainingSession,
-    allSessions: TrainingSession[],
-  ): HTMLElement | null {
-    if (sessionSetCount(session) === 0) return null;
-
-    const effort = readEffort(session, allSessions);
-    const hydration = readHydration(effort);
-    const muscles = muscleBreakdown(session);
-    const adherence = sessionAdherence(session);
-    const bodyweight = latestBodyweight()?.kg;
-    const protein = estimateProteinG(effort, muscles.length, bodyweight);
-    const calories = estimateCalories(effort, bodyweight);
-    const pct = Math.round(Math.min(1, effort.ratio) * 100);
-
-    const fill = h("div", { class: "effort-bar-fill" });
-    fill.style.width = `${Math.min(1, effort.ratio) * 100}%`;
-
-    const meta =
-      effort.vsTypicalPct !== null
-        ? t("{0}% of your usual session").replace("{0}", String(effort.vsTypicalPct))
-        : t("Building your baseline — fills toward a full session");
-
-    const glasses = `${hydration.glasses} ${hydration.glasses === 1 ? t("glass") : t("glasses")}`;
-
-    const muscleRows = muscles.map((m) =>
-      h("div", { class: "muscle-row" }, [
-        h("span", { class: "muscle-name", text: t(MUSCLE_LABELS[m.muscle]) }),
-        h("span", {
-          class: "muscle-stat",
-          text:
-            m.muscle === "cardio"
-              ? formatClock(m.timeSec)
-              : `${m.volume > 0 ? `${m.volume} kg` : t("Bodyweight")} · ${formatClock(m.timeSec)}`,
-        }),
-      ]),
-    );
-
-    return h("section", { class: "card live-effort", dataset: { tier: effort.tier } }, [
-      h("div", { class: "effort-head" }, [
-        h("span", { class: "effort-eyebrow", text: t("Session effort") }),
-        h("span", { class: "effort-tier", text: effort.label }),
-      ]),
-      h(
-        "div",
-        {
-          class: "effort-bar",
-          role: "progressbar",
-          aria: { valuemin: "0", valuemax: "100", valuenow: String(pct), label: t("Session effort") },
-        },
-        [fill],
-      ),
-      h("p", { class: "effort-meta", text: meta }),
-      ...(adherence ? [renderAdherence(adherence)] : []),
-      h("div", { class: "summary-muscles" }, [
-        h("span", { class: "summary-label", text: t("Muscles worked") }),
-        ...muscleRows,
-      ]),
-      h("div", { class: "hydration-row" }, [
-        h("span", { class: "hydration-label", text: t("Hydration") }),
-        h("span", {
-          class: "hydration-figure",
-          text: `≈ ${hydration.liters.toFixed(1)} L · ${glasses}`,
-        }),
-      ]),
-      h("p", { class: "hydration-note", text: hydration.note }),
-      h("div", { class: "protein-row" }, [
-        h("span", { class: "protein-label", text: t("Protein to recover") }),
-        h("span", { class: "protein-figure", text: `≈ ${protein} g` }),
-      ]),
-      h("div", { class: "calories-row" }, [
-        h("span", { class: "calories-label", text: t("Energy burned") }),
-        h("span", { class: "calories-figure", text: `≈ ${calories} kcal` }),
-      ]),
-    ]);
   }
 
   // ───────────────────────────── List screen ──────────────────────────────────
@@ -1635,13 +1464,6 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       ...(sets > 0
         ? [
             h("div", { class: "btn-row saved-actions" }, [
-              h("button", {
-                class: "btn btn-small",
-                type: "button",
-                text: t("Save as routine"),
-                aria: { label: t("save {0} as a shareable routine").replace("{0}", s.name || t("this session")) },
-                on: { click: () => saveAsRoutine(s) },
-              }),
               h("button", {
                 class: "btn btn-small",
                 type: "button",

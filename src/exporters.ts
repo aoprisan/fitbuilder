@@ -1,18 +1,9 @@
-import { renderAdherenceToCanvas } from "./adherenceRender";
 import { track } from "./analytics";
-import { renderAppCardToCanvas } from "./appCardRender";
 import { BODY_METRIC_LABELS, type BodyMetric } from "./bodyMap";
 import { renderBodyMapToCanvas } from "./bodyMapRender";
-import { APP_INSTALL_URL } from "./canvasKit";
 import { dataUrlToBytes, jpegToPdf } from "./pdf";
-import { renderRecoveryToCanvas } from "./recoveryRender";
 import { renderSessionToCanvas } from "./sessionRender";
-import { renderSheetToCanvas } from "./sheetRender";
-import { renderStatsToCanvas } from "./statsRender";
-import type { ProgressFilter } from "./stats";
-import { renderRoutineQrCanvas } from "./qr";
-import { encodeRoutineLink } from "./shareRoutine";
-import type { RoutineSheet, TrainingSession } from "./types";
+import type { TrainingSession } from "./types";
 import { sessionsToJson, sessionsToMarkdown, sessionsToXml, slug } from "./util";
 
 // Web Share API (Level 2, with files) isn't in every lib.dom version; describe
@@ -159,12 +150,6 @@ export function analyzeSessionInClaude(session: TrainingSession): Promise<Analyz
   );
 }
 
-/** Hand a plan-building prompt to Claude (share sheet on phones, clipboard + new chat on desktop). */
-export function startPlanInClaude(prompt: string): Promise<AnalyzeResult> {
-  track("claude_plan", { via: "share" });
-  return shareForAnalysis(prompt, "fitbuilder-plan.md", "Build my training plan");
-}
-
 export type CopyResult = "copied" | "downloaded";
 
 /** Copy a Markdown report to the clipboard so it can be pasted into any AI; download as a backstop. */
@@ -182,36 +167,6 @@ export function copySessionsPrompt(sessions: TrainingSession[]): Promise<CopyRes
 /** Copy one session as a Markdown analysis prompt for any AI. */
 export function copySessionPrompt(session: TrainingSession): Promise<CopyResult> {
   return copyForAnalysis(sessionsToMarkdown([session]), `${sessionSlug(session)}.md`);
-}
-
-/** Copy the plan-building prompt to the clipboard so it can be pasted into any AI; download as a backstop. */
-export function copyPlanPrompt(prompt: string): Promise<CopyResult> {
-  track("claude_plan", { via: "copy" });
-  return copyForAnalysis(prompt, "fitbuilder-plan.md");
-}
-
-/** Hand a "plan my next session" prompt to Claude (share sheet on phones, clipboard + new chat on desktop). */
-export function startTargetInClaude(prompt: string): Promise<AnalyzeResult> {
-  track("claude_target", { via: "share" });
-  return shareForAnalysis(prompt, "fitbuilder-next-session.md", "Plan my next session");
-}
-
-/** Copy a "plan my next session" prompt to the clipboard so it can be pasted into any AI; download as a backstop. */
-export function copyTargetPrompt(prompt: string): Promise<CopyResult> {
-  track("claude_target", { via: "copy" });
-  return copyForAnalysis(prompt, "fitbuilder-next-session.md");
-}
-
-/** Hand a "build a set-based block" prompt to Claude (share sheet on phones, clipboard + new chat on desktop). */
-export function startRoutineInClaude(prompt: string): Promise<AnalyzeResult> {
-  track("claude_routine", { via: "share" });
-  return shareForAnalysis(prompt, "fitbuilder-routine.md", "Build my training block");
-}
-
-/** Copy a "build a set-based block" prompt to the clipboard so it can be pasted into any AI; download as a backstop. */
-export function copyRoutinePrompt(prompt: string): Promise<CopyResult> {
-  track("claude_routine", { via: "copy" });
-  return copyForAnalysis(prompt, "fitbuilder-routine.md");
 }
 
 /** Download a rendered canvas as a PNG. */
@@ -260,138 +215,6 @@ async function shareCanvas(
   return "downloaded";
 }
 
-/** Render the sheet and download it as a PNG. */
-export async function exportSheetPng(sheet: RoutineSheet): Promise<void> {
-  await downloadCanvasPng(await renderSheetToCanvas(sheet), `${slug(sheet.name)}.png`);
-}
-
-/** Render the sheet and download it as a PDF. */
-export async function exportSheetPdf(sheet: RoutineSheet): Promise<void> {
-  downloadCanvasPdf(await renderSheetToCanvas(sheet), `${slug(sheet.name)}.pdf`);
-}
-
-/** Share the sheet as a PNG (native share sheet, PNG-download fallback). */
-export async function shareSheet(sheet: RoutineSheet): Promise<ShareResult> {
-  return shareCanvas(await renderSheetToCanvas(sheet), `${slug(sheet.name)}.png`, sheet.name);
-}
-
-export interface LinkShareResult {
-  /** "shared" via the OS share sheet, "copied" to the clipboard, or "manual" (neither worked). */
-  result: "shared" | "copied" | "manual";
-  /** The encoded share link — always returned so callers can show it for manual copy. */
-  url: string;
-}
-
-/**
- * Share an *importable* routine link (opens the routine in the recipient's app),
- * as opposed to shareSheet's PNG picture. Prefers the native share sheet (so it
- * can target WhatsApp directly), falls back to the clipboard, and as a last
- * resort returns "manual" so the caller can surface the URL to copy by hand.
- */
-export async function shareRoutineLink(sheet: RoutineSheet): Promise<LinkShareResult> {
-  const url = encodeRoutineLink(sheet);
-  track("share", { format: "link" });
-  const nav = shareNav();
-
-  if (typeof nav.share === "function") {
-    try {
-      await nav.share({ title: sheet.name, text: `Routine: ${sheet.name}`, url });
-      return { result: "shared", url };
-    } catch (err) {
-      // User dismissed the share sheet — a completed interaction, not a failure.
-      if (err instanceof DOMException && err.name === "AbortError") return { result: "shared", url };
-      // Anything else: fall through to the clipboard.
-    }
-  }
-
-  try {
-    await navigator.clipboard.writeText(url);
-    return { result: "copied", url };
-  } catch {
-    return { result: "manual", url };
-  }
-}
-
-export interface AppShareResult {
-  /** "shared" via the OS share sheet, or "downloaded" when the PNG fell back to a file. */
-  result: ShareResult;
-  /** The install URL — always returned (and copied) so callers can show it for manual paste. */
-  url: string;
-}
-
-/**
- * Share the app itself: a branded PNG invite (the Gym Log mark + install URL)
- * plus the link. Prefers the native share sheet (file + url + text, so it can
- * target WhatsApp directly), falling back to a PNG download. The install URL is
- * always copied to the clipboard too, so it's ready to paste either way.
- */
-export async function shareApp(): Promise<AppShareResult> {
-  const url = APP_INSTALL_URL;
-  void copyText(url); // best-effort backstop; leaves the link on the clipboard regardless
-  const blob = await canvasToBlob(await renderAppCardToCanvas(), "image/png");
-  const file = new File([blob], "gym-log.png", { type: "image/png" });
-  track("share", { format: "app" });
-
-  const nav = shareNav();
-  if (nav.share && nav.canShare && nav.canShare({ files: [file] })) {
-    try {
-      await nav.share({ files: [file], title: "Gym Log", text: `Gym Log · Training Ledger\n${url}`, url });
-      return { result: "shared", url };
-    } catch (err) {
-      // A dismissed share sheet is a completed interaction, not a failure.
-      if (err instanceof DOMException && err.name === "AbortError") return { result: "shared", url };
-      // Anything else (rare): fall through to a download.
-    }
-  }
-
-  downloadBlob(blob, file.name);
-  return { result: "downloaded", url };
-}
-
-/** Slug for a sheet's adherence report, e.g. "push-day-adherence". */
-function adherenceSlug(sheet: RoutineSheet): string {
-  return `${slug(sheet.name)}-adherence`;
-}
-
-/** Render a sheet's adherence report (runs vs plan) and download it as a PNG. */
-export async function exportAdherencePng(
-  sheet: RoutineSheet,
-  allSessions: TrainingSession[],
-): Promise<void> {
-  await downloadCanvasPng(
-    await renderAdherenceToCanvas(sheet, allSessions),
-    `${adherenceSlug(sheet)}.png`,
-  );
-}
-
-/** Render a sheet's adherence report and download it as a PDF. */
-export async function exportAdherencePdf(
-  sheet: RoutineSheet,
-  allSessions: TrainingSession[],
-): Promise<void> {
-  downloadCanvasPdf(
-    await renderAdherenceToCanvas(sheet, allSessions),
-    `${adherenceSlug(sheet)}.pdf`,
-  );
-}
-
-/** Share a sheet's adherence report as a PNG (native share sheet, download fallback). */
-export async function shareAdherence(
-  sheet: RoutineSheet,
-  allSessions: TrainingSession[],
-): Promise<ShareResult> {
-  return shareCanvas(
-    await renderAdherenceToCanvas(sheet, allSessions),
-    `${adherenceSlug(sheet)}.png`,
-    `${sheet.name} — adherence`,
-  );
-}
-
-/** Render a routine's QR code and download it as a PNG (to print for a session). */
-export async function exportRoutineQrPng(sheet: RoutineSheet): Promise<void> {
-  await downloadCanvasPng(await renderRoutineQrCanvas(sheet), `${slug(sheet.name)}-qr.png`);
-}
-
 /** Slug for a session recap file, e.g. "push-day-recap". */
 function sessionSlug(session: TrainingSession): string {
   return `${slug(session.name || "session")}-recap`;
@@ -423,55 +246,6 @@ export async function shareSession(
     `${sessionSlug(session)}.png`,
     session.name || "Session recap",
   );
-}
-
-/** Date-stamped filename for a stats report, e.g. "gym-stats-2026-05-22". */
-function statsSlug(): string {
-  return `gym-stats-${new Date().toISOString().slice(0, 10)}`;
-}
-
-/** Render the stats report for a scope and download it as a PNG. */
-export async function exportStatsPng(
-  sessions: TrainingSession[],
-  filter: ProgressFilter,
-): Promise<void> {
-  await downloadCanvasPng(await renderStatsToCanvas(sessions, filter), `${statsSlug()}.png`);
-}
-
-/** Render the stats report and download it as a PDF. */
-export async function exportStatsPdf(
-  sessions: TrainingSession[],
-  filter: ProgressFilter,
-): Promise<void> {
-  downloadCanvasPdf(await renderStatsToCanvas(sessions, filter), `${statsSlug()}.pdf`);
-}
-
-/** Share the stats report as a PNG (native share sheet, download fallback). */
-export async function shareStats(
-  sessions: TrainingSession[],
-  filter: ProgressFilter,
-): Promise<ShareResult> {
-  return shareCanvas(await renderStatsToCanvas(sessions, filter), `${statsSlug()}.png`, "Training stats");
-}
-
-/** Date-stamped filename for a recovery board, e.g. "gym-recovery-2026-05-22". */
-function recoverySlug(): string {
-  return `gym-recovery-${new Date().toISOString().slice(0, 10)}`;
-}
-
-/** Render the recovery board and download it as a PNG. */
-export async function exportRecoveryPng(sessions: TrainingSession[]): Promise<void> {
-  await downloadCanvasPng(await renderRecoveryToCanvas(sessions), `${recoverySlug()}.png`);
-}
-
-/** Render the recovery board and download it as a PDF. */
-export async function exportRecoveryPdf(sessions: TrainingSession[]): Promise<void> {
-  downloadCanvasPdf(await renderRecoveryToCanvas(sessions), `${recoverySlug()}.pdf`);
-}
-
-/** Share the recovery board as a PNG (native share sheet, download fallback). */
-export async function shareRecovery(sessions: TrainingSession[]): Promise<ShareResult> {
-  return shareCanvas(await renderRecoveryToCanvas(sessions), `${recoverySlug()}.png`, "Recovery");
 }
 
 /** Date-stamped filename for a body map, e.g. "gym-body-map-fatigue-2026-05-22". */

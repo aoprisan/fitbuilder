@@ -1,36 +1,25 @@
 import "./styles.css";
 import { track } from "./analytics";
 import { backupFilename, buildBackup, restoreBackup } from "./backup";
+import { latestBodyweight, logBodyweight } from "./bodyweightStore";
 import { clear, h } from "./dom";
 import { forceAppUpdate, registerServiceWorker } from "./pwa";
-import { sheetToSession } from "./log";
-import { clearProgress } from "./liveProgress";
-import { saveSession } from "./logStorage";
 import type { Cleanup, Nav, ViewName } from "./router";
-import { importRoutineFromUrl, urlWithoutRoutine } from "./shareRoutine";
-import { saveSheet } from "./sheetStorage";
-import { setActiveLog, setEditingSheet, setExecuting, setSheetFlash, state } from "./state";
-import { type AppMode, loadMode, saveMode } from "./mode";
 import { getTheme, setTheme, type Theme, THEMES } from "./theme";
 import { getLang, type Lang, onLangChange, registerTranslations, setLang, t } from "./i18n";
-import { cloneSheet, formatSessionDate } from "./util";
+import { formatSessionDate } from "./util";
 import { mountBody } from "./views/body";
-import { mountClaudeRoutine } from "./views/claudeRoutine";
-import { mountClaudeStart } from "./views/claudeStart";
-import { mountExecute } from "./views/execute";
-import { mountHome } from "./views/home";
+import { mountExercise } from "./views/exercise";
+import { mountHistory } from "./views/history";
 import { mountLive } from "./views/live";
-import { mountRecovery } from "./views/recovery";
-import { mountSavedRoutines } from "./views/savedRoutines";
-import { mountSheet } from "./views/sheet";
 import { dismissSnackbar } from "./views/snackbar";
-import { mountStats } from "./views/stats";
-import { mountTrain } from "./views/train";
-import { mountWeekly } from "./views/weekly";
 
-// Device-maintenance strings — these controls live in the Settings sheet (moved
-// out of Home so daily screens lead with training actions, not app admin).
+// Chrome strings — the tab bar and the Settings sheet (device maintenance,
+// backup, bodyweight and the about block).
 registerTranslations({
+  Body: "Corp",
+  Train: "Antrenament",
+  History: "Istoric",
   "Update app": "Actualizează aplicația",
   "Update app to the latest version": "Actualizează aplicația la cea mai recentă versiune",
   "Updating…": "Se actualizează…",
@@ -38,18 +27,24 @@ registerTranslations({
   "Build {0}": "Versiune {0}",
   Data: "Date",
   "Clear all saved data": "Șterge toate datele salvate",
-  "Permanently delete every routine, logged session, personal record and setting stored on this device. This cannot be undone.":
-    "Șterge definitiv fiecare rutină, sesiune înregistrată, record personal și setare stocate pe acest dispozitiv. Această acțiune nu poate fi anulată.",
-  "Delete all saved data on this device? This permanently removes every routine, logged session, personal record and setting, and cannot be undone.":
-    "Ștergi toate datele salvate pe acest dispozitiv? Aceasta elimină definitiv fiecare rutină, sesiune înregistrată, record personal și setare și nu poate fi anulată.",
+  "Permanently delete every logged session, personal record and setting stored on this device. This cannot be undone.":
+    "Șterge definitiv fiecare sesiune înregistrată, record personal și setare stocate pe acest dispozitiv. Această acțiune nu poate fi anulată.",
+  "Delete all saved data on this device? This permanently removes every logged session, personal record and setting, and cannot be undone.":
+    "Ștergi toate datele salvate pe acest dispozitiv? Aceasta elimină definitiv fiecare sesiune înregistrată, record personal și setare și nu poate fi anulată.",
   Backup: "Copie de rezervă",
-  "Save everything stored on this device — routines, sessions, records and settings — as one file, or restore a backup file (e.g. on a new phone).":
-    "Salvează tot ce este stocat pe acest dispozitiv — rutine, sesiuni, recorduri și setări — într-un singur fișier, sau restaurează o copie de rezervă (de ex. pe un telefon nou).",
+  "Save everything stored on this device — sessions, records and settings — as one file, or restore a backup file (e.g. on a new phone).":
+    "Salvează tot ce este stocat pe acest dispozitiv — sesiuni, recorduri și setări — într-un singur fișier, sau restaurează o copie de rezervă (de ex. pe un telefon nou).",
   "Download backup": "Descarcă copia de rezervă",
   "Restore backup": "Restaurează copia",
-  "Restore this backup? Routines, sessions, records and settings in the file will replace this device's copies.":
-    "Restaurezi această copie de rezervă? Rutinele, sesiunile, recordurile și setările din fișier vor înlocui copiile de pe acest dispozitiv.",
+  "Restore this backup? Sessions, records and settings in the file will replace this device's copies.":
+    "Restaurezi această copie de rezervă? Sesiunile, recordurile și setările din fișier vor înlocui copiile de pe acest dispozitiv.",
   "That file is not a Gym Log backup.": "Acel fișier nu este o copie de rezervă Gym Log.",
+  Bodyweight: "Greutate corporală",
+  "Your bodyweight sharpens the protein and calorie estimates.":
+    "Greutatea ta corporală îmbunătățește estimările de proteine și calorii.",
+  "Bodyweight (kg)": "Greutate corporală (kg)",
+  Save: "Salvează",
+  "Saved.": "Salvat.",
 });
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -86,83 +81,32 @@ interface NavItem {
   icon: () => SVGElement;
 }
 
-const NAV_HOME: NavItem = {
-  name: "home",
-  label: "Home",
-  icon: () => navIcon("M3 10.5 12 3l9 7.5M5.5 9.5V20h13V9.5M9.5 20v-6h5v6"),
-};
-const NAV_TRAIN: NavItem = {
-  name: "train",
-  label: "Train",
-  icon: () => navIcon("M2 10v4", "M5 7v10", "M19 7v10", "M22 10v4", "M5 12h14"),
-};
-const NAV_ROUTINES: NavItem = {
-  name: "sheet",
-  label: "Routines",
-  icon: () => navIcon("M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"),
-};
-const NAV_STATS: NavItem = {
-  name: "stats",
-  label: "Stats",
-  icon: () => navIcon("M4 20h16", "M7 20v-6", "M12 20V8", "M17 20v-9"),
-};
-const NAV_RECOVERY: NavItem = {
-  name: "recovery",
-  label: "Recovery",
-  icon: () =>
-    navIcon("M12 20s-6.5-4.2-6.5-8.5A3.5 3.5 0 0 1 12 8a3.5 3.5 0 0 1 6.5 3.5C18.5 15.8 12 20 12 20z"),
-};
-
-// Hard gate: each mode exposes only its audience's tabs. Student = the training
-// surfaces; Trainer = routine authoring + sharing (the share flow lives inside
-// Routines). Other views (live/execute/weekly/claudeStart) are reached via
-// nav.go from inside these and map back onto a visible tab for highlighting.
-const NAV_BY_MODE: Record<AppMode, ReadonlyArray<NavItem>> = {
-  student: [NAV_HOME, NAV_TRAIN, NAV_STATS, NAV_RECOVERY],
-  trainer: [NAV_HOME, NAV_ROUTINES],
-};
+// The three tabs of the readiness-first shell: Body (the fatigue map home),
+// Train (the live logger) and History (past sessions + Claude analysis).
+// Exercise detail is a pushed screen reached from History and the picker.
+const NAV_ITEMS: ReadonlyArray<NavItem> = [
+  {
+    name: "body",
+    label: "Body",
+    icon: () =>
+      navIcon("M12 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6z", "M12 9v6M8 12h8M12 15l-3.5 6M12 15l3.5 6"),
+  },
+  {
+    name: "live",
+    label: "Train",
+    icon: () => navIcon("M2 10v4", "M5 7v10", "M19 7v10", "M22 10v4", "M5 12h14"),
+  },
+  {
+    name: "history",
+    label: "History",
+    icon: () => navIcon("M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z", "M12 7v5l3.5 2"),
+  },
+];
 
 /** Which visible tab a given view belongs under (for active-state highlighting). */
 function tabForView(view: ViewName): ViewName {
-  if (view === "live" || view === "execute") return "train";
-  if (view === "weekly" || view === "body") return "stats";
-  if (view === "claudeStart" || view === "savedRoutines") return "home";
-  if (view === "claudeRoutine") return "stats";
+  if (view === "exercise") return "history";
   return view;
-}
-
-/**
- * If the app was opened from a routine share link (`#routine=<base64url>`),
- * import the routine into the library, strip the token from the URL so a
- * refresh won't re-import, and return the view to land on (or null when there's
- * no link). A trainer lands on the authoring view to edit/save it; a student
- * lands on Train, where the freshly imported routine is ready to run. Phase 2
- * (Capacitor) will call importRoutineFromUrl the same way from an appUrlOpen
- * listener.
- */
-function consumeSharedRoutine(mode: AppMode): ViewName | null {
-  let sheet;
-  try {
-    sheet = importRoutineFromUrl(window.location.href);
-  } catch (err) {
-    // A token was present but unreadable — clear it and report on the Routines
-    // view (the only flash surface; rare enough to accept in either mode).
-    history.replaceState(null, "", urlWithoutRoutine(window.location.href));
-    setSheetFlash(err instanceof Error ? err.message : "Couldn't open that routine link.", "err");
-    return "sheet";
-  }
-  if (!sheet) return null;
-
-  history.replaceState(null, "", urlWithoutRoutine(window.location.href));
-  const stored = saveSheet(sheet);
-  setEditingSheet(cloneSheet(stored));
-  track("routine_imported", { via: "link" });
-  if (mode === "trainer") {
-    setSheetFlash(`Imported "${stored.name}" from a shared link. Edit or save it here.`, "ok");
-    return "sheet";
-  }
-  // Student: it's now in the library — land on Train to run it.
-  return "train";
 }
 
 function boot(): void {
@@ -170,8 +114,7 @@ function boot(): void {
   if (!app) throw new Error("Missing #app root element.");
 
   let cleanup: Cleanup | null = null;
-  let currentView: ViewName = "home";
-  let mode: AppMode = loadMode();
+  let currentView: ViewName = "body";
 
   const viewHost = h("main", { class: "view-host", id: "view" });
 
@@ -179,46 +122,10 @@ function boot(): void {
 
   // Every view name navigate() can mount — the whitelist popstate restores from,
   // so a stale or foreign history entry can never mount an unknown view.
-  const ALL_VIEWS: ReadonlyArray<ViewName> = [
-    "home",
-    "train",
-    "sheet",
-    "savedRoutines",
-    "execute",
-    "live",
-    "stats",
-    "weekly",
-    "recovery",
-    "body",
-    "claudeStart",
-    "claudeRoutine",
-  ];
+  const ALL_VIEWS: ReadonlyArray<ViewName> = ["body", "live", "history", "exercise"];
 
   const nav: Nav = {
     go: (view) => navigate(view),
-    editSheet: (sheet) => {
-      setEditingSheet(sheet);
-      navigate("sheet");
-    },
-    runSheet: (sheet) => {
-      setExecuting(sheet);
-      navigate("execute");
-    },
-    startLive: (sheet) => {
-      // If a session with logged work is open, confirm before swapping. The
-      // prior session is already persisted, so this only changes activeLog.
-      if (state.activeLog && state.activeLog.exercises.some((ex) => ex.sets.length > 0)) {
-        const ok = confirm(
-          t(
-            "A live session is in progress. Start a new one from this routine? Your current session is kept in the Live list.",
-          ),
-        );
-        if (!ok) return;
-      }
-      setActiveLog(saveSession(sheetToSession(sheet)));
-      clearProgress(); // so mountLive's restore() won't overwrite the new session
-      navigate("live");
-    },
   };
 
   function navigate(view: ViewName, opts?: { push?: boolean }): void {
@@ -243,48 +150,24 @@ function boot(): void {
     clear(viewHost);
     let result: Cleanup | void;
     switch (view) {
-      case "home":
-        result = mountHome(viewHost, nav);
-        break;
-      case "train":
-        result = mountTrain(viewHost, nav);
-        break;
-      case "sheet":
-        result = mountSheet(viewHost, nav);
-        break;
-      case "savedRoutines":
-        result = mountSavedRoutines(viewHost, nav);
-        break;
-      case "execute":
-        result = mountExecute(viewHost, nav);
+      case "body":
+        result = mountBody(viewHost, nav);
         break;
       case "live":
         result = mountLive(viewHost, nav);
         break;
-      case "stats":
-        result = mountStats(viewHost, nav);
+      case "history":
+        result = mountHistory(viewHost, nav);
         break;
-      case "weekly":
-        result = mountWeekly(viewHost, nav);
-        break;
-      case "recovery":
-        result = mountRecovery(viewHost, nav);
-        break;
-      case "body":
-        result = mountBody(viewHost, nav);
-        break;
-      case "claudeStart":
-        result = mountClaudeStart(viewHost, nav);
-        break;
-      case "claudeRoutine":
-        result = mountClaudeRoutine(viewHost, nav);
+      case "exercise":
+        result = mountExercise(viewHost, nav);
         break;
     }
     cleanup = typeof result === "function" ? result : null;
     window.scrollTo(0, 0);
   }
 
-  // Empty nav shell; renderNav() fills it with the current mode's tabs.
+  // Empty nav shell; renderNav() fills it with the tabs.
   const navRow = h("nav", { class: "nav", aria: { label: "Primary" } });
 
   function highlightNav(): void {
@@ -299,7 +182,7 @@ function boot(): void {
   function renderNav(): void {
     clear(navRow);
     navButtons.clear();
-    for (const item of NAV_BY_MODE[mode]) {
+    for (const item of NAV_ITEMS) {
       const label = t(item.label);
       const btn = h("button", { class: "nav-btn", type: "button", aria: { label } }, [
         item.icon(),
@@ -312,50 +195,7 @@ function boot(): void {
     highlightNav();
   }
 
-  // Mode toggle (Student / Trainer): a hard gate that swaps the whole surface.
-  const modeButtons = new Map<AppMode, HTMLButtonElement>();
-  function highlightMode(): void {
-    for (const [m, btn] of modeButtons) {
-      const active = m === mode;
-      btn.classList.toggle("active", active);
-      btn.setAttribute("aria-pressed", active ? "true" : "false");
-    }
-  }
-  function setMode(next: AppMode): void {
-    if (next === mode) return;
-    mode = next;
-    saveMode(next);
-    track("mode_switch", { mode: next });
-    highlightMode();
-    renderNav();
-    navigate(next === "trainer" ? "sheet" : "train");
-  }
-  const modeToggle = h(
-    "div",
-    { class: "mode-toggle", role: "group", aria: { label: "App mode" } },
-    (["student", "trainer"] as const).map((m) => {
-      const label = t(m === "student" ? "Student" : "Trainer");
-      const btn = h("button", {
-        class: "mode-toggle-btn",
-        type: "button",
-        text: label,
-        aria: { label: `${label} mode` },
-      });
-      btn.addEventListener("click", () => setMode(m));
-      modeButtons.set(m, btn);
-      return btn;
-    }),
-  );
-  /** Re-stamp the mode labels after a language change (the toggle itself stays). */
-  function relabelMode(): void {
-    for (const [m, btn] of modeButtons) {
-      const label = t(m === "student" ? "Student" : "Trainer");
-      btn.textContent = label;
-      btn.setAttribute("aria-label", `${label} mode`);
-    }
-  }
-
-  // Language toggle (EN / RO): mirrors the mode toggle's segmented stamp. The
+  // Language toggle (EN / RO): a segmented stamp in the Settings sheet. The
   // codes are language-neutral, so only the active highlight changes on switch.
   let lang: Lang = getLang();
   const langButtons = new Map<Lang, HTMLButtonElement>();
@@ -388,8 +228,7 @@ function boot(): void {
 
   // Theme toggle (Light / Dark / Blueprint / Riso): same segmented stamp.
   // Flipping the pinned theme is instant — every surface paints from CSS custom
-  // properties — so unlike mode/language this needs no nav re-render or view
-  // remount.
+  // properties — so unlike language this needs no nav re-render or view remount.
   const THEME_LABEL: Record<Theme, string> = {
     light: "Light",
     dark: "Dark",
@@ -435,10 +274,8 @@ function boot(): void {
     }
   }
 
-  // Settings sheet — a gear in the masthead opens an overlay holding the cosmetic
-  // preferences (language + theme), so the mobile header no longer stacks three
-  // segmented controls above the fold. The Student/Trainer gate is a structural
-  // switch, not a preference, so it stays inline in the masthead.
+  // Settings sheet — a gear in the masthead opens an overlay holding the
+  // preferences (language + theme), bodyweight, updates, backup and data tools.
   const GEAR_RING = "M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z";
   const GEAR_COG =
     "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z";
@@ -489,6 +326,36 @@ function boot(): void {
     rel: "noopener",
     text: t("Terms"),
   });
+
+  // Bodyweight — sharpens the protein/calorie estimates on session summaries.
+  const bodyweightLabel = h("span", { class: "settings-label", text: t("Bodyweight") });
+  const bodyweightDesc = h("p", {
+    class: "settings-disclaimer",
+    text: t("Your bodyweight sharpens the protein and calorie estimates."),
+  });
+  const bodyweightInput = h("input", {
+    class: "plan-name-input oneRm-input",
+    type: "number",
+    inputmode: "decimal",
+    min: "0",
+    step: "0.5",
+    value: latestBodyweight() ? String(latestBodyweight()!.kg) : "",
+    placeholder: "kg",
+    aria: { label: t("Bodyweight (kg)") },
+  });
+  const bodyweightStatus = h("p", { class: "settings-disclaimer" });
+  const bodyweightSave = h("button", {
+    class: "btn btn-small",
+    type: "button",
+    text: t("Save"),
+  });
+  bodyweightSave.addEventListener("click", () => {
+    const kg = Number(bodyweightInput.value);
+    if (!Number.isFinite(kg) || kg <= 0) return;
+    logBodyweight(kg);
+    bodyweightStatus.textContent = t("Saved.");
+  });
+
   // Updates — pull the latest build and refresh this installed copy.
   const updatesLabel = h("span", { class: "settings-label", text: t("Updates") });
   const updateBtn = h("button", {
@@ -512,7 +379,7 @@ function boot(): void {
   const backupDesc = h("p", {
     class: "settings-disclaimer",
     text: t(
-      "Save everything stored on this device — routines, sessions, records and settings — as one file, or restore a backup file (e.g. on a new phone).",
+      "Save everything stored on this device — sessions, records and settings — as one file, or restore a backup file (e.g. on a new phone).",
     ),
   });
   const backupBtn = h("button", {
@@ -545,7 +412,7 @@ function boot(): void {
     if (
       !confirm(
         t(
-          "Restore this backup? Routines, sessions, records and settings in the file will replace this device's copies.",
+          "Restore this backup? Sessions, records and settings in the file will replace this device's copies.",
         ),
       )
     )
@@ -567,7 +434,7 @@ function boot(): void {
   const clearDataDesc = h("p", {
     class: "settings-disclaimer",
     text: t(
-      "Permanently delete every routine, logged session, personal record and setting stored on this device. This cannot be undone.",
+      "Permanently delete every logged session, personal record and setting stored on this device. This cannot be undone.",
     ),
   });
   const clearDataBtn = h("button", {
@@ -579,7 +446,7 @@ function boot(): void {
     if (
       !confirm(
         t(
-          "Delete all saved data on this device? This permanently removes every routine, logged session, personal record and setting, and cannot be undone.",
+          "Delete all saved data on this device? This permanently removes every logged session, personal record and setting, and cannot be undone.",
         ),
       )
     )
@@ -602,6 +469,12 @@ function boot(): void {
       h("div", { class: "settings-head" }, [settingsTitle, closeBtn]),
       h("div", { class: "settings-row" }, [langLabel, langToggle]),
       h("div", { class: "settings-row" }, [themeLabel, themeToggle]),
+      h("div", { class: "settings-row" }, [
+        bodyweightLabel,
+        bodyweightDesc,
+        h("div", { class: "settings-links" }, [bodyweightInput, bodyweightSave]),
+        bodyweightStatus,
+      ]),
       h("div", { class: "settings-row" }, [updatesLabel, updateBtn, buildStamp]),
       h("div", { class: "settings-row" }, [
         backupLabel,
@@ -664,6 +537,9 @@ function boot(): void {
     settingsTitle.textContent = t("Settings");
     langLabel.textContent = t("Language");
     themeLabel.textContent = t("Theme");
+    bodyweightLabel.textContent = t("Bodyweight");
+    bodyweightDesc.textContent = t("Your bodyweight sharpens the protein and calorie estimates.");
+    bodyweightSave.textContent = t("Save");
     updatesLabel.textContent = t("Updates");
     // Leave the button reading "Updating…" if an update is mid-flight.
     if (!updateBtn.disabled) updateBtn.textContent = t("Update app");
@@ -671,7 +547,7 @@ function boot(): void {
     buildStamp.textContent = t("Build {0}").replace("{0}", formatSessionDate(__BUILD_TIME__));
     dataLabel.textContent = t("Data");
     clearDataDesc.textContent = t(
-      "Permanently delete every routine, logged session, personal record and setting stored on this device. This cannot be undone.",
+      "Permanently delete every logged session, personal record and setting stored on this device. This cannot be undone.",
     );
     clearDataBtn.textContent = t("Clear all saved data");
     aboutLabel.textContent = t("About");
@@ -686,7 +562,6 @@ function boot(): void {
   // freshly mounted DOM picks up the new strings (views read t() at mount time).
   onLangChange(() => {
     highlightLang();
-    relabelMode();
     relabelTheme();
     relabelSettings();
     renderNav();
@@ -700,11 +575,10 @@ function boot(): void {
         type: "button",
         text: "GYM LOG",
         aria: { label: "Gym Log home" },
-        on: { click: () => nav.go("home") },
+        on: { click: () => nav.go("body") },
       }),
       settingsBtn,
     ]),
-    modeToggle,
     navRow,
   ]);
 
@@ -720,16 +594,15 @@ function boot(): void {
 
   app.append(header, viewHost);
   document.body.append(scrim);
-  highlightMode();
   highlightLang();
   highlightTheme();
   renderNav();
-  const initialView = consumeSharedRoutine(mode) ?? (mode === "trainer" ? "sheet" : "home");
+  const initialView: ViewName = "body";
   navigate(initialView, { push: false });
   // Stamp the first history entry with its view so backing all the way up
   // still restores a known screen (instead of a null state).
   history.replaceState({ view: initialView }, "");
-  track("pageview", { mode });
+  track("pageview");
 }
 
 registerServiceWorker();
