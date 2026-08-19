@@ -5111,3 +5111,84 @@ textarea:focus-visible {
   color: var(--ink-faint);
   margin-left: 1px;
 }
+
+/* ───────────────────── LIVE SESSION HUD · READINESS PICKER ──────────────────── */
+/* The sticky in-session strip (name · elapsed · sets · End) and the recovery
+   dots on the muscle picker chips. */
+
+.live-hud {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--ink);
+  color: var(--paper);
+  border: var(--rule);
+  box-shadow: 4px 4px 0 0 var(--ink);
+  padding: 9px 12px;
+}
+
+.live-hud-name {
+  font-family: var(--font-stamp);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.live-hud-time {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--signal);
+  flex: none;
+}
+
+.live-hud-sets {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.65;
+  flex: none;
+  margin-left: auto;
+}
+
+.live-hud-end {
+  flex: none;
+  font-family: var(--font-stamp);
+  font-size: 10px;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--paper);
+  border: 2px solid var(--paper);
+  padding: 8px 10px 6px;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.live-hud-end:hover {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.muscle-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+}
+
+.muscle-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid var(--ink);
+  margin-right: 6px;
+  flex: none;
+}
