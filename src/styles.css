@@ -4970,3 +4970,225 @@ textarea:focus-visible {
   letter-spacing: 0.02em;
   color: var(--ink-soft);
 }
+
+/* ─────────────── READINESS HOME · HISTORY · EXERCISE DETAIL ─────────────── */
+/* The redesigned readiness-first surfaces: the Body home header (status word +
+   tinted percentage stamp), History's exercise chips, and the Exercise detail
+   ledger (estimated-max headline, past-set rows). */
+
+.readiness-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.readiness-status {
+  font-family: var(--font-display);
+  font-size: clamp(26px, 8vw, 38px);
+  line-height: 0.9;
+  text-transform: uppercase;
+  margin: 6px 0 8px;
+}
+
+.readiness-pct {
+  font-family: var(--font-stamp);
+  font-size: 15px;
+  color: var(--on-press);
+  border: 2.5px solid var(--ink);
+  box-shadow: 4px 4px 0 0 var(--ink);
+  padding: 8px 10px 6px;
+  flex: none;
+}
+
+.last-session-card .plan-name {
+  margin-top: 4px;
+}
+
+.last-session-card .btn-row {
+  margin-top: 10px;
+}
+
+.history-ex-chips {
+  margin: 10px 0 2px;
+  gap: 6px;
+}
+
+.history-analyze .field {
+  margin-top: 10px;
+}
+
+/* Exercise index — one ledger row per logged movement. */
+.exercise-index {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.exercise-index-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: left;
+}
+
+.exercise-index-name {
+  flex: 1;
+}
+
+.exercise-index-count {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* Exercise detail — back row, estimated-max headline, past-session ledger. */
+.exercise-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.exercise-head .view-title {
+  margin: 0;
+  flex: 1;
+}
+
+.exercise-meta {
+  margin: 2px 0 0;
+}
+
+.oneRm-figure {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 8px 0 6px;
+}
+
+.oneRm-kg {
+  font-family: var(--font-display);
+  font-size: clamp(40px, 12vw, 56px);
+  line-height: 0.84;
+}
+
+.oneRm-unit {
+  font-family: var(--font-stamp);
+  font-size: 14px;
+  color: var(--brick);
+}
+
+.oneRm-row {
+  align-items: stretch;
+  margin-top: 6px;
+}
+
+.oneRm-input {
+  max-width: 110px;
+}
+
+.past-session {
+  padding: 10px 0;
+  border-top: 1.5px dashed var(--ink-faint);
+}
+
+.past-session:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.past-session .typical-last-sets {
+  margin-top: 4px;
+}
+
+.past-set-rir {
+  font-size: 0.72em;
+  vertical-align: super;
+  color: var(--ink-faint);
+  margin-left: 1px;
+}
+
+/* ───────────────────── LIVE SESSION HUD · READINESS PICKER ──────────────────── */
+/* The sticky in-session strip (name · elapsed · sets · End) and the recovery
+   dots on the muscle picker chips. */
+
+.live-hud {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--ink);
+  color: var(--paper);
+  border: var(--rule);
+  box-shadow: 4px 4px 0 0 var(--ink);
+  padding: 9px 12px;
+}
+
+.live-hud-name {
+  font-family: var(--font-stamp);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.live-hud-time {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--signal);
+  flex: none;
+}
+
+.live-hud-sets {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.65;
+  flex: none;
+  margin-left: auto;
+}
+
+.live-hud-end {
+  flex: none;
+  font-family: var(--font-stamp);
+  font-size: 10px;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--paper);
+  border: 2px solid var(--paper);
+  padding: 8px 10px 6px;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.live-hud-end:hover {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.muscle-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+}
+
+.muscle-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid var(--ink);
+  margin-right: 6px;
+  flex: none;
+}

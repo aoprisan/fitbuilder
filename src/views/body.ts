@@ -10,6 +10,7 @@ import {
   muscleScores,
 } from "../bodyMap";
 import { h } from "../dom";
+import { readEffort } from "../effort";
 import {
   canShareFiles,
   exportBodyMapPdf,
@@ -17,12 +18,36 @@ import {
   shareBodyMap,
 } from "../exporters";
 import { registerTranslations, t } from "../i18n";
-import { loadSessions } from "../logStorage";
+import { newTrainingSession } from "../log";
+import { clearProgress, loadProgress } from "../liveProgress";
+import { getSession, loadSessions, saveSession } from "../logStorage";
+import { muscleRecovery, overallStatus, recoveryColor, systemicRecovery } from "../recovery";
 import type { Cleanup, Nav } from "../router";
+import { setActiveLog, state } from "../state";
 import { MUSCLE_LABELS, type MuscleGroup, type TrainingSession } from "../types";
+import {
+  formatDuration,
+  formatSessionDate,
+  sessionDurationSec,
+  sessionSetCount,
+} from "../util";
 import { buildBodySvg } from "./bodySvg";
 
 registerTranslations({
+  // — Readiness header · start CTA · last session —
+  Readiness: "Pregătire",
+  Rested: "Odihnit",
+  Ready: "Pregătit",
+  Recovering: "În recuperare",
+  "Rest up": "Odihnește-te",
+  "Fully rested — good to train hard.": "Complet odihnit — poți antrena tare.",
+  "~{0}h until fully rested": "~{0}h până la odihnă completă",
+  "▶ Start session": "▶ Start sesiune",
+  "▶ Resume session": "▶ Reia sesiunea",
+  "Last session · {0}": "Ultima sesiune · {0}",
+  "{0} sets": "{0} serii",
+  "History ▸": "Istoric ▸",
+  "Untitled session": "Sesiune fără titlu",
   "Muscle map": "Hartă musculară",
   "Body map": "Hartă corporală",
   "Each muscle is shaded by the selected metric. Drag to spin the body; tap a muscle for its reading.":
@@ -102,35 +127,106 @@ export function mountBody(root: HTMLElement, nav: Nav): Cleanup {
   const container = h("div", { class: "view view-body" });
   root.appendChild(container);
 
-  const header = h("section", { class: "card" }, [
-    h("p", { class: "eyebrow", text: t("Muscle map") }),
-    h("h2", { class: "section-title", text: t("Body map") }),
-    h("p", {
-      class: "plan-meta",
-      text: t("Each muscle is shaded by the selected metric. Drag to spin the body; tap a muscle for its reading."),
+  // ── Readiness header — the "what state is my body in?" read that leads the
+  // home screen: systemic readiness as a status word + tinted percentage, with
+  // the muscles still on their recovery clocks (soonest-ready first).
+  const systemic = systemicRecovery(sessions);
+  const recovering = muscleRecovery(sessions).filter(
+    (r) => r.lastTrainedAt !== null && r.recovered < 1,
+  );
+  const pctChip = h("span", {
+    class: "readiness-pct",
+    text: `${Math.round(systemic.readiness * 100)}%`,
+  });
+  pctChip.style.background = recoveryColor(systemic.readiness);
+  const musclesLine =
+    recovering.length > 0
+      ? recovering
+          .slice(0, 3)
+          .map((r) => `${t(MUSCLE_LABELS[r.muscle])} ~${r.hoursRemaining}h`)
+          .join(" · ")
+      : t("Fully rested — good to train hard.");
+  const header = h("section", { class: "card readiness-card" }, [
+    h("div", { class: "readiness-head" }, [
+      h("div", {}, [
+        h("p", { class: "eyebrow", text: t("Readiness") }),
+        h("h2", { class: "readiness-status", text: t(overallStatus(systemic.readiness)) }),
+      ]),
+      pctChip,
+    ]),
+    h("p", { class: "plan-meta", text: musclesLine }),
+    ...(systemic.hoursRemaining > 0
+      ? [
+          h("p", {
+            class: "plan-meta",
+            text: t("~{0}h until fully rested").replace("{0}", String(systemic.hoursRemaining)),
+          }),
+        ]
+      : []),
+  ]);
+
+  // ── Primary action — start a fresh session, or resume the one in flight
+  // (a mid-set snapshot or an open session that hasn't been ended yet).
+  const progress = loadProgress();
+  const inFlight = (progress ? getSession(progress.sessionId) : null) ?? state.activeLog;
+  const startSession = (): void => {
+    setActiveLog(saveSession(newTrainingSession()));
+    clearProgress();
+    nav.go("live");
+  };
+  const cta = h("div", { class: "btn-row" }, [
+    h("button", {
+      class: "btn btn-accent btn-jumbo",
+      type: "button",
+      text: inFlight ? t("▶ Resume session") : t("▶ Start session"),
+      on: { click: () => (inFlight ? nav.go("live") : startSession()) },
     }),
   ]);
 
   if (sessions.length === 0) {
     container.append(
       header,
+      cta,
       h("section", { class: "card" }, [
         h("p", {
           class: "empty",
           text: t("No sessions logged yet — train a live session and your body map fills in here."),
         }),
-        h("div", { class: "btn-row" }, [
-          h("button", {
-            class: "btn btn-primary",
-            type: "button",
-            text: t("Start Live Session"),
-            on: { click: () => nav.go("live") },
-          }),
-        ]),
       ]),
     );
     return () => {};
   }
+
+  // ── Last session — the quick "what did I do?" recall, linking into History.
+  const past = [...sessions]
+    .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+    .find((s) => sessionSetCount(s) > 0);
+  const lastCard = past
+    ? (() => {
+        const durSec = sessionDurationSec(past);
+        const metaBits = [
+          t("{0} sets").replace("{0}", String(sessionSetCount(past))),
+          ...(durSec !== null ? [formatDuration(durSec)] : []),
+          readEffort(past, sessions).label,
+        ];
+        return h("section", { class: "card last-session-card" }, [
+          h("p", {
+            class: "eyebrow",
+            text: t("Last session · {0}").replace("{0}", formatSessionDate(past.startedAt)),
+          }),
+          h("p", { class: "plan-name", text: past.name || t("Untitled session") }),
+          h("p", { class: "plan-meta", text: metaBits.join(" · ") }),
+          h("div", { class: "btn-row" }, [
+            h("button", {
+              class: "btn btn-small",
+              type: "button",
+              text: t("History ▸"),
+              on: { click: () => nav.go("history") },
+            }),
+          ]),
+        ]);
+      })()
+    : null;
 
   let metric: BodyMetric = "fatigue";
   let scores = new Map<MuscleGroup, MuscleScore>();
@@ -169,21 +265,23 @@ export function mountBody(root: HTMLElement, nav: Nav): Cleanup {
   ]);
 
   const stageCard = h("section", { class: "card bodymap-card" }, [
+    h("p", {
+      class: "plan-meta",
+      text: t("Each muscle is shaded by the selected metric. Drag to spin the body; tap a muscle for its reading."),
+    }),
     metricToggle,
     stage,
     readout,
     legend,
   ]);
 
-  const navCard = h("section", { class: "card" }, [
-    h("div", { class: "btn-row" }, [
-      h("button", { class: "btn", type: "button", text: t("← Stats"), on: { click: () => nav.go("stats") } }),
-      h("button", { class: "btn", type: "button", text: t("Weekly"), on: { click: () => nav.go("weekly") } }),
-      h("button", { class: "btn", type: "button", text: t("Recovery"), on: { click: () => nav.go("recovery") } }),
-    ]),
-  ]);
-
-  container.append(header, stageCard, navCard, renderExportPanel(sessions, () => metric));
+  container.append(
+    header,
+    cta,
+    stageCard,
+    ...(lastCard ? [lastCard] : []),
+    renderExportPanel(sessions, () => metric),
+  );
 
   function highlightMetric(): void {
     for (const [m, btn] of metricButtons) {

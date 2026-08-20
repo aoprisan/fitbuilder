@@ -17,62 +17,45 @@ npm run preview    # serve the production build locally
 
 ## Architecture
 
-A client-side, offline-first PWA. No backend, no UI framework — plain TypeScript + DOM APIs, bundled by Vite, deployed to GitHub Pages (`.github/workflows/deploy.yml` on push to `main`), and wrapped as native iOS/Android via Capacitor 8.
+A client-side, offline-first PWA for one person logging their own training. No backend, no UI framework — plain TypeScript + DOM APIs, bundled by Vite, deployed to GitHub Pages (`.github/workflows/deploy.yml` on push to `main`), and wrapped as native iOS/Android via Capacitor 8.
+
+**Readiness-first design (2026 redesign, `docs/ui-redesign.md`):** the app opens on a body-fatigue map, one tap starts a session, and everything else (history, per-exercise stats, Claude analysis) hangs off the logged sessions. The old trainer/routine-authoring domain (routine sheet builder, Execute runner, XLSX/PDF import, sheet exports/share links, Claude plan/routine builders, student/trainer mode) was deleted in that redesign; `RoutineSheet` *types* survive in `types.ts` because logged exercises still carry `target`/`prescription` from historic routine runs, and old `gymlog.sheets*` localStorage keys are left in place (unread) so nothing a user stored is destroyed.
 
 ### Boot & navigation
-- Entry: `index.html` → `src/main.ts`. `boot()` builds a fixed header (brand + nav row) and a single `<main id="view" class="view-host">` host.
-- **No URL router and no browser history.** Navigation is the `Nav` interface (`src/router.ts`): `go(view)`, `editSheet(sheet)`, `runSheet(sheet)`, `startLive(sheet)`. Views call these to switch screens and hand off data.
-- Each view is a `mount*(host, nav)` function (in `src/views/`) that may return a `Cleanup`. On navigation, `main.ts` runs the previous view's cleanup, clears the host, and mounts the next — views are remounted from scratch each time, never kept in the DOM.
-- `ViewName` has 8 values but the nav bar shows only 4 tabs (`home`, `live`, `sheet` = "Routines", `execute`). `stats`, `weekly` (weekly sets-per-muscle, reached from Stats), `recovery`, and `claudeStart` are reachable only via `nav.go(...)` from inside other views. The Execute tab runs the *current working sheet* as a snapshot (`nav.runSheet(cloneSheet(state.editingSheet))`).
+- Entry: `index.html` → `src/main.ts`. `boot()` builds a fixed header (brand + settings gear + tab row) and a single `<main id="view" class="view-host">` host.
+- **Navigation is the `Nav` interface** (`src/router.ts`): `go(view)` over `ViewName = "body" | "live" | "history" | "exercise"`. Views are `mount*(host, nav)` functions (in `src/views/`) that may return a `Cleanup`; `main.ts` runs the previous view's cleanup, clears the host, and mounts the next — views are remounted from scratch each time. Browser/Android back is supported by stamping each navigation into `history.state` and restoring on `popstate`.
+- **Three tabs**: Body (`body`, the launch screen), Train (`live`), History (`history`). `exercise` (per-movement detail) is a pushed screen reached from History's exercise chips and highlights the History tab; it's seeded via `seedExercise(key)` from `views/exercise.ts` before `nav.go("exercise")` (null seed = searchable index of all logged movements).
 
-### Two data domains (the key mental model)
-There are two independent workout representations. They map onto the product split (see the `product-model` memory): **Routines** are a trainer authoring shareable documents for students; **Live** is the owner logging their own training. The two are loosely coupled and hand off explicitly.
+### The screens
+| View | File | What it shows |
+|------|------|---------------|
+| **Body** (home) | `views/body.ts` | Readiness header (`systemicRecovery` + `overallStatus`, muscles still on the clock), the Start/Resume session CTA, the rotatable 3D body map coloured by Fatigue/Strength/Hypertrophy/Efficiency (`bodyMap.ts` scores, `body3d.ts` figure, `views/bodySvg.ts` WebGL fallback), a last-session card, and PNG/PDF/share export. |
+| **Train** | `views/live.ts` | The live logger — a state machine (`Stage` = list/select/exercise, `SetSub` = idle/running/logging/resting) with stopwatch, rest timer + alert, rotary kg/reps dial (`views/dial.ts`), RIR chips, warm-up ramp, plate calculator, PR flash, superset jumps, and per-exercise plan benchmark (`benchmark.ts`) for sessions that carried a routine prescription. |
+| **History** | `views/history.ts` | Session cards (resume/repeat/delete, expandable effort summary, per-session export/analyze) plus the **Analyze with Claude** scope chips (this session / last 3 / 5 / 10 / all) and JSON/XML archive export. |
+| **Exercise** | `views/exercise.ts` | Per-movement detail: estimated 1RM headline (best Epley set + user-tested 1RM editor via `oneRmStore.ts`), e1RM trend chart (`views/chart.ts`), reps-you-can-expect at trained loads (`repCapacity`), and past sets grouped by session. |
 
-| Domain | Data type | UI views | Logic | Storage | Validate |
-|--------|-----------|----------|-------|---------|----------|
-| **Routine sheet** (shareable, free-text) | `RoutineSheet` (routines → exercises with free-text prescriptions like "30-50 repetari") | `views/sheet.ts` (build, "Routines" tab) · `views/execute.ts` (run, "Execute" tab) | `sheet.ts` (defaults), `execute.ts` (runner: `flattenSheet`, `parseTargetReps` heuristics) | `sheetStorage.ts` | `sheetValidate.ts` |
-| **Training session** (live log/journal) | `TrainingSession` (logged exercises → `WorkSet`s of reps/kg/duration, tagged by `MuscleGroup`) | `views/live.ts` (log set-by-set, "Live" tab) | `log.ts` | `logStorage.ts` | `logValidate.ts` |
+### Data model
+One domain: **`TrainingSession`** (logged exercises → `WorkSet`s of reps/kg/duration/RIR, tagged by `MuscleGroup`), schema in `types.ts`, storage in `logStorage.ts` (`gymlog.sessions`), validation in `logValidate.ts` (corrupt entries silently dropped on load; imports strictly validated). `SessionArchive` is the JSON/XML export bundle.
 
-All three schemas live in `types.ts` (each carries a `schema` id + `version`): `RoutineSheet`, `TrainingSession`, and `SessionArchive` (the export bundle).
-
-**Handoffs between the domains:** `sheetToSession()` (`log.ts`) starts a Live session pre-loaded from a routine (`nav.startLive`); `sessionToSheet()` (`util.ts`) turns a finished session back into a shareable sheet; `repeatSession()` clones a past session's exercises into a fresh one.
-
-### Live-session subsystem (everything that feeds off `TrainingSession`)
-`views/live.ts` is the largest view — a small state machine (`Stage` = list/select/exercise, `SetSub` = idle/running/logging/resting) with stopwatch, rest timer, and a rotary kg/reps dial.
-- **Exercise catalog** (`movements.ts`): a `Movement` is a named exercise with a primary muscle, secondary muscles (compound credit at `SECONDARY_MUSCLE_SHARE`), and a load type. Picking one sets a `LoggedExercise`'s `exerciseId`, `equipment`, and secondary muscles. Generic-gear movements use id `"${muscle}::${equipment}"` to stay compatible with pre-catalog stats keys.
-- **Resume** (`liveProgress.ts`, key `gymlog.liveProgress`): snapshots the in-flight flow (which session, stage/sub, pending set values, running timers) so a reload / phone-lock / navigate-away resumes mid-set. `main.ts`/`home.ts` detect a resumable session from this snapshot.
-- **Proximity to failure:** each `WorkSet` carries an optional `rir` (reps in reserve, logged via chips in the live "logging" sub-stage). It feeds two intensity curves in `effort.ts` — `stimulusProximity` (effective-reps weighting for hypertrophy) and `fatigueProximity` (fatigue / session-state weighting) — both no-ops when `rir` is absent, so older logs are unchanged.
-- **Derived analytics over logged history:** `effort.ts` (effort-point + hydration/calorie/protein heuristics, calibrated against the median of past sessions; session *state* is proximity-to-failure-weighted while raw work points drive calories/hydration), `recovery.ts` (per-muscle recovery from `RECOVERY_HOURS` + a peripheral-weighted systemic gauge), `oneRmStore.ts` (key `gymlog.oneRm`, user-set 1RMs), `stats.ts` (progress series per exercise key + `weeklyMuscleVolume` for the Weekly Volume screen, with dose-response landmarks). Each has a `views/*` and/or `*Render.ts` counterpart.
-
-### State & persistence
-- `src/state.ts` holds one in-memory `AppState`: `editingSheet` (the working copy open in the Routines builder), `executing` (sheet chosen for Execute), `activeLog` (the open Live session). It seeds the default push/pull sheets on first run and opens the most-recently-updated sheet as a fresh working copy. It also brokers a one-shot `SheetFlash` status message for the sheet view.
-- Persistence is **localStorage only**. Keys: `gymlog.sheets` / `gymlog.sessions` (the two domains), plus `gymlog.liveProgress`, `gymlog.oneRm`, `gymlog.trainer`, `gymlog.logo`, and `gymlog.sheets.seeded`. `sheetStorage.ts` / `logStorage.ts` each expose `load*`/`save*`/`delete*`/`seed*Once`.
-- **Edits operate on clones** (`cloneSheet` in `util.ts`) so stored copies aren't mutated; views call `save*()` to persist.
-- Validation: corrupt localStorage entries are silently dropped on load; JSON/file imports are strictly validated (schema id + version) with missing IDs regenerated for safe round-tripping.
+- **Exercise catalog** (`movements.ts`): a `Movement` is a named exercise with a primary muscle, secondary muscles (compound credit at `SECONDARY_MUSCLE_SHARE`), and a load type. Generic-gear movements use id `"${muscle}::${equipment}"` to stay compatible with pre-catalog stats keys (`exerciseKey` in `stats.ts`).
+- **Resume** (`liveProgress.ts`, key `gymlog.liveProgress`): snapshots the in-flight live flow (which session, stage/sub, pending set values, running timers) so a reload / phone-lock resumes mid-set. Body's CTA and History's Resume respect it (`loadProgress`/`clearProgress`).
+- **Derived analytics over logged history:** `effort.ts` (effort points, hydration/protein/calorie heuristics, RIR-weighted `stimulusProximity`/`fatigueProximity`), `recovery.ts` (per-muscle recovery clocks from `RECOVERY_HOURS` + demand scaling, plus the systemic gauge), `stats.ts` (progress series, `epley1RM`/`bestOneRm`/`repCapacity`, weekly volume landmarks), `records.ts` (PR detection), `overload.ts` + `warmup.ts` (progression nudges and ramp), `bodyMap.ts` (the four per-muscle map metrics). Each is UI-free and consumed by the views.
+- `src/state.ts` holds the one in-memory `AppState`: `activeLog` (the open live session). Everything else is read from storage at mount time.
+- Other localStorage keys: `gymlog.oneRm` (user-tested maxes), `gymlog.bodyweight` (set in Settings; feeds protein/calorie estimates), rest-alert and theme/language prefs. `backup.ts` bundles/restores every raw `gymlog.*` entry — it's schema-agnostic on purpose.
 
 ### Claude handoff (no API, no backend)
-"Build a plan with Claude" and "Analyze in Claude" are **copy/share/paste flows, not API calls** — there is no Anthropic SDK, API key, or server. Do not wire one up.
-- `claudePlan.ts` + `views/claudeStart.ts`: `buildPlanPrompt()` composes a text prompt (with a schema-accurate example `RoutineSheet`), handed off via the OS share sheet or clipboard + opening `claude.ai/new` (`startPlanInClaude`/`copyPlanPrompt` in `exporters.ts`). The user pastes Claude's reply back; `parsePlanFromText()` extracts the JSON and forces the schema markers before validating into a `RoutineSheet`.
-- `exporters.ts` `analyzeSession(s)InClaude` / `copySession(s)Prompt`: share/copy a Markdown report of logged sessions for an agent to analyze.
-- `claudeRoutine.ts` + `views/claudeRoutine.ts`: the history-driven cousin of `buildPlanPrompt`, in two scopes (`RoutineScope`). `buildRoutinePrompt()` feeds Claude the logged history + current 1RM for ONE selectable compound lift; `buildWholeBodyPrompt()` summarises the user's whole training (per-muscle movements, loads, 1RMs) for a balanced all-muscles split. Both ask for a periodised, set-based `kind:"session"` `RoutineSheet` (explicit reps×load per set) tuned to a `RoutineGoal` (strength / hypertrophy / 1RM peak — the peak is single-lift only). Handed off via `startRoutineInClaude`/`copyRoutinePrompt`; the reply pastes back through the same `parsePlanFromText`. Reached from Home ("Build a routine" → whole-body) and the Stats view (the per-exercise view seeds a compound lift, the all-exercises view opens whole-body) via `seedRoutine`.
-- `progression.ts` `buildHypertrophyPrompt()` (used by `views/stats.ts`): a lighter, free-text "what should my next session look like?" prompt for one movement — not pasted back, just read.
-
-### Import pipeline (`src/import/`)
-`importRoutineFile(file)` (`import/index.ts`) dispatches by extension/MIME and **lazy-imports** the matching parser so the heavy libraries stay out of the initial bundle:
-- `.xlsx/.xls/.xlsm/.xlsb` → `import/xlsx.ts` (SheetJS).
-- `.pdf` → `import/pdf.ts` (`pdfjs-dist`, worker via Vite asset URL); `import/pdfGrid.ts` clusters text runs into rows.
-- Both produce a grid handed to `import/grid.ts`'s `gridToRoutines()`, which classifies rows as headers/exercises and assembles `RoutineSheet[]`.
+"Analyze with Claude" is a **share/copy flow, not an API call** — there is no Anthropic SDK, API key, or server. Do not wire one up. `exporters.ts` `analyzeSession(s)InClaude` / `copySession(s)Prompt` share (or copy + open claude.ai) a Markdown report built by `util.ts` `sessionsToMarkdown`. Entry points: History's scope chips and each session card.
 
 ### Export / render pipeline
-Dependency-free PNG/PDF/share output, all in the "Training Ledger" visual language. `canvasKit.ts` holds the shared Canvas 2D palette/fonts/primitives; `sheetRender.ts`, `sessionRender.ts`, `statsRender.ts`, `recoveryRender.ts` each draw one artifact to a canvas; `pdf.ts` wraps a JPEG into a minimal PDF; `logo.ts` loads the brand banner. `exporters.ts` is the entry point — turns those canvases into PNG/PDF downloads or Web Share files, and also emits JSON/XML/Markdown session archives.
+Dependency-free PNG/PDF/share output in the "Training Ledger" visual language. `canvasKit.ts` holds the shared Canvas 2D palette/fonts/primitives; `sessionRender.ts` (session recap) and `bodyMapRender.ts` (front/back/side map) draw to canvas; `pdf.ts` wraps a JPEG into a minimal PDF; `logo.ts` + `trainer.ts` carry the brand banner. `exporters.ts` turns canvases into PNG/PDF downloads or Web Share files and emits JSON/XML/Markdown session archives.
 
 ### Shared building blocks
-`src/dom.ts` (`h()` element builder, `append()`, `clear()`, `qs()`), `src/util.ts` (uuid, `cloneSheet`, formatters, session↔sheet conversions, Markdown/JSON/XML serializers), `src/styles.css` (the entire "vintage letterpress / Training Ledger" design system — CSS custom-property tokens, hard block-print shadows, print styles). Reusable view widgets live under `views/`: `dial.ts` (rotary kg/reps input), `chart.ts` (progress line chart), `lookback.ts` (history slider).
+`src/dom.ts` (`h()` element builder, `append()`, `clear()`, `qs()`), `src/util.ts` (uuid, formatters, serializers), `src/i18n.ts` (EN/RO — every view registers its own strings via `registerTranslations` at module load and reads `t()` at mount time), `src/theme.ts` (4 themes as CSS custom-property sets), `src/styles.css` (the entire "vintage letterpress / Training Ledger" design system — tokens, hard block-print shadows, print styles). Reusable view widgets: `views/dial.ts`, `views/chart.ts`, `views/sessionSummary.ts` (effort/hydration/protein panel shared by Train, History and exports), `views/filter.ts`, `views/snackbar.ts` (undo), `views/lookback.ts`.
 
 ## Gotchas
 
-- **Never `npm i xlsx`.** `package.json` pins `xlsx` to the patched CDN tarball (`https://cdn.sheetjs.com/...tgz`); the npm registry build is not used. SheetJS is lazy-imported only on spreadsheet upload.
-- **The Claude features are not an API integration** — they share/copy a prompt and parse a pasted reply (see "Claude handoff" above). Don't add an API key or SDK.
-- **Naming is inconsistent and that's expected:** the repo dir is `fitbuilder`, the package is `gym-log-exercise-builder`, the UI brand is "GYM LOG", and the Claude prompt text calls the app "FitBuilder". Match whatever the surrounding code/file uses; don't "unify" them.
-- Sample import fixtures live in the repo root: `RUTINE FLUX 2026.xlsx`, `rutine.pdf`, `sample.jpeg`. Bundled default routines and much UI/sample text are in **Romanian** (e.g. "RUTINA IMPINS", "30-50 repetari") — intentional, not a typo to "fix".
+- **The Claude features are not an API integration** — they share/copy a prompt (see "Claude handoff" above). Don't add an API key or SDK.
+- **Naming is inconsistent and that's expected:** the repo dir is `fitbuilder`, the package is `gym-log-exercise-builder`, the UI brand is "GYM LOG". Match whatever the surrounding code/file uses; don't "unify" them.
+- Much UI text is bilingual **English/Romanian** — new user-facing strings need a Romanian translation registered next to them. Sample legacy fixtures in the repo root (`RUTINE FLUX 2026.xlsx`, `rutine.pdf`) are leftovers from the deleted import pipeline; they're harmless.
 - `vite.config.ts` uses `base: "./"` (relative paths, for GitHub Pages / any sub-path) and defines `__BUILD_TIME__`.
+- Three.js is lazy-loaded only by the body map (`body3d.ts`); keep it out of the initial chunk.

@@ -3,34 +3,13 @@ import {
   type ExerciseBenchmark,
   exerciseBenchmark,
   nextSetTarget,
-  type SessionAdherence,
-  sessionAdherence,
   type SetComparison,
 } from "../benchmark";
 import { clear, h } from "../dom";
-import {
-  estimateCalories,
-  estimateProteinG,
-  muscleBreakdown,
-  readEffort,
-  readHydration,
-} from "../effort";
 import { parseTargetReps } from "../execute";
-import {
-  analyzeSessionInClaude,
-  analyzeSessionsInClaude,
-  type AnalyzeResult,
-  copySessionPrompt,
-  copySessionsPrompt,
-  type CopyResult,
-  exportSessionPdf,
-  exportSessionPng,
-  exportSessionsJson,
-  exportSessionsXml,
-  shareSession,
-} from "../exporters";
+import { exportSessionPdf, exportSessionPng, shareSession } from "../exporters";
 import { filterField, matchesFilter } from "./filter";
-import { newLoggedExercise, newTrainingSession, repeatSession } from "../log";
+import { newLoggedExercise, newTrainingSession } from "../log";
 import { clearProgress, loadProgress, saveProgress, type SelectMode } from "../liveProgress";
 import {
   deleteEmptySessions,
@@ -48,7 +27,6 @@ import {
   movementsForMuscle,
   muscleShares,
 } from "../movements";
-import { latestBodyweight } from "../bodyweightStore";
 import { suggestOverload } from "../overload";
 import { platesPerSide, BAR_KG } from "../plates";
 import {
@@ -62,16 +40,15 @@ import { detectPrs, priorSetsFor, type PrHit } from "../records";
 import { muscleRecovery, type MuscleRecovery, recoveryColor } from "../recovery";
 import { compoundMovementsByFrequency, exerciseKey, type ExerciseKey, musclesByFrequency } from "../stats";
 import type { Cleanup, Nav } from "../router";
+import { bySectionRuns, renderSessionSummary } from "./sessionSummary";
 import { showUndo } from "./snackbar";
-import { saveSheet } from "../sheetStorage";
-import { setActiveLog, setEditingSheet, setSheetFlash, state } from "../state";
+import { setActiveLog, state } from "../state";
 import {
   EQUIPMENT_LABELS,
   FATIGUE_LABELS,
   FATIGUE_LEVELS,
   isBodyweight,
   isCardio,
-  MUSCLE_GROUPS,
   MUSCLE_LABELS,
   type Equipment,
   type LoggedExercise,
@@ -82,22 +59,15 @@ import {
   type WorkSet,
 } from "../types";
 import {
-  cloneSheet,
   formatCardioSet,
   formatClock,
-  formatDuration,
   formatLoad,
   formatSessionDate,
-  formatSessionTime,
   round2,
-  sessionDurationSec,
   sessionSetCount,
-  sessionToSheet,
-  sessionVolume,
 } from "../util";
 import { warmupRamp } from "../warmup";
 import { dialField } from "./dial";
-import { lookbackSlider } from "./lookback";
 import { registerTranslations, t } from "../i18n";
 
 registerTranslations({
@@ -192,13 +162,17 @@ registerTranslations({
   Hydration: "Hidratare",
   "Protein to recover": "Proteine pentru recuperare",
   "Energy burned": "Energie consumată",
-  // — List screen —
-  "No sessions yet. Hit “Start session” when you reach the gym.":
-    "Încă nicio sesiune. Apasă „Start sesiune” când ajungi la sală.",
-  Live: "Live",
-  "Track a workout in real time: start a session, pick the muscle and gear, then time each set and log reps and weight.":
-    "Urmărește un antrenament în timp real: pornește o sesiune, alege mușchiul și echipamentul, apoi cronometrează fiecare serie și înregistrează repetările și greutatea.",
-  "+ Start session": "+ Start sesiune",
+  // — Start screen · session HUD —
+  Train: "Antrenament",
+  "Start a session, pick an exercise, then time each set and log reps and weight.":
+    "Pornește o sesiune, alege un exercițiu, apoi cronometrează fiecare serie și înregistrează repetările și greutatea.",
+  "▶ Start session": "▶ Start sesiune",
+  "Past sessions — and the Claude analysis — live in History.":
+    "Sesiunile trecute — și analiza Claude — sunt în Istoric.",
+  "History ▸": "Istoric ▸",
+  "{0} set": "{0} serie",
+  "{0} sets": "{0} serii",
+  "End ▸": "Termină ▸",
   // — Export panel —
   "Export sessions": "Exportă sesiuni",
   "Download all {0} logged {1} to import into other tools and analyse elsewhere.":
@@ -386,24 +360,6 @@ function repTally(done: number, target: number): HTMLElement[] {
   ];
 }
 
-/**
- * Group consecutive items by their (optional) `section`, preserving order — the
- * one place the "emit a phase header when the section changes" logic lives, so
- * the logged list and the adherence panel stay in sync.
- */
-function bySectionRuns<T extends { section?: string }>(
-  items: readonly T[],
-): { section: string; items: T[] }[] {
-  const runs: { section: string; items: T[] }[] = [];
-  for (const it of items) {
-    const section = it.section ?? "";
-    const last = runs[runs.length - 1];
-    if (last && last.section === section) last.items.push(it);
-    else runs.push({ section, items: [it] });
-  }
-  return runs;
-}
-
 /** A prescribed set as "10 @ 20 kg" (or "10 reps" when bodyweight / no load). */
 function fmtPlanSet(st: SetTarget): string {
   return st.loadKg !== undefined && st.loadKg > 0
@@ -489,50 +445,6 @@ function renderBenchmark(ex: LoggedExercise, bm: ExerciseBenchmark): HTMLElement
     children.push(h("div", { class: "bench-sets" }, bm.sets.map((c) => renderBenchRow(ex.equipment, c))));
   }
   return h("section", { class: "card live-bench" }, children);
-}
-
-/** Session "adherence to plan" panel — overall % bar + per-exercise prescribed-vs-done. */
-function renderAdherence(a: SessionAdherence): HTMLElement {
-  const pct = Math.min(100, a.pct);
-  const fill = h("div", { class: "effort-bar-fill" });
-  fill.style.width = `${pct}%`;
-  // Per-exercise rows, with a phase sub-header inserted whenever the section
-  // changes — so a followed structured session reads Warm-up / Main / … in order.
-  const rows: HTMLElement[] = [];
-  bySectionRuns(a.rows).forEach((run) => {
-    if (run.section !== "") {
-      rows.push(h("p", { class: "live-section-label", text: run.section }));
-    }
-    run.items.forEach((r) => {
-      const bm = r.benchmark;
-      const stat =
-        bm.targetLoadKg !== null
-          ? `${bm.doneReps}/${bm.prescribedReps} ${t("reps")} · ${bm.loggedLoadKg ?? 0}/${bm.targetLoadKg} kg`
-          : `${bm.doneReps}/${bm.prescribedReps} ${t("reps")}`;
-      rows.push(
-        h("div", { class: "muscle-row" }, [
-          h("span", { class: "muscle-name", text: r.name }),
-          h("span", { class: "muscle-stat", text: stat }),
-        ]),
-      );
-    });
-  });
-  return h("div", { class: "summary-adherence" }, [
-    h("div", { class: "adherence-head" }, [
-      h("span", { class: "summary-label", text: t("Adherence to plan") }),
-      h("span", { class: "adherence-pct", text: t("{0}% to plan").replace("{0}", String(a.pct)) }),
-    ]),
-    h(
-      "div",
-      {
-        class: "effort-bar",
-        role: "progressbar",
-        aria: { valuemin: "0", valuemax: "100", valuenow: String(pct), label: t("Adherence to plan") },
-      },
-      [fill],
-    ),
-    ...rows,
-  ]);
 }
 
 /** Reps-in-reserve chips shown when logging a set. "4+" stores 4 (fresh — minimal stimulus). */
@@ -738,9 +650,6 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   // Records broken by the most recently committed set — shown while resting,
   // cleared when the next set starts. Transient; not part of the resume snapshot.
   let prFlash: PrHit[] = [];
-  // Session-history filters on the list screen (kept across repaints).
-  let filterText = "";
-  let filterMuscle: MuscleGroup | "" = "";
   // Name filter over the select screen's exercise chips (long muscle catalogs).
   let movementFilter = "";
 
@@ -861,6 +770,48 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       clearTimeout(restAlertTimer);
       restAlertTimer = 0;
     }
+    // The session HUD's wall-clock tick; re-armed by the next renderHud().
+    if (hudTimer) {
+      clearInterval(hudTimer);
+      hudTimer = 0;
+    }
+  }
+
+  // ───────────────────────── Session HUD (sticky) ─────────────────────────────
+
+  // Ticks the HUD's elapsed read-out once a second; owned by render()/stopRaf.
+  let hudTimer = 0;
+
+  /**
+   * Sticky strip pinned above the select/exercise screens while a session is
+   * open: session name, ticking wall-clock time since the first tap, logged-set
+   * count and the End action — the always-visible answer to "how long have I
+   * been here and how much have I done?".
+   */
+  function renderHud(session: TrainingSession): HTMLElement {
+    const time = h("span", { class: "live-hud-time" });
+    const tick = (): void => {
+      const secs = (Date.now() - new Date(session.startedAt).getTime()) / 1000;
+      time.textContent = formatClock(Math.max(0, secs));
+    };
+    tick();
+    hudTimer = window.setInterval(tick, 1000);
+    const sets = sessionSetCount(session);
+    return h("div", { class: "live-hud" }, [
+      h("span", { class: "live-hud-name", text: session.name || t("Live Session") }),
+      time,
+      h("span", {
+        class: "live-hud-sets",
+        text: (sets === 1 ? t("{0} set") : t("{0} sets")).replace("{0}", String(sets)),
+      }),
+      h("button", {
+        class: "live-hud-end",
+        type: "button",
+        text: t("End ▸"),
+        aria: { label: t("✓ Done — end session") },
+        on: { click: endSession },
+      }),
+    ]);
   }
 
   function persist(): void {
@@ -875,27 +826,6 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     statusEl.textContent = msg;
     statusEl.className = `status status-${kind}`;
   };
-  const analyzeMsg = (result: AnalyzeResult): string => {
-    switch (result) {
-      case "shared":
-        return t("Opened the share sheet — pick Claude to analyse your log.");
-      case "copied-opened":
-        return t("Copied your log — paste it into the new Claude chat.");
-      case "copied":
-        return t("Copied to clipboard — open Claude and paste.");
-      case "downloaded":
-        return t("Clipboard unavailable — saved a Markdown file instead.");
-    }
-  };
-  const copyMsg = (result: CopyResult): string => {
-    switch (result) {
-      case "copied":
-        return t("Copied the prompt — paste it into any AI (ChatGPT, Gemini, Claude…).");
-      case "downloaded":
-        return t("Clipboard unavailable — saved a Markdown file instead.");
-    }
-  };
-
   // Guard against double-taps while an (async) render/encode runs.
   let busy = false;
   async function runExport(label: string, fn: () => Promise<void>): Promise<void> {
@@ -1050,37 +980,6 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     sub = "idle";
     stage = "select";
     render();
-  }
-
-  function openSession(id: string): void {
-    const fresh = getSession(id);
-    if (!fresh) return;
-    setActiveLog(fresh);
-    currentEx = null;
-    sub = "idle";
-    stage = "select";
-    render();
-  }
-
-  /** Start a new session pre-loaded with a past session's exercises (no sets yet). */
-  function repeatPastSession(src: TrainingSession): void {
-    setActiveLog(saveSession(repeatSession(src)));
-    currentEx = null;
-    sub = "idle";
-    stage = "select";
-    render();
-  }
-
-  /** Save a logged session as a shareable routine, then open it in the Routines view. */
-  function saveAsRoutine(s: TrainingSession): void {
-    if (sessionSetCount(s) === 0) return;
-    const sheet = saveSheet(sessionToSheet(s));
-    setEditingSheet(cloneSheet(sheet));
-    setSheetFlash(
-      t("Saved “{0}” as a routine — share it from here.").replace("{0}", sheet.name),
-      "ok",
-    );
-    nav.go("sheet");
   }
 
   function endSession(): void {
@@ -1308,91 +1207,6 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     render();
   }
 
-  // ──────────────────────── Session summary panel ─────────────────────────────
-
-  /**
-   * Effort gauge, hydration cue, per-muscle work (volume + time) and a recovery
-   * protein estimate for a session — running or completed. The effort gauge is
-   * calibrated against the user's other sessions in `allSessions`. Returns null
-   * until the session has at least one logged set.
-   */
-  function renderSessionSummary(
-    session: TrainingSession,
-    allSessions: TrainingSession[],
-  ): HTMLElement | null {
-    if (sessionSetCount(session) === 0) return null;
-
-    const effort = readEffort(session, allSessions);
-    const hydration = readHydration(effort);
-    const muscles = muscleBreakdown(session);
-    const adherence = sessionAdherence(session);
-    const bodyweight = latestBodyweight()?.kg;
-    const protein = estimateProteinG(effort, muscles.length, bodyweight);
-    const calories = estimateCalories(effort, bodyweight);
-    const pct = Math.round(Math.min(1, effort.ratio) * 100);
-
-    const fill = h("div", { class: "effort-bar-fill" });
-    fill.style.width = `${Math.min(1, effort.ratio) * 100}%`;
-
-    const meta =
-      effort.vsTypicalPct !== null
-        ? t("{0}% of your usual session").replace("{0}", String(effort.vsTypicalPct))
-        : t("Building your baseline — fills toward a full session");
-
-    const glasses = `${hydration.glasses} ${hydration.glasses === 1 ? t("glass") : t("glasses")}`;
-
-    const muscleRows = muscles.map((m) =>
-      h("div", { class: "muscle-row" }, [
-        h("span", { class: "muscle-name", text: t(MUSCLE_LABELS[m.muscle]) }),
-        h("span", {
-          class: "muscle-stat",
-          text:
-            m.muscle === "cardio"
-              ? formatClock(m.timeSec)
-              : `${m.volume > 0 ? `${m.volume} kg` : t("Bodyweight")} · ${formatClock(m.timeSec)}`,
-        }),
-      ]),
-    );
-
-    return h("section", { class: "card live-effort", dataset: { tier: effort.tier } }, [
-      h("div", { class: "effort-head" }, [
-        h("span", { class: "effort-eyebrow", text: t("Session effort") }),
-        h("span", { class: "effort-tier", text: effort.label }),
-      ]),
-      h(
-        "div",
-        {
-          class: "effort-bar",
-          role: "progressbar",
-          aria: { valuemin: "0", valuemax: "100", valuenow: String(pct), label: t("Session effort") },
-        },
-        [fill],
-      ),
-      h("p", { class: "effort-meta", text: meta }),
-      ...(adherence ? [renderAdherence(adherence)] : []),
-      h("div", { class: "summary-muscles" }, [
-        h("span", { class: "summary-label", text: t("Muscles worked") }),
-        ...muscleRows,
-      ]),
-      h("div", { class: "hydration-row" }, [
-        h("span", { class: "hydration-label", text: t("Hydration") }),
-        h("span", {
-          class: "hydration-figure",
-          text: `≈ ${hydration.liters.toFixed(1)} L · ${glasses}`,
-        }),
-      ]),
-      h("p", { class: "hydration-note", text: hydration.note }),
-      h("div", { class: "protein-row" }, [
-        h("span", { class: "protein-label", text: t("Protein to recover") }),
-        h("span", { class: "protein-figure", text: `≈ ${protein} g` }),
-      ]),
-      h("div", { class: "calories-row" }, [
-        h("span", { class: "calories-label", text: t("Energy burned") }),
-        h("span", { class: "calories-figure", text: `≈ ${calories} kcal` }),
-      ]),
-    ]);
-  }
-
   // ───────────────────────────── List screen ──────────────────────────────────
 
   function renderList(): void {
@@ -1400,284 +1214,39 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     // tab switch). We're on the list screen, so nothing is in flight; spare any
     // still-resumable session just in case a snapshot points at an empty one.
     deleteEmptySessions(loadProgress()?.sessionId);
-    const sessions = loadSessions().sort((a, b) => b.startedAt.localeCompare(a.startedAt));
-
-    // History filters: free-text (session or exercise name) + muscle group. The
-    // list repaints in place on each keystroke so the search box keeps focus.
-    const matches = (s: TrainingSession): boolean => {
-      const fm = filterMuscle;
-      if (
-        fm !== "" &&
-        !s.exercises.some(
-          (ex) =>
-            ex.sets.length > 0 && (ex.muscle === fm || (ex.secondaryMuscles ?? []).includes(fm)),
-        )
-      ) {
-        return false;
-      }
-      const q = filterText.trim().toLowerCase();
-      if (q === "") return true;
-      return (
-        (s.name || "").toLowerCase().includes(q) ||
-        s.exercises.some((ex) => ex.name.toLowerCase().includes(q))
-      );
-    };
-
-    const listHost = h("div", { class: "saved-list" });
-    const paintList = (): void => {
-      clear(listHost);
-      if (sessions.length === 0) {
-        listHost.appendChild(
-          h("p", {
-            class: "empty",
-            text: t("No sessions yet. Hit “Start session” when you reach the gym."),
-          }),
-        );
-        return;
-      }
-      const filtered = sessions.filter(matches);
-      if (filtered.length === 0) {
-        listHost.appendChild(h("p", { class: "empty", text: t("No sessions match these filters.") }));
-        return;
-      }
-      filtered.forEach((s) => listHost.appendChild(renderSessionCard(s, sessions)));
-    };
-    paintList();
-
-    const searchInput = h("input", {
-      class: "plan-name-input",
-      type: "search",
-      value: filterText,
-      placeholder: t("Search sessions"),
-      aria: { label: t("search sessions by name or exercise") },
-    });
-    searchInput.addEventListener("input", () => {
-      filterText = searchInput.value;
-      paintList();
-    });
-    const muscleSelect = h(
-      "select",
-      { class: "live-filter-muscle", aria: { label: t("Filter by muscle") } },
-      [
-        h("option", { value: "", text: t("All muscles") }),
-        ...MUSCLE_GROUPS.map((m) =>
-          h("option", { value: m, text: t(MUSCLE_LABELS[m]) }),
-        ),
-      ],
-    );
-    muscleSelect.value = filterMuscle;
-    muscleSelect.addEventListener("change", () => {
-      filterMuscle = muscleSelect.value as MuscleGroup | "";
-      paintList();
-    });
-    const filterRow = h("div", { class: "live-filter-row" }, [searchInput, muscleSelect]);
+    const count = loadSessions().length;
 
     container.append(
-      h("h1", { class: "view-title", text: t("Live") }),
+      h("h1", { class: "view-title", text: t("Train") }),
       h("p", {
         class: "lede",
-        text: t(
-          "Track a workout in real time: start a session, pick the muscle and gear, then time each set and log reps and weight.",
-        ),
+        text: t("Start a session, pick an exercise, then time each set and log reps and weight."),
       }),
       h("div", { class: "btn-row" }, [
         h("button", {
-          class: "btn btn-primary",
+          class: "btn btn-primary btn-jumbo",
           type: "button",
-          text: t("+ Start session"),
+          text: t("▶ Start session"),
           on: { click: startSession },
         }),
       ]),
-      statusEl,
-      ...(sessions.length > 1 ? [filterRow] : []),
-      listHost,
-    );
-
-    if (sessions.length > 0) container.append(renderExportPanel(sessions));
-  }
-
-  /**
-   * "Export all" panel — downloads every logged session as one JSON or XML
-   * archive for import into other tools. Sessions are ordered oldest-first so
-   * the export reads chronologically.
-   */
-  function renderExportPanel(sessions: TrainingSession[]): HTMLElement {
-    const chronological = [...sessions].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
-    const lookback = lookbackSlider(chronological.length);
-    return h("section", { class: "card live-export" }, [
-      h("h2", { class: "section-title", text: t("Export sessions") }),
-      h("p", {
-        class: "plan-meta",
-        text: t("Download all {0} logged {1} to import into other tools and analyse elsewhere.")
-          .replace("{0}", String(sessions.length))
-          .replace("{1}", sessions.length === 1 ? t("session") : t("sessions")),
-      }),
-      ...(chronological.length > 1 ? [lookback.field] : []),
-      h("div", { class: "btn-row" }, [
-        h("button", {
-          class: "btn btn-small btn-accent",
-          type: "button",
-          text: t("Ask Claude ▸"),
-          aria: { label: t("ask Claude about recent logged sessions") },
-          on: {
-            click: () =>
-              runExport("Ask Claude", async () => {
-                setStatus(analyzeMsg(await analyzeSessionsInClaude(lookback.pick(chronological))), "ok");
-              }),
-          },
-        }),
-        h("button", {
-          class: "btn btn-small",
-          type: "button",
-          text: t("Copy prompt"),
-          aria: { label: t("copy recent logged sessions as a prompt for any AI") },
-          on: {
-            click: () =>
-              runExport("Copy prompt", async () => {
-                setStatus(copyMsg(await copySessionsPrompt(lookback.pick(chronological))), "ok");
-              }),
-          },
-        }),
-        h("button", {
-          class: "btn btn-small",
-          type: "button",
-          text: t("Download JSON"),
-          on: { click: () => exportSessionsJson(chronological) },
-        }),
-        h("button", {
-          class: "btn btn-small",
-          type: "button",
-          text: t("Download XML"),
-          on: { click: () => exportSessionsXml(chronological) },
-        }),
-      ]),
-    ]);
-  }
-
-  function renderSessionCard(s: TrainingSession, allSessions: TrainingSession[]): HTMLElement {
-    const sets = sessionSetCount(s);
-    const vol = sessionVolume(s);
-    const meta =
-      t("{0} exercises · {1} sets")
-        .replace("{0}", String(s.exercises.length))
-        .replace("{1}", String(sets)) +
-      (vol > 0 ? ` · ${t("{0} kg lifted").replace("{0}", String(vol))}` : "");
-    const summary = renderSessionSummary(s, allSessions);
-    // Timing (start → end · duration) and pre-session fatigue, when recorded.
-    const durSec = sessionDurationSec(s);
-    const timingParts = [t("Started {0}").replace("{0}", formatSessionTime(s.startedAt))];
-    if (s.endedAt !== undefined) {
-      timingParts.push(t("Ended {0}").replace("{0}", formatSessionTime(s.endedAt)));
-    }
-    timingParts.push(
-      durSec !== null
-        ? t("Duration {0}").replace("{0}", formatDuration(durSec))
-        : t("In progress"),
-    );
-    return h("section", { class: "card saved-item" }, [
-      h("div", { class: "saved-info" }, [
-        h("p", { class: "plan-name", text: s.name || t("Untitled session") }),
-        h("p", { class: "plan-meta", text: formatSessionDate(s.startedAt) }),
-        h("p", { class: "plan-meta", text: meta }),
-        h("p", { class: "plan-meta", text: timingParts.join(" · ") }),
-        ...(s.startFatigue !== undefined
-          ? [
-              h("p", {
-                class: "plan-meta",
-                text: t("Fatigue: {0}").replace(
-                  "{0}",
-                  `${t(FATIGUE_LABELS[s.startFatigue])} (${s.startFatigue}/5)`,
-                ),
-              }),
-            ]
-          : []),
-      ]),
-      ...(summary
+      ...(count > 0
         ? [
-            h("details", { class: "session-summary-toggle" }, [
-              h("summary", { class: "session-summary-label", text: t("Effort & recovery") }),
-              summary,
+            h("p", {
+              class: "plan-meta",
+              text: t("Past sessions — and the Claude analysis — live in History."),
+            }),
+            h("div", { class: "btn-row" }, [
+              h("button", {
+                class: "btn btn-small",
+                type: "button",
+                text: t("History ▸"),
+                on: { click: () => nav.go("history") },
+              }),
             ]),
           ]
         : []),
-      h("div", { class: "btn-row saved-actions" }, [
-        h("button", {
-          class: "btn btn-accent btn-small",
-          type: "button",
-          text: t("Resume"),
-          on: { click: () => openSession(s.id) },
-        }),
-        h("button", {
-          class: "btn btn-small",
-          type: "button",
-          text: t("Repeat"),
-          aria: { label: t("repeat {0} as a new session").replace("{0}", s.name || t("this session")) },
-          on: { click: () => repeatPastSession(s) },
-        }),
-        h("button", {
-          class: "btn btn-small danger",
-          type: "button",
-          text: t("Delete"),
-          on: {
-            click: () => {
-              // Immediate delete with an Undo window; restoring re-saves the
-              // captured session (its id is kept, so it slots back in place).
-              deleteSession(s.id);
-              render();
-              showUndo(t('Deleted "{0}".').replace("{0}", s.name || t("this session")), () => {
-                saveSession(s);
-                render();
-              });
-            },
-          },
-        }),
-      ]),
-      ...(sets > 0
-        ? [
-            h("div", { class: "btn-row saved-actions" }, [
-              h("button", {
-                class: "btn btn-small",
-                type: "button",
-                text: t("Save as routine"),
-                aria: { label: t("save {0} as a shareable routine").replace("{0}", s.name || t("this session")) },
-                on: { click: () => saveAsRoutine(s) },
-              }),
-              h("button", {
-                class: "btn btn-small",
-                type: "button",
-                text: t("Export JSON"),
-                aria: { label: t("export {0} as JSON").replace("{0}", s.name || t("this session")) },
-                on: { click: () => exportSessionsJson([s]) },
-              }),
-              h("button", {
-                class: "btn btn-small btn-accent",
-                type: "button",
-                text: t("Ask Claude ▸"),
-                aria: { label: t("ask Claude about {0}").replace("{0}", s.name || t("this session")) },
-                on: {
-                  click: () =>
-                    runExport("Ask Claude", async () => {
-                      setStatus(analyzeMsg(await analyzeSessionInClaude(s)), "ok");
-                    }),
-                },
-              }),
-              h("button", {
-                class: "btn btn-small",
-                type: "button",
-                text: t("Copy prompt"),
-                aria: { label: t("copy {0} as a prompt for any AI").replace("{0}", s.name || t("this session")) },
-                on: {
-                  click: () =>
-                    runExport("Copy prompt", async () => {
-                      setStatus(copyMsg(await copySessionPrompt(s)), "ok");
-                    }),
-                },
-              }),
-            ]),
-            sessionExportRow(s),
-          ]
-        : []),
-    ]);
+    );
   }
 
   /**
@@ -1877,6 +1446,14 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         ),
       ]);
 
+    // Per-muscle readiness (this session excluded) — drives the ready-first
+    // ordering and dots on the muscle picker plus the pre-training warning.
+    const recByMuscle = new Map(
+      muscleRecovery(allSessions.filter((s) => s.id !== session.id)).map(
+        (r): [MuscleGroup, MuscleRecovery] => [r.muscle, r],
+      ),
+    );
+
     // The exercise picker swaps shape by mode: muscle + gear, or compound lifts
     // with their muscle split. The mode toggle sits above both. Compounds are
     // ordered most-trained first so the user's staples sit at the top.
@@ -1899,13 +1476,43 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
                 : []),
             ]
         : [
-            renderToggle(
-              t("Muscle group"),
-              musclesByFrequency(allSessions),
-              (m) => t(MUSCLE_LABELS[m as MuscleGroup]),
-              muscle,
-              pickMuscle,
-            ),
+            // Ready muscles lead (in the user's usual frequency order); the
+            // still-recovering ones sink below, each chip carrying its recovery
+            // dot — picking a muscle becomes a readiness decision.
+            (() => {
+              const readiness = (m: MuscleGroup): number => recByMuscle.get(m)?.recovered ?? 1;
+              const freqOrder = musclesByFrequency(allSessions);
+              const rank = new Map(freqOrder.map((m, i) => [m, i] as const));
+              const ordered = [...freqOrder].sort((a, b) => {
+                const bandA = readiness(a) >= RECOVERY_WARN_BELOW ? 0 : 1;
+                const bandB = readiness(b) >= RECOVERY_WARN_BELOW ? 0 : 1;
+                return bandA - bandB || (rank.get(a) ?? 0) - (rank.get(b) ?? 0);
+              });
+              return h("div", { class: "field" }, [
+                h("span", { class: "field-label", text: t("Muscle group") }),
+                h(
+                  "div",
+                  { class: "toggle", role: "group", aria: { label: t("Muscle group") } },
+                  ordered.map((m) => {
+                    const dot = h("span", { class: "muscle-dot", aria: { hidden: "true" } });
+                    dot.style.background = recoveryColor(readiness(m));
+                    return h(
+                      "button",
+                      {
+                        class:
+                          muscle === m
+                            ? "toggle-btn muscle-toggle-btn active"
+                            : "toggle-btn muscle-toggle-btn",
+                        type: "button",
+                        aria: { pressed: String(muscle === m) },
+                        on: { click: () => pickMuscle(m) },
+                      },
+                      [dot, h("span", { text: t(MUSCLE_LABELS[m]) })],
+                    );
+                  }),
+                ),
+              ]);
+            })(),
             // Exercise chips with a name filter above them once the muscle's
             // catalog runs long. Only the chip block repaints per keystroke, so
             // the filter input keeps focus; picking a chip still re-renders the
@@ -1961,14 +1568,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     const targetMuscles = selectedMovement
       ? [selectedMovement.primaryMuscle, ...selectedMovement.secondaryMuscles]
       : [muscle];
-    const recWarn = renderRecoveryWarning(
-      targetMuscles,
-      new Map(
-        muscleRecovery(allSessions.filter((s) => s.id !== session.id)).map(
-          (r): [MuscleGroup, MuscleRecovery] => [r.muscle, r],
-        ),
-      ),
-    );
+    const recWarn = renderRecoveryWarning(targetMuscles, recByMuscle);
 
     container.append(
       h("section", { class: "card live-select" }, [
@@ -2771,6 +2371,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     // renderers' assignments (in the dispatch below) are visible at the check.
     scrollTargetEl = null as HTMLElement | null;
     focusAnchorEl = null as HTMLElement | null;
+    // The sticky session HUD rides above both in-session screens.
+    if (stage !== "list" && state.activeLog) container.append(renderHud(state.activeLog));
     if (stage === "list") renderList();
     else if (stage === "select") renderSelect();
     else renderExercise();

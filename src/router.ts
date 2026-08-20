@@ -1,18 +1,4 @@
-import type { RoutineSheet } from "./types";
-
-export type ViewName =
-  | "home"
-  | "train"
-  | "sheet"
-  | "savedRoutines"
-  | "execute"
-  | "live"
-  | "stats"
-  | "weekly"
-  | "recovery"
-  | "body"
-  | "claudeStart"
-  | "claudeRoutine";
+export type ViewName = "body" | "live" | "history" | "exercise";
 
 export type Cleanup = () => void;
 
@@ -20,10 +6,4 @@ export type Cleanup = () => void;
 export interface Nav {
   /** Switch to a top-level view. */
   go(view: ViewName): void;
-  /** Open the Routine Sheet builder on the given sheet (a working copy). */
-  editSheet(sheet: RoutineSheet): void;
-  /** Open the Execute runner on the given sheet (a working copy / snapshot). */
-  runSheet(sheet: RoutineSheet): void;
-  /** Start a Live session pre-loaded from a routine sheet (additive to Execute). */
-  startLive(sheet: RoutineSheet): void;
 }
