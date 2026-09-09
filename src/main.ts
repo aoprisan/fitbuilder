@@ -148,6 +148,10 @@ function boot(): void {
     track("view", { name: view });
 
     clear(viewHost);
+    // Land at the top *before* mounting, so a view that parks the scroll on its
+    // own anchor during mount (Train resuming mid-set, straight onto the reps
+    // and weight dials) keeps it instead of being yanked back up afterwards.
+    window.scrollTo(0, 0);
     let result: Cleanup | void;
     switch (view) {
       case "body":
@@ -164,7 +168,6 @@ function boot(): void {
         break;
     }
     cleanup = typeof result === "function" ? result : null;
-    window.scrollTo(0, 0);
   }
 
   // Empty nav shell; renderNav() fills it with the tabs.

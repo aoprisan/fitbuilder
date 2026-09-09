@@ -324,6 +324,10 @@ export function radialSelector(opts: RadialSelectorOpts): HTMLElement {
 
   function paint(): void {
     while (svg.firstChild) svg.removeChild(svg.firstChild);
+    // The wedges are about to be replaced, so any hover/focus preview they were
+    // showing dies with them without ever firing pointerleave/blur — drop the
+    // hub back to its own title rather than leaving it stuck on a stale one.
+    preview(null);
     drawn.length = 0;
     let rOut = R_OUT;
     rings.forEach((ring, i) => {

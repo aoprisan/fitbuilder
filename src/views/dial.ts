@@ -24,6 +24,17 @@ function svgEl(tag: string, attrs: Record<string, string>): SVGElement {
   return el;
 }
 
+/**
+ * Imperative handle onto a live dial, handed to the caller via
+ * {@link DialFieldOpts.bind}. Lets a screen retune the dial from outside — a
+ * quick-pick chip loading reps × load, say — without re-rendering (and so
+ * re-anchoring the scroll of) the whole logging screen.
+ */
+export interface DialHandle {
+  /** Spin the dial to `value`: repaints the gauge, reflects the number, fires `onCommit`. */
+  set(value: number): void;
+}
+
 export interface DialFieldOpts {
   label: string;
   value: number;
@@ -34,6 +45,8 @@ export interface DialFieldOpts {
   unit: string;
   tone?: "signal" | "navy";
   onCommit: (value: number) => void;
+  /** Called once at build time with a handle for driving the dial from outside. */
+  bind?: (handle: DialHandle) => void;
 }
 
 /**
@@ -252,6 +265,7 @@ export function dialField(opts: DialFieldOpts): HTMLElement {
   });
 
   paint();
+  opts.bind?.({ set: (n: number) => setValue(n, true) });
 
   return h("div", { class: "field dial-field" }, [
     h("span", { class: "field-label", text: label }),
