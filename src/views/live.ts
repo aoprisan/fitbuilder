@@ -804,10 +804,15 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   let hudTimer = 0;
 
   /**
-   * Sticky strip pinned above the select/exercise screens while a session is
-   * open: session name, ticking wall-clock time since the first tap, logged-set
-   * count and the End action — the always-visible answer to "how long have I
-   * been here and how much have I done?".
+   * Strip above the select/exercise screens while a session is open: session
+   * name, ticking wall-clock time since the first tap, logged-set count and the
+   * End action — the answer to "how long have I been here and how much have I
+   * done?".
+   *
+   * It pins itself to the top on the select screen, but rides in the flow on
+   * the exercise screen: there the auto-scroll parks the Start/Stop button at
+   * the top of the viewport, and a pinned strip would sit right over the one
+   * control the screen exists for. Scrolling back up still reaches it.
    */
   function renderHud(session: TrainingSession): HTMLElement {
     const time = h("span", { class: "live-hud-time" });
@@ -818,7 +823,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     tick();
     hudTimer = window.setInterval(tick, 1000);
     const sets = sessionSetCount(session);
-    return h("div", { class: "live-hud" }, [
+    return h("div", { class: stage === "exercise" ? "live-hud is-flow" : "live-hud" }, [
       h("span", { class: "live-hud-name", text: session.name || t("Live Session") }),
       time,
       h("span", {

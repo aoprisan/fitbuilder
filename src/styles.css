@@ -2163,9 +2163,11 @@ textarea {
 }
 
 /* Anchor for the auto-scroll during a running set / rest: leave a little
-   breathing room above the action button so it isn't flush with the top. */
+   breathing room above the action button so it isn't flush with the top. The
+   scroll is measured while the mount animation still holds the row 14px low
+   (see `rise`), so the margin carries that offset too. */
 .live-scroll-anchor {
-  scroll-margin-top: 12px;
+  scroll-margin-top: 26px;
 }
 
 .live-actions .btn-jumbo {
@@ -5128,6 +5130,13 @@ textarea:focus-visible {
   border: var(--rule);
   box-shadow: 4px 4px 0 0 var(--ink);
   padding: 9px 12px;
+}
+
+/* On the exercise screen the set controls own the top of the viewport: the HUD
+   rides in the flow and scrolls away with the header, instead of pinning itself
+   over the Start/Stop button the auto-scroll parks underneath it. */
+.live-hud.is-flow {
+  position: static;
 }
 
 .live-hud-name {
