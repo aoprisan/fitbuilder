@@ -27,7 +27,7 @@ import {
   movementsForMuscle,
   muscleShares,
 } from "../movements";
-import { suggestOverload } from "../overload";
+import { loadIncrementKg, suggestOverload } from "../overload";
 import { platesPerSide, BAR_KG } from "../plates";
 import {
   cueRestOver,
@@ -41,6 +41,7 @@ import { muscleRecovery, type MuscleRecovery, recoveryColor } from "../recovery"
 import { radialSelector, type RadialItem, type RadialRing } from "./radial";
 import {
   compoundMovementsByFrequency,
+  epley1RM,
   exerciseKey,
   type ExerciseKey,
   musclesByFrequency,
@@ -74,7 +75,7 @@ import {
   sessionSetCount,
 } from "../util";
 import { warmupRamp } from "../warmup";
-import { dialField } from "./dial";
+import { dialField, type DialHandle } from "./dial";
 import { registerTranslations, t } from "../i18n";
 
 registerTranslations({
@@ -259,6 +260,19 @@ registerTranslations({
   "{0} reps in reserve": "{0} repetări în rezervă",
   // — Last-time recall —
   "Last time · {0}": "Ultima dată · {0}",
+  // — Quick reps × load picks and the live set read-out —
+  "Log this set as": "Înregistrează seria ca",
+  "Quick reps and weight picks": "Alegeri rapide de repetări și greutate",
+  "Last set": "Seria anterioară",
+  "Last time": "Ultima dată",
+  "{0} kg volume": "{0} kg volum",
+  "e1RM {0} kg": "1RM est. {0} kg",
+  "PR pace": "ritm de record",
+  "Same as {0}": "La fel ca {0}",
+  "last set": "seria anterioară",
+  "last time": "ultima dată",
+  "{0} rep": "{0} repetare",
+  "{0} vs {1}": "{0} față de {1}",
   // — Progressive-overload nudge —
   "Next step": "Pasul următor",
   "Try {0}": "Încearcă {0}",
@@ -1790,7 +1804,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
               dialField({
                 label: isBodyweight(equipment) ? t("Added (kg)") : t("Weight (kg)"),
                 value: editWeight,
-                step: 2.5,
+                step: loadIncrementKg(equipment),
                 min: 0,
                 integer: false,
                 unit: "kg",
@@ -1943,6 +1957,177 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   }
 
   /**
+   * One candidate reps × load pairing for the set being logged, labelled with
+   * where the numbers come from (the plan, the set just done, last time, the
+   * progression nudge).
+   */
+  interface SetPreset {
+    label: string;
+    reps: number;
+    weightKg: number;
+  }
+
+  /**
+   * The reps × load pairings worth a single tap once a set is done: every
+   * reference {@link stopSet} seeds the dials from, laid out side by side so
+   * "same as the last set", "what the plan asked for" and "the progression's
+   * next step" are a tap rather than two spins of a knob. Deduped by value, so
+   * a plan that happens to match last time shows once.
+   */
+  function setPresets(): SetPreset[] {
+    const sets = currentEx?.sets ?? [];
+    const last = sets.length ? sets[sets.length - 1]! : null;
+    const out: SetPreset[] = [];
+    const add = (label: string, reps: number, weightKg: number): void => {
+      if (reps <= 0) return;
+      const kg = round2(Math.max(0, weightKg));
+      if (out.some((p) => p.reps === reps && p.weightKg === kg)) return;
+      out.push({ label, reps, weightKg: kg });
+    };
+    const planned = currentEx ? nextSetTarget(currentEx) : null;
+    if (planned) add(t("Plan"), planned.reps, planned.loadKg ?? last?.weightKg ?? setWeight);
+    if (last) add(t("Last set"), last.reps, last.weightKg);
+    const ghost = historyGhost(sets.length);
+    if (ghost) add(t("Last time"), ghost.reps, ghost.weightKg);
+    // The progression nudge only speaks for freestyle work — a plan-carrying
+    // exercise defers to the prescription (same rule as the overload hint).
+    const planDriven = currentEx?.target !== undefined || currentEx?.prescription !== undefined;
+    if (!planDriven) {
+      const sug = suggestOverload(
+        loadSessions().filter((o) => o.id !== state.activeLog?.id),
+        currentKey(),
+        equipment,
+      );
+      if (sug) add(t("Next step"), sug.reps, sug.weightKg);
+    }
+    return out;
+  }
+
+  /**
+   * Quick-pick row above the dials: one chip per {@link setPresets} entry, each
+   * loading *both* dials in a single tap. The chip matching what the dials read
+   * is marked active, so the numbers on screen always say where they came from.
+   * `paint` re-marks them as the dials turn; a pick never re-renders the screen
+   * (that would re-anchor the scroll out from under the thumb).
+   */
+  function renderSetPresets(
+    onPick: (p: SetPreset) => void,
+  ): { el: HTMLElement; paint: () => void } | null {
+    const presets = setPresets();
+    if (presets.length === 0) return null;
+    const isActive = (p: SetPreset): boolean =>
+      p.reps === setReps && p.weightKg === round2(setWeight);
+    const chips = presets.map((p) =>
+      h(
+        "button",
+        {
+          class: "toggle-btn preset-btn",
+          type: "button",
+          aria: {
+            pressed: String(isActive(p)),
+            label: `${p.label} — ${fmtLoggedSet(equipment, { reps: p.reps, weightKg: p.weightKg })}`,
+          },
+          on: { click: () => onPick(p) },
+        },
+        [
+          h("span", { class: "preset-src", text: p.label }),
+          h("span", {
+            class: "preset-val",
+            text: fmtLoggedSet(equipment, { reps: p.reps, weightKg: p.weightKg }),
+          }),
+        ],
+      ),
+    );
+    const paint = (): void => {
+      presets.forEach((p, i) => {
+        const chip = chips[i];
+        if (!chip) return;
+        const on = isActive(p);
+        chip.classList.toggle("active", on);
+        chip.setAttribute("aria-pressed", String(on));
+      });
+    };
+    paint();
+    return {
+      el: h("section", { class: "card live-presets" }, [
+        h("p", { class: "now-eyebrow", text: t("Log this set as") }),
+        h(
+          "div",
+          {
+            class: "toggle preset-toggle",
+            role: "group",
+            aria: { label: t("Quick reps and weight picks") },
+          },
+          chips,
+        ),
+      ]),
+      paint,
+    };
+  }
+
+  /**
+   * Live read-out under the reps/weight dials: what the set currently dialled in
+   * is worth (volume, estimated 1RM against the best on record) and how it
+   * stacks up against the reference the dials were seeded from. Repainted as
+   * the dials turn, so the number picked is a judgement against history rather
+   * than memory — and a load on PR pace is visible *before* committing.
+   */
+  function renderSetPreview(): { el: HTMLElement; paint: () => void } {
+    const sets = currentEx?.sets ?? [];
+    const last = sets.length ? sets[sets.length - 1]! : null;
+    const ref = last ?? historyGhost(sets.length);
+    const refLabel = last ? t("last set") : t("last time");
+    // Best estimated 1RM on record for this movement: earlier sessions plus what
+    // this exercise has already banked. Warm-ups don't set the bar.
+    const bestE1rm = priorSetsFor(
+      loadSessions().filter((o) => o.id !== state.activeLog?.id),
+      currentKey(),
+    )
+      .concat(sets)
+      .reduce((best, s) => (s.setType === "warmup" ? best : Math.max(best, epley1RM(s))), 0);
+    const mainEl = h("p", { class: "set-preview-main" });
+    const deltaEl = h("p", { class: "set-preview-delta" });
+    const signed = (n: number): string => (n > 0 ? `+${round2(n)}` : String(round2(n)));
+    const paint = (): void => {
+      const parts: string[] = [];
+      if (setWeight > 0) {
+        parts.push(t("{0} kg volume").replace("{0}", String(round2(setReps * setWeight))));
+      }
+      const e1rm = epley1RM({ reps: setReps, weightKg: setWeight });
+      if (e1rm > 0) parts.push(t("e1RM {0} kg").replace("{0}", String(Math.round(e1rm))));
+      if (pendingSetType !== "warmup" && bestE1rm > 0 && e1rm > bestE1rm) {
+        parts.push(`🏆 ${t("PR pace")}`);
+      }
+      mainEl.textContent = parts.join(" · ");
+      mainEl.hidden = parts.length === 0;
+      let delta = "";
+      let tone = "";
+      if (ref) {
+        const dReps = setReps - ref.reps;
+        const dKg = round2(setWeight - ref.weightKg);
+        if (dReps === 0 && dKg === 0) {
+          delta = t("Same as {0}").replace("{0}", refLabel);
+        } else {
+          const bits: string[] = [];
+          if (dReps !== 0) {
+            bits.push(
+              (Math.abs(dReps) === 1 ? t("{0} rep") : t("{0} reps")).replace("{0}", signed(dReps)),
+            );
+          }
+          if (dKg !== 0) bits.push(`${signed(dKg)} kg`);
+          delta = t("{0} vs {1}").replace("{0}", bits.join(" · ")).replace("{1}", refLabel);
+          tone = dKg > 0 || (dKg === 0 && dReps > 0) ? " is-up" : " is-down";
+        }
+      }
+      deltaEl.textContent = delta;
+      deltaEl.hidden = delta === "";
+      deltaEl.className = `set-preview-delta${tone}`;
+    };
+    paint();
+    return { el: h("div", { class: "set-preview" }, [mainEl, deltaEl]), paint };
+  }
+
+  /**
    * Warm-up ramp card — shown while an exercise has no working set logged yet
    * (so it survives the ramp itself). Steps derive from the day's working
    * weight: the trainer's prescribed load when the exercise carries one, else
@@ -1994,7 +2179,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
    * Optional warm-up / drop-set tag for the set being logged; tapping the active
    * chip clears it back to a working set. Repaints in place like the RIR field.
    */
-  function renderSetTypeField(): HTMLElement {
+  function renderSetTypeField(onChange?: () => void): HTMLElement {
     const field = h("div", { class: "field rir-field" });
     const paint = (): void => {
       const hint =
@@ -2020,6 +2205,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
                   pendingSetType = pendingSetType === o.value ? null : o.value;
                   snapshot();
                   paint();
+                  onChange?.();
                 },
               },
             }),
@@ -2309,6 +2495,10 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     // have to swipe down across the weight knob (which would rotate it) to reach
     // it; the performed-sets read-out drops below the dials so logging reps and
     // weight stays at the top of the screen.
+    // Quick-pick chips for reps × load ride above the dials card; the strength
+    // branch below owns both dials, so it fills this in. (Cast keeps the
+    // assignment-narrowed type readable at the append below.)
+    let presetsCard = null as HTMLElement | null;
     const dials = isCardio(equipment)
       ? [
           dialField({
@@ -2371,7 +2561,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
             dialField({
               label: isBodyweight(equipment) ? t("Added (kg)") : t("Weight (kg)"),
               value: setWeight,
-              step: 2.5,
+              step: loadIncrementKg(equipment),
               min: 0,
               integer: false,
               unit: "kg",
@@ -2403,6 +2593,29 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
             }
           };
           paintPlates();
+          // The reps × load pair is the whole point of this screen, so the two
+          // dials are flanked by the shortcuts into them: quick-pick chips above
+          // (one tap loads both) and a live read-out below (volume, e1RM, the
+          // delta against the reference). Both repaint in place off the dials'
+          // commits — a full render would re-anchor the scroll mid-adjustment.
+          const preview = renderSetPreview();
+          let repsDial = null as DialHandle | null;
+          let weightDial = null as DialHandle | null;
+          let paintPresets = (): void => {};
+          const presets = renderSetPresets((p) => {
+            setReps = p.reps;
+            setWeight = p.weightKg;
+            repsDial?.set(p.reps);
+            weightDial?.set(p.weightKg);
+            snapshot();
+            paintPlates();
+            preview.paint();
+            paintPresets();
+          });
+          if (presets) {
+            presetsCard = presets.el;
+            paintPresets = presets.paint;
+          }
           return [
             dialField({
               label: t("Reps"),
@@ -2412,27 +2625,41 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
               integer: true,
               unit: t("reps"),
               tone: "signal",
+              bind: (d) => {
+                repsDial = d;
+              },
               onCommit: (n) => {
                 setReps = n;
                 snapshot();
+                preview.paint();
+                paintPresets();
               },
             }),
             dialField({
+              // One tap of the stepper is the gear's smallest real jump (2 kg on
+              // dumbbells, 2.5 elsewhere) — the same increment the progression
+              // engine suggests, so the dial can actually land on its numbers.
               label: isBodyweight(equipment) ? t("Added (kg)") : t("Weight (kg)"),
               value: setWeight,
-              step: 2.5,
+              step: loadIncrementKg(equipment),
               min: 0,
               integer: false,
               unit: "kg",
               tone: "navy",
+              bind: (d) => {
+                weightDial = d;
+              },
               onCommit: (n) => {
                 setWeight = n;
                 snapshot();
                 paintPlates();
+                preview.paint();
+                paintPresets();
               },
             }),
+            preview.el,
             ...(plateHint ? [plateHint] : []),
-            renderSetTypeField(),
+            renderSetTypeField(() => preview.paint()),
             renderRirField(),
           ];
         })();
@@ -2451,12 +2678,18 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           on: { click: commitSet },
         }),
       ]),
+      ...(presetsCard ? [presetsCard] : []),
       h("div", { class: "card live-dials" }, dials),
       ...(warmupCard ? [warmupCard] : []),
       ...loggedBlocks,
     );
-    // The timer reading + ✓ Done + dials cluster sits at the top; anchor the
-    // floating button to it so a scroll down through the logged sets can snap back.
+    // The timer reading + ✓ Done + quick picks + dials cluster is what this
+    // stage is for, so scroll it to the top of the viewport — the exercise head
+    // and last-time recall above it would otherwise push the reps and weight
+    // controls under the fold on a phone, right when they're the whole task.
+    // The floating button anchors to the same row, so a scroll down through the
+    // logged sets can snap straight back to the dials.
+    scrollTargetEl = setTimeEl;
     focusAnchorEl = setTimeEl;
   }
 

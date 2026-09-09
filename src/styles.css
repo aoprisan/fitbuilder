@@ -1425,6 +1425,76 @@ textarea {
   font-variant-numeric: tabular-nums;
 }
 
+/* Quick reps × load picks above the dials when a set is done — one tap loads
+   both dials, and the chip matching them stays lit so the numbers on screen
+   always say where they came from. */
+.live-presets {
+  border-left: 8px solid var(--signal);
+  display: grid;
+  gap: 6px;
+}
+
+.live-presets .now-eyebrow {
+  margin: 0;
+}
+
+.preset-toggle {
+  margin: 0;
+}
+
+.preset-btn {
+  display: grid;
+  gap: 2px;
+  flex: 1 1 33%;
+  text-align: center;
+}
+
+.preset-src {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+}
+
+.preset-val {
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Live read-out under the reps/weight dials: what the dialled-in set is worth
+   and how it compares to the reference it was seeded from. Full-width row of
+   the dials card, repainted as the knobs turn. */
+.set-preview {
+  flex: 1 1 100%;
+  display: grid;
+  gap: 2px;
+  text-align: center;
+}
+
+.set-preview-main,
+.set-preview-delta {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.set-preview-delta {
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+.set-preview-delta.is-up {
+  color: var(--brick);
+}
+
+.set-preview-delta.is-down {
+  color: var(--navy);
+}
+
 /* Barbell plate calculator under the weight dial. */
 .plate-hint {
   margin: 0;
@@ -5341,8 +5411,12 @@ textarea:focus-visible {
   color: var(--ink);
 }
 
+/* Previewing a wedge inverts the hub — so the text has to invert with it. Only
+   --paper is guaranteed to contrast --ink in every theme (on the night stock
+   --ink is the cream and --on-press is cream too, which left the hub blank). */
 .radial-hub.is-previewing {
   background: var(--ink);
+  color: var(--paper);
 }
 
 .radial-hub-sub {
