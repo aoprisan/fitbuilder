@@ -38,7 +38,15 @@ import {
 } from "../restAlert";
 import { detectPrs, priorSetsFor, type PrHit } from "../records";
 import { muscleRecovery, type MuscleRecovery, recoveryColor } from "../recovery";
-import { compoundMovementsByFrequency, exerciseKey, type ExerciseKey, musclesByFrequency } from "../stats";
+import { PICKER_LAYOUTS, type PickerLayout, loadPickerLayout, savePickerLayout } from "../pickerLayout";
+import { radialSelector, type RadialItem, type RadialRing } from "./radial";
+import {
+  compoundMovementsByFrequency,
+  exerciseKey,
+  type ExerciseKey,
+  musclesByFrequency,
+  recentMovements,
+} from "../stats";
 import type { Cleanup, Nav } from "../router";
 import { bySectionRuns, renderSessionSummary } from "./sessionSummary";
 import { showUndo } from "./snackbar";
@@ -129,6 +137,12 @@ registerTranslations({
     "S-a deschis fereastra de partajare — alege WhatsApp.",
   "Sharing isn't available here, so the PNG was downloaded instead.":
     "Partajarea nu este disponibilă aici, așa că PNG-ul a fost descărcat în schimb.",
+  // — Ring picker —
+  Picker: "Selector",
+  Rings: "Cercuri",
+  List: "Listă",
+  Recent: "Recente",
+  "Pick an exercise": "Alege un exercițiu",
   // — Toggles —
   "Compound lift": "Exercițiu compus",
   "Muscle group": "Grupă musculară",
@@ -467,6 +481,10 @@ const SET_TYPE_OPTIONS: ReadonlyArray<{ value: SetType; label: string }> = [
 const RECOVERY_WARN_BELOW = 0.6;
 const RECOVERY_WARN_SEVERE = 0.35;
 
+/** Movements offered on the ring picker's inner "Recent" ring — the innermost
+ *  arc is the shortest, so a wedge past this starts eating its own label. */
+const QUICK_PICK_RING = 6;
+
 /**
  * Pre-training caution for the muscles a movement works that haven't recovered
  * from *earlier* sessions yet — the most direct guard against hammering a still-
@@ -652,6 +670,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   let prFlash: PrHit[] = [];
   // Name filter over the select screen's exercise chips (long muscle catalogs).
   let movementFilter = "";
+  // Ring dial or stacked chip lists for the exercise picker (device preference).
+  let pickerLayout: PickerLayout = loadPickerLayout();
 
   /** Point the selection at a movement id, syncing the derived muscle + load type. */
   function selectMovement(id: string): void {
@@ -1416,6 +1436,11 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       }
       render();
     };
+    const pickLayout = (v: string): void => {
+      pickerLayout = v as PickerLayout;
+      savePickerLayout(pickerLayout);
+      render();
+    };
     const pickMode = (m: string): void => {
       selectMode = m as SelectMode;
       if (selectMode === "compound") ensureCompound();
@@ -1459,7 +1484,22 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     // ordered most-trained first so the user's staples sit at the top.
     const compounds = compoundMovementsByFrequency(allSessions);
     const selectedCompound = findMovement(movementId);
-    const picker =
+
+    // Ready muscles lead (in the user's usual frequency order); the still-
+    // recovering ones sink below, each carrying its recovery dot — picking a
+    // muscle becomes a readiness decision. Shared by both picker layouts.
+    const readiness = (m: MuscleGroup): number => recByMuscle.get(m)?.recovered ?? 1;
+    const orderedMuscles = ((): readonly MuscleGroup[] => {
+      const freqOrder = musclesByFrequency(allSessions);
+      const rank = new Map(freqOrder.map((m, i) => [m, i] as const));
+      return [...freqOrder].sort((a, b) => {
+        const bandA = readiness(a) >= RECOVERY_WARN_BELOW ? 0 : 1;
+        const bandB = readiness(b) >= RECOVERY_WARN_BELOW ? 0 : 1;
+        return bandA - bandB || (rank.get(a) ?? 0) - (rank.get(b) ?? 0);
+      });
+    })();
+
+    const listPicker =
       selectMode === "compound"
         ? compounds.length === 0
           ? [h("p", { class: "empty", text: t("No compound lifts in the catalog yet.") })]
@@ -1476,43 +1516,30 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
                 : []),
             ]
         : [
-            // Ready muscles lead (in the user's usual frequency order); the
-            // still-recovering ones sink below, each chip carrying its recovery
-            // dot — picking a muscle becomes a readiness decision.
-            (() => {
-              const readiness = (m: MuscleGroup): number => recByMuscle.get(m)?.recovered ?? 1;
-              const freqOrder = musclesByFrequency(allSessions);
-              const rank = new Map(freqOrder.map((m, i) => [m, i] as const));
-              const ordered = [...freqOrder].sort((a, b) => {
-                const bandA = readiness(a) >= RECOVERY_WARN_BELOW ? 0 : 1;
-                const bandB = readiness(b) >= RECOVERY_WARN_BELOW ? 0 : 1;
-                return bandA - bandB || (rank.get(a) ?? 0) - (rank.get(b) ?? 0);
-              });
-              return h("div", { class: "field" }, [
-                h("span", { class: "field-label", text: t("Muscle group") }),
-                h(
-                  "div",
-                  { class: "toggle", role: "group", aria: { label: t("Muscle group") } },
-                  ordered.map((m) => {
-                    const dot = h("span", { class: "muscle-dot", aria: { hidden: "true" } });
-                    dot.style.background = recoveryColor(readiness(m));
-                    return h(
-                      "button",
-                      {
-                        class:
-                          muscle === m
-                            ? "toggle-btn muscle-toggle-btn active"
-                            : "toggle-btn muscle-toggle-btn",
-                        type: "button",
-                        aria: { pressed: String(muscle === m) },
-                        on: { click: () => pickMuscle(m) },
-                      },
-                      [dot, h("span", { text: t(MUSCLE_LABELS[m]) })],
-                    );
-                  }),
-                ),
-              ]);
-            })(),
+            h("div", { class: "field" }, [
+              h("span", { class: "field-label", text: t("Muscle group") }),
+              h(
+                "div",
+                { class: "toggle", role: "group", aria: { label: t("Muscle group") } },
+                orderedMuscles.map((m) => {
+                  const dot = h("span", { class: "muscle-dot", aria: { hidden: "true" } });
+                  dot.style.background = recoveryColor(readiness(m));
+                  return h(
+                    "button",
+                    {
+                      class:
+                        muscle === m
+                          ? "toggle-btn muscle-toggle-btn active"
+                          : "toggle-btn muscle-toggle-btn",
+                      type: "button",
+                      aria: { pressed: String(muscle === m) },
+                      on: { click: () => pickMuscle(m) },
+                    },
+                    [dot, h("span", { text: t(MUSCLE_LABELS[m]) })],
+                  );
+                }),
+              ),
+            ]),
             // Exercise chips with a name filter above them once the muscle's
             // catalog runs long. Only the chip block repaints per keystroke, so
             // the filter input keeps focus; picking a chip still re-renders the
@@ -1543,6 +1570,119 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
               return h("div", {}, [filterEl, chipsHost]);
             })(),
           ];
+
+    /**
+     * The ring layout: one dial instead of three stacked chip rows. Muscle
+     * groups ride the outer ring (recovery-tinted, ready first), the chosen
+     * muscle's exercises the middle one, and the lifter's recent movements the
+     * inner one — so a staple is one tap away from wherever the dial is pointed
+     * and confirming is a tap on the hub. Compound mode drops the muscle ring
+     * (a compound has no single muscle to pick) and dials the lifts directly.
+     * The filter above narrows the exercise ring only; typing repaints the dial
+     * alone, so the input keeps focus.
+     */
+    const radialPicker = (): HTMLElement => {
+      const dialHost = h("div", { class: "radial-host" });
+      const toItems = (movements: readonly Movement[]): RadialItem[] =>
+        movements.map((mv) => ({ id: mv.id, label: mv.name }));
+
+      // What the user actually trains, newest first. Compound mode keeps only
+      // the compounds, so the recall runs deeper than the ring holds before it
+      // is filtered. A fresh log has nothing to recall at all — the ring falls
+      // back to the catalog's compounds, so it's never empty.
+      const quickPicks = (): readonly Movement[] => {
+        const recent = recentMovements(allSessions, QUICK_PICK_RING * 4).filter((mv) =>
+          selectMode === "compound" ? isCompoundMovement(mv) : true,
+        );
+        return (recent.length > 0 ? recent : compounds).slice(0, QUICK_PICK_RING);
+      };
+
+      const filtered = (movements: readonly Movement[]): readonly Movement[] => {
+        const shown = movements.filter((mv) => matchesFilter(mv.name, movementFilter));
+        return shown.length > 0 ? shown : movements;
+      };
+
+      const paintDial = (): void => {
+        clear(dialHost);
+        const exercises =
+          selectMode === "compound" ? compounds : isolationMovementsForMuscle(muscle);
+        const rings: RadialRing[] = [
+          ...(selectMode === "compound"
+            ? []
+            : [
+                {
+                  label: t("Muscle group"),
+                  items: orderedMuscles.map(
+                    (m): RadialItem => ({
+                      id: m,
+                      label: t(MUSCLE_LABELS[m]),
+                      tint: recoveryColor(readiness(m)),
+                    }),
+                  ),
+                  activeId: muscle,
+                  onPick: pickMuscle,
+                  capacity: 10,
+                  weight: 1,
+                  tone: "muscle",
+                },
+              ]),
+          {
+            label: selectMode === "compound" ? t("Compound lift") : t("Exercise"),
+            items: toItems(filtered(exercises)),
+            activeId: movementId,
+            onPick: pickMovement,
+            capacity: 9,
+            weight: 1.1,
+            tone: "exercise",
+          },
+          {
+            label: t("Recent"),
+            items: toItems(quickPicks()),
+            activeId: movementId,
+            onPick: pickMovement,
+            capacity: QUICK_PICK_RING,
+            weight: 1.15,
+            tone: "quick",
+          },
+        ];
+        const picked = findMovement(movementId);
+        dialHost.append(
+          radialSelector({
+            rings,
+            hub: {
+              sub: t(MUSCLE_LABELS[muscle]),
+              title: picked?.name ?? t("Pick an exercise"),
+              action: {
+                label: planned ? t("Start →") : t("Next →"),
+                onClick: planned ? () => resumeExercise(planned) : startExercise,
+              },
+            },
+          }),
+        );
+      };
+
+      const filterEl = filterField(t("Filter exercises"), (q) => {
+        movementFilter = q;
+        paintDial();
+      });
+      filterEl.value = movementFilter;
+      // Only worth showing once the exercise ring has to page to hold its list.
+      filterEl.hidden =
+        (selectMode === "compound" ? compounds.length : isolationMovementsForMuscle(muscle).length) <=
+        9;
+      paintDial();
+      return h("div", {}, [filterEl, dialHost]);
+    };
+
+    const picker =
+      pickerLayout === "rings"
+        ? [
+            radialPicker(),
+            ...(selectedCompound && isCompoundMovement(selectedCompound)
+              ? [renderMuscleShares(selectedCompound)]
+              : []),
+          ]
+        : listPicker;
 
     // The last time this exact movement was trained, so the user picks a load to
     // beat. Drawn from prior sessions only (the active one excluded), matching the
@@ -1602,6 +1742,13 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           (m) => (m === "compound" ? t("Compound") : t("Custom")),
           selectMode,
           pickMode,
+        ),
+        renderToggle(
+          t("Picker"),
+          PICKER_LAYOUTS,
+          (v) => (v === "rings" ? t("Rings") : t("List")),
+          pickerLayout,
+          pickLayout,
         ),
         ...picker,
         ...(lastPerf ? [renderLastPerformance(lastPerf.date, lastPerf.exercise)] : []),

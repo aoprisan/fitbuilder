@@ -5192,3 +5192,208 @@ textarea:focus-visible {
   margin-right: 6px;
   flex: none;
 }
+
+/* ───────────────────── RADIAL PICKER (concentric rings) ─────────────────────
+   The live exercise picker as a dial: muscle groups on the outer ring, that
+   muscle's exercises inside it, the lifter's recent movements innermost, and
+   the current pick on the hub button at the centre. Printed like the rest of
+   the ledger — hard ink hairlines on stock, the selection stamped solid. */
+
+.radial-picker {
+  margin: 14px 0;
+}
+
+.radial-dial {
+  position: relative;
+  width: min(100%, 380px);
+  margin: 0 auto;
+  aspect-ratio: 1;
+}
+
+.radial-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  touch-action: manipulation;
+}
+
+.radial-seg-face {
+  fill: var(--paper);
+  stroke: var(--ink);
+  stroke-width: 1.6;
+  transition: fill 120ms ease;
+}
+
+.radial-ring-muscle .radial-seg-face {
+  fill: var(--paper-deep);
+}
+
+.radial-ring-quick .radial-seg-face {
+  fill: var(--paper-ash);
+}
+
+.radial-seg {
+  cursor: pointer;
+}
+
+.radial-seg.is-blank .radial-seg-face {
+  fill: transparent;
+  stroke: var(--ink-ghost);
+}
+
+.radial-seg-label {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  fill: var(--ink-soft);
+  pointer-events: none;
+}
+
+.radial-seg-tint {
+  stroke: var(--ink);
+  stroke-width: 1.2;
+  pointer-events: none;
+}
+
+.radial-seg:hover .radial-seg-face {
+  fill: var(--paper-edge);
+}
+
+.radial-seg:hover .radial-seg-label {
+  fill: var(--ink);
+}
+
+.radial-seg.is-active .radial-seg-face {
+  fill: var(--ink);
+}
+
+.radial-seg.is-active .radial-seg-label {
+  fill: var(--paper);
+}
+
+.radial-seg.is-pager .radial-seg-face {
+  fill: var(--mustard);
+}
+
+.radial-seg.is-pager .radial-seg-label {
+  fill: var(--on-light);
+}
+
+.radial-seg:focus {
+  outline: none;
+}
+
+.radial-seg:focus-visible .radial-seg-face {
+  stroke: var(--signal);
+  stroke-width: 3.5;
+}
+
+/* The hub: the confirm button, sized to the SVG's inner circle (radius 46 of a
+   300 view box → 30.7% of the dial's width). */
+.radial-hub {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 30.7%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2.5px solid var(--ink);
+  background: var(--brick-fill);
+  color: var(--on-press);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px;
+  cursor: pointer;
+  text-align: center;
+  box-shadow: 2px 2px 0 0 var(--ink);
+  transition: transform 120ms var(--ease);
+}
+
+.radial-hub:hover {
+  transform: translate(-50%, -50%) scale(1.03);
+}
+
+.radial-hub:disabled {
+  cursor: default;
+  background: var(--paper-deep);
+  color: var(--ink);
+}
+
+.radial-hub.is-previewing {
+  background: var(--ink);
+}
+
+.radial-hub-sub {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.radial-hub-title {
+  font-family: var(--font-stamp);
+  font-size: clamp(9px, 2.6vw, 12px);
+  line-height: 1.15;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.radial-hub-action {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-top: 1.5px solid currentcolor;
+  padding-top: 2px;
+  margin-top: 1px;
+}
+
+.radial-hub-action:empty {
+  display: none;
+}
+
+/* Which ring is which, doubling as the page readout for a ring that pages. */
+.radial-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 14px;
+  margin-top: 10px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.radial-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.radial-legend-swatch {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border: 1.5px solid var(--ink);
+  background: var(--paper);
+}
+
+.radial-ring-muscle .radial-legend-swatch {
+  background: var(--paper-deep);
+}
+
+.radial-ring-quick .radial-legend-swatch {
+  background: var(--paper-ash);
+}
