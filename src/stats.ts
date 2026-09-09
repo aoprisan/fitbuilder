@@ -158,6 +158,36 @@ export function musclesByFrequency(sessions: readonly TrainingSession[]): readon
   return [...MUSCLE_GROUPS].sort((a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0));
 }
 
+/**
+ * The catalog movements trained most recently, newest first and deduped — the
+ * quick-access ring in the live picker, so a lifter's current staples are one
+ * tap away whatever muscle the picker is pointed at. Only exercises carrying a
+ * catalog `exerciseId` qualify (a legacy muscle+gear row has no movement
+ * identity to offer), and only those with a logged set; within a session the
+ * last-logged exercise leads.
+ */
+export function recentMovements(
+  sessions: readonly TrainingSession[],
+  limit: number,
+): readonly Movement[] {
+  const recent: Movement[] = [];
+  const seen = new Set<string>();
+  const newestFirst = [...sessions].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  for (const session of newestFirst) {
+    for (let i = session.exercises.length - 1; i >= 0; i--) {
+      const ex = session.exercises[i]!;
+      const id = ex.exerciseId;
+      if (ex.sets.length === 0 || id === undefined || seen.has(id)) continue;
+      const mv = findMovement(id);
+      if (!mv) continue;
+      seen.add(id);
+      recent.push(mv);
+      if (recent.length >= limit) return recent;
+    }
+  }
+  return recent;
+}
+
 /** Distinct exercises that have at least one logged set, sorted for stable menus. */
 export function presentExerciseKeys(sessions: TrainingSession[]): ExerciseKey[] {
   const keys = new Set<ExerciseKey>();
