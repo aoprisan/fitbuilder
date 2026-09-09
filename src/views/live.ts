@@ -38,7 +38,6 @@ import {
 } from "../restAlert";
 import { detectPrs, priorSetsFor, type PrHit } from "../records";
 import { muscleRecovery, type MuscleRecovery, recoveryColor } from "../recovery";
-import { PICKER_LAYOUTS, type PickerLayout, loadPickerLayout, savePickerLayout } from "../pickerLayout";
 import { radialSelector, type RadialItem, type RadialRing } from "./radial";
 import {
   compoundMovementsByFrequency,
@@ -138,9 +137,6 @@ registerTranslations({
   "Sharing isn't available here, so the PNG was downloaded instead.":
     "Partajarea nu este disponibilă aici, așa că PNG-ul a fost descărcat în schimb.",
   // — Ring picker —
-  Picker: "Selector",
-  Rings: "Cercuri",
-  List: "Listă",
   Recent: "Recente",
   "Pick an exercise": "Alege un exercițiu",
   // — Toggles —
@@ -329,6 +325,8 @@ registerTranslations({
   // — Floating "back to timer" button —
   "↑ Timer": "↑ Cronometru",
   "Back to the timer and set controls": "Înapoi la cronometru și controalele seriei",
+  "↑ Selector": "↑ Selector",
+  "Back to the exercise selector": "Înapoi la selectorul de exerciții",
 });
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -670,8 +668,6 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   let prFlash: PrHit[] = [];
   // Name filter over the select screen's exercise chips (long muscle catalogs).
   let movementFilter = "";
-  // Ring dial or stacked chip lists for the exercise picker (device preference).
-  let pickerLayout: PickerLayout = loadPickerLayout();
 
   /** Point the selection at a movement id, syncing the derived muscle + load type. */
   function selectMovement(id: string): void {
@@ -753,20 +749,25 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   // and timer are in view without scrolling past the exercise header. Reset to
   // null at the start of every render; null falls back to scroll-to-top.
   let scrollTargetEl: HTMLElement | null = null;
+  // How that element is brought into view. The in-set screens pin their action
+  // row to the top of the viewport; the select screen only nudges its dial into
+  // view ("nearest"), so a repaint never shoves the page around under the thumb.
+  let scrollTargetBlock: ScrollLogicalPosition = "start";
 
   // Floating "jump back to the timer" button. During a live set (running /
   // resting / logging) the action button + timer sit at the top of the screen,
   // but the set list and effort read-out below can run long — so once those
   // controls scroll out of view this fixed button fades in and a single tap
   // returns to them, instead of finger-scrolling back up. `focusAnchorEl` is the
-  // element to return to (the action/timer row), repointed each render; an
-  // IntersectionObserver shows the button only while that anchor is off-screen.
+  // element to return to (the action/timer row — the ring dial on the select
+  // screen), repointed each render; an IntersectionObserver shows the button
+  // only while that anchor is off-screen, and its caption follows the anchor.
   let focusAnchorEl: HTMLElement | null = null;
+  let focusAnchorText = "";
+  let focusAnchorAria = "";
   const fab = h("button", {
     class: "live-fab",
     type: "button",
-    text: t("↑ Timer"),
-    aria: { label: t("Back to the timer and set controls") },
     on: {
       click: () => focusAnchorEl?.scrollIntoView({ block: "start", behavior: "smooth" }),
     },
@@ -803,10 +804,15 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   let hudTimer = 0;
 
   /**
-   * Sticky strip pinned above the select/exercise screens while a session is
-   * open: session name, ticking wall-clock time since the first tap, logged-set
-   * count and the End action — the always-visible answer to "how long have I
-   * been here and how much have I done?".
+   * Strip above the select/exercise screens while a session is open: session
+   * name, ticking wall-clock time since the first tap, logged-set count and the
+   * End action — the answer to "how long have I been here and how much have I
+   * done?".
+   *
+   * It pins itself to the top on the select screen, but rides in the flow on
+   * the exercise screen: there the auto-scroll parks the Start/Stop button at
+   * the top of the viewport, and a pinned strip would sit right over the one
+   * control the screen exists for. Scrolling back up still reaches it.
    */
   function renderHud(session: TrainingSession): HTMLElement {
     const time = h("span", { class: "live-hud-time" });
@@ -817,7 +823,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     tick();
     hudTimer = window.setInterval(tick, 1000);
     const sets = sessionSetCount(session);
-    return h("div", { class: "live-hud" }, [
+    return h("div", { class: stage === "exercise" ? "live-hud is-flow" : "live-hud" }, [
       h("span", { class: "live-hud-name", text: session.name || t("Live Session") }),
       time,
       h("span", {
@@ -1420,13 +1426,19 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       if (mv.secondaryMuscles.length > 0) ex.secondaryMuscles = [...mv.secondaryMuscles];
       else delete ex.secondaryMuscles;
     };
+    // Repaints the dial and the notes under it in place; wired up once the
+    // picker is built. Picking on the rings must not rebuild the whole select
+    // screen: a full render re-anchors the scroll, which used to yank the dial
+    // out from under the thumb between two muscle taps.
+    let repaintPicker: (() => void) | null = null;
     const pickMuscle = (m: string): void => {
       selectMuscle(m as MuscleGroup);
       if (planned) {
         applyMovementToPlanned(planned);
         persist();
       }
-      render();
+      if (repaintPicker) repaintPicker();
+      else render();
     };
     const pickMovement = (id: string): void => {
       selectMovement(id);
@@ -1434,12 +1446,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         applyMovementToPlanned(planned);
         persist();
       }
-      render();
-    };
-    const pickLayout = (v: string): void => {
-      pickerLayout = v as PickerLayout;
-      savePickerLayout(pickerLayout);
-      render();
+      if (repaintPicker) repaintPicker();
+      else render();
     };
     const pickMode = (m: string): void => {
       selectMode = m as SelectMode;
@@ -1479,15 +1487,14 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       ),
     );
 
-    // The exercise picker swaps shape by mode: muscle + gear, or compound lifts
-    // with their muscle split. The mode toggle sits above both. Compounds are
-    // ordered most-trained first so the user's staples sit at the top.
+    // The dial swaps shape by mode: muscle + gear, or compound lifts with their
+    // muscle split. The mode toggle sits above it. Compounds are ordered
+    // most-trained first so the user's staples sit at the top.
     const compounds = compoundMovementsByFrequency(allSessions);
-    const selectedCompound = findMovement(movementId);
 
     // Ready muscles lead (in the user's usual frequency order); the still-
     // recovering ones sink below, each carrying its recovery dot — picking a
-    // muscle becomes a readiness decision. Shared by both picker layouts.
+    // muscle becomes a readiness decision.
     const readiness = (m: MuscleGroup): number => recByMuscle.get(m)?.recovered ?? 1;
     const orderedMuscles = ((): readonly MuscleGroup[] => {
       const freqOrder = musclesByFrequency(allSessions);
@@ -1499,80 +1506,36 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       });
     })();
 
-    const listPicker =
-      selectMode === "compound"
-        ? compounds.length === 0
-          ? [h("p", { class: "empty", text: t("No compound lifts in the catalog yet.") })]
-          : [
-              renderToggle(
-                t("Compound lift"),
-                compounds.map((mv) => mv.id),
-                (id) => findMovement(id)?.name ?? id,
-                movementId,
-                pickMovement,
-              ),
-              ...(selectedCompound && isCompoundMovement(selectedCompound)
-                ? [renderMuscleShares(selectedCompound)]
-                : []),
-            ]
-        : [
-            h("div", { class: "field" }, [
-              h("span", { class: "field-label", text: t("Muscle group") }),
-              h(
-                "div",
-                { class: "toggle", role: "group", aria: { label: t("Muscle group") } },
-                orderedMuscles.map((m) => {
-                  const dot = h("span", { class: "muscle-dot", aria: { hidden: "true" } });
-                  dot.style.background = recoveryColor(readiness(m));
-                  return h(
-                    "button",
-                    {
-                      class:
-                        muscle === m
-                          ? "toggle-btn muscle-toggle-btn active"
-                          : "toggle-btn muscle-toggle-btn",
-                      type: "button",
-                      aria: { pressed: String(muscle === m) },
-                      on: { click: () => pickMuscle(m) },
-                    },
-                    [dot, h("span", { text: t(MUSCLE_LABELS[m]) })],
-                  );
-                }),
-              ),
-            ]),
-            // Exercise chips with a name filter above them once the muscle's
-            // catalog runs long. Only the chip block repaints per keystroke, so
-            // the filter input keeps focus; picking a chip still re-renders the
-            // whole screen (movementFilter survives at view level).
-            (() => {
-              const movements = isolationMovementsForMuscle(muscle);
-              const chipsHost = h("div");
-              const paintChips = (): void => {
-                clear(chipsHost);
-                const shown = movements.filter((mv) => matchesFilter(mv.name, movementFilter));
-                chipsHost.append(
-                  renderToggle(
-                    t("Exercise"),
-                    (shown.length > 0 ? shown : movements).map((mv) => mv.id),
-                    (id) => findMovement(id)?.name ?? id,
-                    movementId,
-                    pickMovement,
-                  ),
-                );
-              };
-              const filterEl = filterField(t("Filter exercises"), (q) => {
-                movementFilter = q;
-                paintChips();
-              });
-              filterEl.value = movementFilter;
-              filterEl.hidden = movements.length <= 8;
-              paintChips();
-              return h("div", {}, [filterEl, chipsHost]);
-            })(),
-          ];
+    // Everything the dial's current pick implies — its muscle split, the last
+    // time it was trained, the progression nudge and the recovery caution. It
+    // sits under the dial and is repainted with it, so picking a muscle updates
+    // the notes without rebuilding (and re-scrolling) the screen around them.
+    const priorSessions = allSessions.filter((s2) => s2.id !== session.id);
+    const contextHost = h("div", { class: "live-select-context" });
+    const paintContext = (): void => {
+      clear(contextHost);
+      const key = exerciseKey({ muscle, equipment, exerciseId: movementId });
+      const picked = findMovement(movementId);
+      // Drawn from prior sessions only (the active one excluded), matching the
+      // recovery-warning scope so a within-session repeat still recalls last week.
+      const lastPerf = lastPerformance(priorSessions, key);
+      // Progression nudge for a freestyle pick — a routine-planned exercise
+      // defers to the trainer's prescribed scheme instead.
+      const overloadHint = planned ? null : renderOverloadHint(priorSessions, key, equipment);
+      // Caution if the picked movement's muscles haven't recovered from earlier
+      // sessions; the active session is excluded so within-session repeats are fine.
+      const targetMuscles = picked
+        ? [picked.primaryMuscle, ...picked.secondaryMuscles]
+        : [muscle];
+      const recWarn = renderRecoveryWarning(targetMuscles, recByMuscle);
+      if (picked && isCompoundMovement(picked)) contextHost.append(renderMuscleShares(picked));
+      if (lastPerf) contextHost.append(renderLastPerformance(lastPerf.date, lastPerf.exercise));
+      if (overloadHint) contextHost.append(overloadHint);
+      if (recWarn) contextHost.append(recWarn);
+    };
 
     /**
-     * The ring layout: one dial instead of three stacked chip rows. Muscle
+     * The picker: one dial instead of stacked chip rows. Muscle
      * groups ride the outer ring (recovery-tinted, ready first), the chosen
      * muscle's exercises the middle one, and the lifter's recent movements the
      * inner one — so a staple is one tap away from wherever the dial is pointed
@@ -1606,6 +1569,10 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         clear(dialHost);
         const exercises =
           selectMode === "compound" ? compounds : isolationMovementsForMuscle(muscle);
+        // Picking a muscle clears the filter, so the input follows the dial.
+        if (filterEl.value !== movementFilter) filterEl.value = movementFilter;
+        // Only worth showing once the exercise ring has to page to hold its list.
+        filterEl.hidden = exercises.length <= 9;
         const rings: RadialRing[] = [
           ...(selectMode === "compound"
             ? []
@@ -1665,50 +1632,45 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         movementFilter = q;
         paintDial();
       });
-      filterEl.value = movementFilter;
-      // Only worth showing once the exercise ring has to page to hold its list.
-      filterEl.hidden =
-        (selectMode === "compound" ? compounds.length : isolationMovementsForMuscle(muscle).length) <=
-        9;
+      // Keyboard focus sits on the wedge that was just picked, and the repaint
+      // replaces it — so note which ring it belonged to and hand focus back to
+      // that ring's new selection instead of letting it drop to the page body.
+      const focusedRingIndex = (): number => {
+        const el = document.activeElement;
+        const ring = el instanceof Element ? el.closest(".radial-ring") : null;
+        if (!ring || !dialHost.contains(ring)) return -1;
+        return [...dialHost.querySelectorAll(".radial-ring")].indexOf(ring);
+      };
+      const refocusRing = (index: number): void => {
+        if (index < 0) return;
+        const ring = dialHost.querySelectorAll(".radial-ring")[index];
+        const seg = ring?.querySelector(".radial-seg.is-active") ?? ring?.querySelector(".radial-seg");
+        if (seg instanceof SVGElement) seg.focus({ preventScroll: true });
+      };
+
+      // From here on a pick repaints the dial and its notes, nothing else —
+      // so the resume snapshot (which a full render would have taken) is taken
+      // here instead, keeping a reload on the same pending selection.
+      repaintPicker = (): void => {
+        const ringIndex = focusedRingIndex();
+        paintDial();
+        paintContext();
+        refocusRing(ringIndex);
+        snapshot();
+      };
       paintDial();
+      // The dial is what this screen is for: park the scroll on it and point the
+      // floating jump-back button at it, so it is always the thing in view.
+      scrollTargetEl = dialHost;
+      scrollTargetBlock = "nearest";
+      focusAnchorEl = dialHost;
+      focusAnchorText = t("↑ Selector");
+      focusAnchorAria = t("Back to the exercise selector");
       return h("div", {}, [filterEl, dialHost]);
     };
 
-    const picker =
-      pickerLayout === "rings"
-        ? [
-            radialPicker(),
-            ...(selectedCompound && isCompoundMovement(selectedCompound)
-              ? [renderMuscleShares(selectedCompound)]
-              : []),
-          ]
-        : listPicker;
-
-    // The last time this exact movement was trained, so the user picks a load to
-    // beat. Drawn from prior sessions only (the active one excluded), matching the
-    // recovery-warning scope so a within-session repeat still recalls last week.
-    const priorSessions = allSessions.filter((s) => s.id !== session.id);
-    const lastPerf = lastPerformance(
-      priorSessions,
-      exerciseKey({ muscle, equipment, exerciseId: movementId }),
-    );
-    // Progression nudge for a freestyle pick — a routine-planned exercise defers
-    // to the trainer's prescribed scheme instead.
-    const overloadHint = planned
-      ? null
-      : renderOverloadHint(
-          priorSessions,
-          exerciseKey({ muscle, equipment, exerciseId: movementId }),
-          equipment,
-        );
-
-    // Caution if the picked movement's muscles haven't recovered from earlier
-    // sessions — the active session is excluded so within-session repeats are fine.
-    const selectedMovement = findMovement(movementId);
-    const targetMuscles = selectedMovement
-      ? [selectedMovement.primaryMuscle, ...selectedMovement.secondaryMuscles]
-      : [muscle];
-    const recWarn = renderRecoveryWarning(targetMuscles, recByMuscle);
+    const picker = radialPicker();
+    paintContext();
 
     container.append(
       h("section", { class: "card live-select" }, [
@@ -1743,17 +1705,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           selectMode,
           pickMode,
         ),
-        renderToggle(
-          t("Picker"),
-          PICKER_LAYOUTS,
-          (v) => (v === "rings" ? t("Rings") : t("List")),
-          pickerLayout,
-          pickLayout,
-        ),
-        ...picker,
-        ...(lastPerf ? [renderLastPerformance(lastPerf.date, lastPerf.exercise)] : []),
-        ...(overloadHint ? [overloadHint] : []),
-        ...(recWarn ? [recWarn] : []),
+        picker,
+        contextHost,
         h("div", { class: "btn-row" }, [
           h("button", {
             class: "btn btn-primary",
@@ -2517,7 +2470,10 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     // Cast keeps the assignment-narrowed type at `HTMLElement | null` so the
     // renderers' assignments (in the dispatch below) are visible at the check.
     scrollTargetEl = null as HTMLElement | null;
+    scrollTargetBlock = "start";
     focusAnchorEl = null as HTMLElement | null;
+    focusAnchorText = t("↑ Timer");
+    focusAnchorAria = t("Back to the timer and set controls");
     // The sticky session HUD rides above both in-session screens.
     if (stage !== "list" && state.activeLog) container.append(renderHud(state.activeLog));
     if (stage === "list") renderList();
@@ -2526,11 +2482,13 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     // During a running set / rest the renderer points scrollTargetEl at the
     // action row so the button + timer sit at the top of the viewport; every
     // other screen jumps back to the page top.
-    if (scrollTargetEl) scrollTargetEl.scrollIntoView({ block: "start" });
+    if (scrollTargetEl) scrollTargetEl.scrollIntoView({ block: scrollTargetBlock });
     else window.scrollTo(0, 0);
     // Watch the in-set action/timer row (when there is one) so the floating
     // "back to timer" button only surfaces once it has scrolled off-screen.
     fabObserver.disconnect();
+    fab.textContent = focusAnchorText;
+    fab.setAttribute("aria-label", focusAnchorAria);
     if (focusAnchorEl) fabObserver.observe(focusAnchorEl);
     else fab.classList.remove("is-visible");
   }

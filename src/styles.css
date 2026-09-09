@@ -2163,9 +2163,11 @@ textarea {
 }
 
 /* Anchor for the auto-scroll during a running set / rest: leave a little
-   breathing room above the action button so it isn't flush with the top. */
+   breathing room above the action button so it isn't flush with the top. The
+   scroll is measured while the mount animation still holds the row 14px low
+   (see `rise`), so the margin carries that offset too. */
 .live-scroll-anchor {
-  scroll-margin-top: 12px;
+  scroll-margin-top: 26px;
 }
 
 .live-actions .btn-jumbo {
@@ -5130,6 +5132,13 @@ textarea:focus-visible {
   padding: 9px 12px;
 }
 
+/* On the exercise screen the set controls own the top of the viewport: the HUD
+   rides in the flow and scrolls away with the header, instead of pinning itself
+   over the Start/Stop button the auto-scroll parks underneath it. */
+.live-hud.is-flow {
+  position: static;
+}
+
 .live-hud-name {
   font-family: var(--font-stamp);
   font-size: 12px;
@@ -5201,6 +5210,13 @@ textarea:focus-visible {
 
 .radial-picker {
   margin: 14px 0;
+}
+
+/* Scroll anchor for the picker: the select screen keeps the dial in view, so
+   leave room for the fixed header when it has to be nudged into place. */
+.radial-host {
+  scroll-margin-top: 84px;
+  scroll-margin-bottom: 20px;
 }
 
 .radial-dial {
