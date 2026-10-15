@@ -6,10 +6,10 @@ name: Mobile builds
 # the signing keys locally — see MOBILE.md.
 
 on:
+  # Every branch push (PR branches included), so a native build break shows
+  # up before merge rather than after.
   push:
-    branches: [main]
     paths-ignore: ["**.md", "docs/**"]
-  pull_request:
   workflow_dispatch:
 
 permissions:

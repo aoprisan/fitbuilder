@@ -81,7 +81,7 @@ In a browser the old in-page beep/vibration/Web Notification cue is used instead
 
 ## CI builds
 
-`.github/workflows/mobile.yml` runs on pushes to `main`, PRs and manual dispatch:
+`.github/workflows/mobile.yml` runs on every branch push (docs-only changes skipped) and on manual dispatch:
 
 - **android** assembles a debug APK and uploads it as the `gym-log-debug-apk` artifact
   (installable via `adb install` or by side-loading).
