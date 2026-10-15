@@ -180,9 +180,9 @@ export function setEffort(set: WorkSet, equipment?: Equipment, opts: SetEffortOp
 }
 
 /**
- * Share of a set's fatigue that counts toward recovery / systemic load. Warm-up
- * sets are real work but only lightly fatiguing, so they're discounted rather
- * than counted as a full hard set (they still count in full as *work done*).
+ * Share of a set's fatigue that counts toward recovery, systemic load and the
+ * session's effort. Warm-up sets are real work but only lightly fatiguing, so
+ * they're discounted rather than counted as a full hard set.
  */
 export const WARMUP_FATIGUE_SHARE = 0.25;
 export function setFatigueShare(set: WorkSet): number {
@@ -194,14 +194,20 @@ function isCompoundExercise(ex: { secondaryMuscles?: readonly MuscleGroup[] }): 
   return (ex.secondaryMuscles?.length ?? 0) > 0;
 }
 
-/** Accumulated effort points across every logged set in a session — work done. */
+/**
+ * Accumulated effort points across every logged set in a session — work done.
+ * Warm-up sets count at {@link WARMUP_FATIGUE_SHARE}: they're real but light
+ * work, so a long ramp can't inflate the session's effort tier.
+ */
 export function sessionEffort(session: TrainingSession): number {
   let total = 0;
   for (const ex of session.exercises) {
     const isCompound = isCompoundExercise(ex);
     const referenceLoadKg = movementLoadReferenceKg(ex.exerciseId, ex.muscle);
     for (const s of ex.sets)
-      total += setEffort(s, ex.equipment, { isCompound, referenceLoadKg, fatigueWeighted: true });
+      total +=
+        setEffort(s, ex.equipment, { isCompound, referenceLoadKg, fatigueWeighted: true }) *
+        setFatigueShare(s);
   }
   return total;
 }
@@ -219,7 +225,8 @@ function sessionEffortIntensity(session: TrainingSession): number {
     for (const s of ex.sets)
       total +=
         setEffort(s, ex.equipment, { isCompound, referenceLoadKg, fatigueWeighted: true }) *
-        fatigueProximity(s.rir);
+        fatigueProximity(s.rir) *
+        setFatigueShare(s);
   }
   return total;
 }
@@ -339,11 +346,11 @@ function accumulateMuscleWork(sessions: Iterable<TrainingSession>): MuscleWork[]
       const isCompound = isCompoundExercise(ex);
       const referenceLoadKg = movementLoadReferenceKg(ex.exerciseId, ex.muscle);
       for (const s of ex.sets) {
-        const setPts = setEffort(s, ex.equipment, {
-          isCompound,
-          referenceLoadKg,
-          fatigueWeighted: true,
-        });
+        // Effort points discount warm-ups like the session total does; the
+        // kilos and seconds below still count every rep that was moved.
+        const setPts =
+          setEffort(s, ex.equipment, { isCompound, referenceLoadKg, fatigueWeighted: true }) *
+          setFatigueShare(s);
         // Primary muscle takes full credit; a compound lift's secondary muscles
         // each take a fixed share so they register as worked in the breakdown.
         credit(ex.muscle, s, 1, setPts);

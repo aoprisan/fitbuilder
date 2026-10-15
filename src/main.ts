@@ -1,7 +1,9 @@
 import "./fonts";
 import "./styles.css";
 import { track } from "./analytics";
-import { PERSIST_ERROR_EVENT } from "./logStorage";
+import { getSession, PERSIST_ERROR_EVENT, SESSIONS_KEY } from "./logStorage";
+import { setActiveLog, state } from "./state";
+import { PROGRESS_KEY } from "./liveProgress";
 import { backupFilename, buildBackup, RestoreQuotaError, restoreBackup } from "./backup";
 import { latestBodyweight, logBodyweight } from "./bodyweightStore";
 import { clear, h } from "./dom";
@@ -44,6 +46,8 @@ registerTranslations({
     "Nu există suficient spațiu pe acest dispozitiv pentru a restaura copia. Nu s-a modificat nimic.",
   "Couldn't save — this device's storage is full. Download a backup before closing the app.":
     "Nu s-a putut salva — spațiul de stocare al dispozitivului este plin. Descarcă o copie de rezervă înainte de a închide aplicația.",
+  "This session was changed in another tab — showing the latest.":
+    "Această sesiune a fost modificată în altă filă — se afișează cea mai recentă versiune.",
   About: "Despre",
   Privacy: "Confidențialitate",
   Terms: "Termeni",
@@ -128,6 +132,40 @@ function boot(): void {
   const viewHost = h("main", { class: "view-host", id: "view" });
 
   const navButtons = new Map<ViewName, HTMLButtonElement>();
+
+  // Two tabs (or the PWA plus a browser tab) share one localStorage. Each save
+  // re-reads the log first, so different sessions never clobber each other —
+  // but a tab holding the *same* open session in memory would overwrite the
+  // other tab's sets on its next save. So when another tab rewrites the log
+  // and our open session changed there, adopt that copy and remount; and while
+  // on Train, follow the other tab's place in the flow (its resume snapshot)
+  // too. A commit writes the log and then the snapshot, so the two events are
+  // coalesced into one remount. Re-saving an identical snapshot fires no
+  // event, so two tabs settle instead of ping-ponging remounts.
+  let syncTimer = 0;
+  let syncNotice = false;
+  window.addEventListener("storage", (e) => {
+    if (e.storageArea !== localStorage) return;
+    let remount = false;
+    if (e.key === null || e.key === SESSIONS_KEY) {
+      const open = state.activeLog;
+      const stored = open ? getSession(open.id) : undefined;
+      const strip = (x: object): string => JSON.stringify({ ...x, updatedAt: undefined });
+      if (open && !(stored && strip(stored) === strip(open))) {
+        setActiveLog(stored ?? null);
+        syncNotice = true;
+        remount = true;
+      }
+    }
+    if (e.key === PROGRESS_KEY && currentView === "live") remount = true;
+    if (!remount) return;
+    clearTimeout(syncTimer);
+    syncTimer = window.setTimeout(() => {
+      navigate(currentView, { push: false });
+      if (syncNotice) showNotice(t("This session was changed in another tab — showing the latest."));
+      syncNotice = false;
+    }, 60);
+  });
 
   // A save that hit a full disk would otherwise vanish silently on reload —
   // tell the user (at most every 30 s, since every logged set re-saves).

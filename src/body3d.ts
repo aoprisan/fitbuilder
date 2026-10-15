@@ -301,8 +301,15 @@ export function createBodyScene(initialSize = 320): BodyScene {
   el.addEventListener("pointerup", endDrag);
   el.addEventListener("pointercancel", endDrag);
 
+  // Honour the OS "reduce motion" setting: no idle turntable and no inertial
+  // coast — the figure turns only while a finger is actually dragging it.
+  const reducedMotion =
+    typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
+
   function frame(): void {
-    if (!dragging) {
+    if (!dragging && reducedMotion?.matches) {
+      velY = 0;
+    } else if (!dragging) {
       if (Math.abs(velY) > 0.0002) {
         rotY += velY;
         velY *= 0.92; // inertial spin-down after a flick

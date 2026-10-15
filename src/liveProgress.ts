@@ -1,6 +1,8 @@
 import { EQUIPMENT, MUSCLE_GROUPS, type Equipment, type MuscleGroup, type SetType } from "./types";
 
-const KEY = "gymlog.liveProgress";
+/** localStorage key of the resume snapshot (also watched for cross-tab changes). */
+export const PROGRESS_KEY = "gymlog.liveProgress";
+const KEY = PROGRESS_KEY;
 
 /** Top-level place in the live flow worth resuming (the "list" screen is the default, so it isn't stored). */
 export type ProgressStage = "select" | "exercise";

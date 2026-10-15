@@ -1,7 +1,9 @@
 import { coerceSession } from "./logValidate";
 import type { TrainingSession } from "./types";
 
-const KEY = "gymlog.sessions";
+/** localStorage key of the session log (also watched for cross-tab changes). */
+export const SESSIONS_KEY = "gymlog.sessions";
+const KEY = SESSIONS_KEY;
 
 function readRaw(): unknown {
   let text: string | null = null;
