@@ -9,7 +9,8 @@
 #   ANDROID_KEYSTORE_PASSWORD  store password
 #   ANDROID_KEY_ALIAS          key alias
 #   ANDROID_KEY_PASSWORD       key password (defaults to the store password)
-# Without them the release artifacts are built unsigned.
+# …or put the same values in android/keystore.properties (see the .example).
+# Without either the release artifacts are built unsigned.
 set -euo pipefail
 
 MODE="${1:-debug}"
@@ -58,23 +59,24 @@ if [[ "$MODE" == "debug" ]]; then
   exit 0
 fi
 
-SIGN_ARGS=()
-if [[ -n "${ANDROID_KEYSTORE:-}" ]]; then
+# Signing is configured in android/app/build.gradle from android/keystore.properties
+# or the ANDROID_KEY* env vars above; this only checks for it up front.
+if [[ -f "$ROOT/android/keystore.properties" ]]; then
+  echo "Signing with android/keystore.properties"
+elif [[ -n "${ANDROID_KEYSTORE:-}" ]]; then
   [[ -f "$ANDROID_KEYSTORE" ]] || die "ANDROID_KEYSTORE not found: $ANDROID_KEYSTORE"
   : "${ANDROID_KEYSTORE_PASSWORD:?set ANDROID_KEYSTORE_PASSWORD}"
   : "${ANDROID_KEY_ALIAS:?set ANDROID_KEY_ALIAS}"
-  SIGN_ARGS=(
-    "-Pandroid.injected.signing.store.file=$(cd "$(dirname "$ANDROID_KEYSTORE")" && pwd)/$(basename "$ANDROID_KEYSTORE")"
-    "-Pandroid.injected.signing.store.password=$ANDROID_KEYSTORE_PASSWORD"
-    "-Pandroid.injected.signing.key.alias=$ANDROID_KEY_ALIAS"
-    "-Pandroid.injected.signing.key.password=${ANDROID_KEY_PASSWORD:-$ANDROID_KEYSTORE_PASSWORD}"
-  )
+  # Gradle resolves relative paths against android/, so hand it an absolute one.
+  ANDROID_KEYSTORE="$(cd "$(dirname "$ANDROID_KEYSTORE")" && pwd)/$(basename "$ANDROID_KEYSTORE")"
+  export ANDROID_KEYSTORE
 else
-  echo "warning: ANDROID_KEYSTORE not set — release artifacts will be UNSIGNED (Play won't accept them)." >&2
+  echo "warning: no android/keystore.properties or ANDROID_KEYSTORE — release artifacts will be UNSIGNED (Play won't accept them)." >&2
 fi
 
-# `${arr[@]+...}` keeps an empty array safe under `set -u` on macOS bash 3.2.
-./gradlew bundleRelease assembleRelease ${SIGN_ARGS[@]+"${SIGN_ARGS[@]}"}
+VERSION="$(node -p "require('$ROOT/package.json').version")"
+echo "Building release $VERSION (versionCode from package.json unless ANDROID_VERSION_CODE is set)"
+./gradlew bundleRelease assembleRelease
 cp app/build/outputs/bundle/release/app-release.aab "$OUT/gym-log-release.aab"
 APK="$(ls app/build/outputs/apk/release/app-release*.apk | head -n1)"
 cp "$APK" "$OUT/gym-log-release.apk"

@@ -1,3 +1,4 @@
+import "./fonts";
 import "./styles.css";
 import { track } from "./analytics";
 import { backupFilename, buildBackup, restoreBackup } from "./backup";

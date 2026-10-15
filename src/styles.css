@@ -346,13 +346,19 @@ textarea {
 }
 
 /* ── Settings sheet ── an overlay card in the Training Ledger language. ──── */
+/* The sheet is taller than a phone screen, so the scrim itself scrolls (a fixed
+   overlay never scrolls with the page). The dialog centres via auto margins
+   rather than place-items: auto margins collapse to 0 once it overflows, so it
+   top-aligns and stays reachable instead of being clipped above the viewport. */
 .settings-scrim {
   position: fixed;
   inset: 0;
   z-index: 300;
-  display: grid;
-  place-items: center;
-  padding: 24px;
+  display: flex;
+  padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   background: rgba(12, 9, 5, 0.52);
   opacity: 0;
   visibility: hidden;
@@ -367,6 +373,8 @@ textarea {
 }
 
 .settings-dialog {
+  margin: auto;
+  flex: none;
   width: min(380px, 100%);
   background: var(--paper);
   border: var(--rule);

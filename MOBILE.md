@@ -53,7 +53,11 @@ npm run android           # opens Android Studio to run / archive
 The Android SDK is found from `ANDROID_HOME` / `ANDROID_SDK_ROOT`, `android/local.properties`,
 or Android Studio's default install path (`~/Library/Android/sdk`, `~/Android/Sdk`).
 
-**Android release signing** is read from the environment. Never commit the keystore:
+**Publishing to Google Play** (versioning, store listing, screenshots, fastlane
+upload, Play Console answers) is covered in [`docs/play-release.md`](docs/play-release.md).
+
+**Android release signing** is read from `android/keystore.properties` (copy
+`keystore.properties.example`, git-ignored) or the environment. Never commit the keystore:
 
 ```bash
 export ANDROID_KEYSTORE=~/keys/gymlog.jks

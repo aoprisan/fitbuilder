@@ -9,15 +9,14 @@
        background. Navigation requests fall back to the cached index when no
        network is available.
 
-     - Google Fonts (the Alfa Slab One / Bungee / IBM Plex Mono webfonts):
-       cache-first. They don't change, so once cached keep using the cached copy.
+     The typefaces are bundled (src/fonts.ts), so they're same-origin app-shell
+     assets too — nothing is fetched from a third party.
 
    Cache versioning: bump CACHE_VERSION when the SW or strategies change.
    Old caches are evicted on `activate`. */
 
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const APP_CACHE = `gymlog-app-${CACHE_VERSION}`;
-const REMOTE_CACHE = `gymlog-remote-${CACHE_VERSION}`;
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -39,19 +38,13 @@ self.addEventListener('activate', (event) => {
       const keys = await caches.keys();
       await Promise.all(
         keys
-          .filter((key) => key !== APP_CACHE && key !== REMOTE_CACHE)
+          .filter((key) => key !== APP_CACHE)
           .map((key) => caches.delete(key)),
       );
       await self.clients.claim();
     })(),
   );
 });
-
-function isRemoteAsset(url) {
-  return (
-    url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com'
-  );
-}
 
 async function staleWhileRevalidate(request) {
   const cache = await caches.open(APP_CACHE);
@@ -65,21 +58,6 @@ async function staleWhileRevalidate(request) {
     })
     .catch(() => null);
   return cached || (await networkFetch) || Response.error();
-}
-
-async function cacheFirstRemote(request) {
-  const cache = await caches.open(REMOTE_CACHE);
-  const cached = await cache.match(request);
-  if (cached) return cached;
-  try {
-    const response = await fetch(request);
-    if (response && (response.ok || response.type === 'opaque')) {
-      cache.put(request, response.clone()).catch(() => {});
-    }
-    return response;
-  } catch {
-    return Response.error();
-  }
 }
 
 async function navigationFallback(request) {
@@ -111,10 +89,6 @@ self.addEventListener('fetch', (event) => {
   if (url.origin === self.location.origin) {
     event.respondWith(staleWhileRevalidate(request));
     return;
-  }
-
-  if (isRemoteAsset(url)) {
-    event.respondWith(cacheFirstRemote(request));
   }
 });
 

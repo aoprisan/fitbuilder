@@ -11,3 +11,13 @@ npm-debug.log*
 
 # Local mobile build outputs (scripts/build-*.sh)
 build-output/
+
+# Android release signing — never commit keys or their passwords.
+android/keystore.properties
+*.jks
+*.keystore
+
+# Google Play API service-account key (fastlane supply).
+play-service-account.json
+fastlane/report.xml
+fastlane/README.md

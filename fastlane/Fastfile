@@ -1,0 +1,66 @@
+# Google Play release lanes. Run from the repo root with `bundle exec fastlane <lane>`
+# (or the npm wrappers in package.json). Store listing text, release notes and
+# graphics live in fastlane/metadata/android/<locale>/ — see docs/play-release.md.
+#
+# The very first AAB must be uploaded by hand in the Play Console (Google's rule
+# for new apps); every later release can go through these lanes.
+
+default_platform(:android)
+
+AAB = File.expand_path("../build-output/gym-log-release.aab", __dir__)
+
+platform :android do
+  desc "Build a signed release AAB (scripts/build-android.sh release)"
+  lane :build do
+    sh("bash", File.expand_path("../scripts/build-android.sh", __dir__), "release")
+  end
+
+  desc "Check the API key, listing and AAB against Play without publishing anything"
+  lane :validate do
+    upload_to_play_store(
+      track: "internal",
+      aab: AAB,
+      validate_only: true,
+    )
+  end
+
+  desc "Build and upload to the internal testing track (listing + notes included). track:/status: override"
+  lane :internal do |options|
+    build unless options[:skip_build]
+    upload_to_play_store(
+      track: options[:track] || "internal",
+      aab: AAB,
+      # "draft" leaves the release for you to roll out in the console.
+      release_status: options[:status] || "completed",
+      skip_upload_screenshots: false,
+      skip_upload_images: false,
+    )
+  end
+
+  desc "Promote the latest release between tracks, e.g. from:internal to:production rollout:0.2"
+  lane :promote do |options|
+    from = options[:from] || "internal"
+    to = options[:to] || "production"
+    rollout = options[:rollout]
+    upload_to_play_store(
+      track: from,
+      track_promote_to: to,
+      skip_upload_aab: true,
+      skip_upload_apk: true,
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      **(rollout ? { rollout: rollout.to_s, release_status: "inProgress" } : {}),
+    )
+  end
+
+  desc "Push only the store listing (text, graphics, screenshots) — no new build"
+  lane :metadata do
+    upload_to_play_store(
+      skip_upload_aab: true,
+      skip_upload_apk: true,
+      skip_upload_changelogs: true,
+    )
+  end
+end

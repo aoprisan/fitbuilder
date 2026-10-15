@@ -1,0 +1,6 @@
+# Google Play API access for `fastlane supply`: a service-account JSON key with
+# release permissions on this app (see docs/play-release.md). Never commit it —
+# point PLAY_JSON_KEY at it, or drop it in the repo root as
+# play-service-account.json (git-ignored).
+json_key_file(ENV["PLAY_JSON_KEY"] || File.expand_path("../play-service-account.json", __dir__))
+package_name("com.fitbuilder.app")
