@@ -179,6 +179,16 @@ export function setEffort(set: WorkSet, equipment?: Equipment, opts: SetEffortOp
   );
 }
 
+/**
+ * Share of a set's fatigue that counts toward recovery / systemic load. Warm-up
+ * sets are real work but only lightly fatiguing, so they're discounted rather
+ * than counted as a full hard set (they still count in full as *work done*).
+ */
+export const WARMUP_FATIGUE_SHARE = 0.25;
+export function setFatigueShare(set: WorkSet): number {
+  return set.setType === "warmup" ? WARMUP_FATIGUE_SHARE : 1;
+}
+
 /** A lift counts as compound — earning the fatigue premium — when it taxes secondary muscles. */
 function isCompoundExercise(ex: { secondaryMuscles?: readonly MuscleGroup[] }): boolean {
   return (ex.secondaryMuscles?.length ?? 0) > 0;

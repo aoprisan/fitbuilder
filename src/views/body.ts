@@ -68,8 +68,8 @@ registerTranslations({
   Wasteful: "Ineficient",
   Efficient: "Eficient",
   // — legend descriptions —
-  "Relative strength per muscle — your best estimated 1-rep max.":
-    "Forța relativă pe mușchi — cea mai bună estimare 1RM.",
+  "Relative strength per muscle — your best estimated 1-rep max against what that muscle typically moves.":
+    "Forța relativă pe mușchi — cea mai bună estimare 1RM față de cât mută de obicei acel mușchi.",
   "Growth stimulus from hard-set volume over the last 7 days.":
     "Stimulul de creștere din volumul de serii grele din ultimele 7 zile.",
   "How fatigued each muscle is since you last trained it.":
@@ -82,6 +82,12 @@ registerTranslations({
   "No volume this week": "Niciun volum săptămâna aceasta",
   "Fresh — not trained recently": "Odihnit — neantrenat recent",
   Recovered: "Recuperat",
+  "≈ {0} kg est. 1RM": "≈ {0} kg 1RM estimat",
+  "{0} hard set this week": "{0} serie grea săptămâna aceasta",
+  "{0} hard sets this week": "{0} serii grele săptămâna aceasta",
+  "~{0}h to recover": "~{0}h până la recuperare",
+  "{0} effective sets · {1}% near failure": "{0} serii efective · {1}% aproape de epuizare",
+  "{0} sets · log RIR to rate effort": "{0} serii · înregistrează RIR pentru a evalua efortul",
   // — chrome —
   "No sessions logged yet — train a live session and your body map fills in here.":
     "Niciun antrenament înregistrat încă — fă un antrenament Live și harta corporală se va completa aici.",
@@ -115,6 +121,14 @@ registerTranslations({
 
 // The 3D stage is a touch taller than it is wide so the standing figure fits.
 const STAGE_ASPECT = 1.15;
+
+/** A muscle's translated read: its detail template filled with its args. */
+function scoreDetail(score: MuscleScore): string {
+  return (score.args ?? []).reduce(
+    (text, arg, i) => text.replace(`{${i}}`, arg),
+    t(score.detail),
+  );
+}
 
 /**
  * Body Map view: a rotatable 3D figure whose muscles are colour-coded by one of
@@ -325,7 +339,7 @@ export function mountBody(root: HTMLElement, nav: Nav): Cleanup {
     }
     const s = scores.get(muscle);
     const label = t(MUSCLE_LABELS[muscle]);
-    readout.textContent = s ? `${label} — ${t(s.detail)}` : label;
+    readout.textContent = s ? `${label} — ${scoreDetail(s)}` : label;
   }
 
   // — lazy-load Three.js and build the figure; fall back to an SVG body on failure —

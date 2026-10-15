@@ -86,7 +86,7 @@ import {
   fatigueCostPct,
   type FatigueSource,
 } from "../expectation";
-import { latestBodyweight } from "../bodyweightStore";
+import { loadBodyweights } from "../bodyweightStore";
 import { dialField, type DialHandle } from "./dial";
 import { registerTranslations, t } from "../i18n";
 
@@ -1394,13 +1394,15 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
 
   /** Fatigue-adjusted forecast for a movement against the work logged so far this session. */
   function expectationFor(m: MuscleGroup, eq: Equipment, id: string): Expectation | null {
-    const bw = latestBodyweight()?.kg;
+    const bodyweights = loadBodyweights();
+    const bw = bodyweights[bodyweights.length - 1]?.kg;
     return expectNow({
       prior: loadSessions().filter((o) => o.id !== state.activeLog?.id),
       active: state.activeLog,
       muscle: m,
       equipment: eq,
       exerciseId: id,
+      bodyweights,
       ...(bw !== undefined ? { bodyweightKg: bw } : {}),
     });
   }
@@ -2451,7 +2453,11 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       if (setWeight > 0) {
         parts.push(t("{0} kg volume").replace("{0}", String(round2(setReps * setWeight))));
       }
-      const e1rm = epley1RM({ reps: setReps, weightKg: setWeight });
+      const e1rm = epley1RM({
+        reps: setReps,
+        weightKg: setWeight,
+        ...(pendingRir !== null ? { rir: pendingRir } : {}),
+      });
       if (e1rm > 0) parts.push(t("e1RM {0} kg").replace("{0}", String(Math.round(e1rm))));
       if (pendingSetType !== "warmup" && bestE1rm > 0 && e1rm > bestE1rm) {
         parts.push(`🏆 ${t("PR pace")}`);

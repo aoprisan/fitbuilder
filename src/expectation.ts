@@ -1,7 +1,8 @@
-import { CARDIO_LEG_CREDIT, cardioLegDose, fatigueProximity } from "./effort";
+import { CARDIO_LEG_CREDIT, cardioLegDose, fatigueProximity, setFatigueShare } from "./effort";
 import { findMovement, isIsometricHold, SECONDARY_MUSCLE_SHARE } from "./movements";
+import { bodyweightOn, type BodyweightEntry } from "./bodyweightStore";
 import { muscleRecovery } from "./recovery";
-import { exerciseKey, type ExerciseKey } from "./stats";
+import { epleyLoad, exerciseKey, type ExerciseKey } from "./stats";
 import {
   isBodyweight,
   isCardio,
@@ -53,8 +54,6 @@ const RESIDUAL_SETS = 4;
 const SYSTEMIC_PER_SET = 0.08;
 /** Hard-set equivalents per step of self-reported start fatigue above "Good". */
 const START_FATIGUE_PER_LEVEL = 0.75;
-/** Warm-up sets are real work but only lightly fatiguing. */
-const WARMUP_SHARE = 0.25;
 /** Reps assumed left in reserve on a historic set that didn't record RIR. */
 const DEFAULT_RIR = 1;
 /** Reps in reserve the expectation targets — a typical hard working set. */
@@ -111,7 +110,7 @@ export function performanceFactor(load: number): number {
 /** How hard a set hit, in hard-set equivalents (before muscle share). */
 function setDose(s: WorkSet, equipment: Equipment): number {
   if (isCardio(equipment)) return cardioLegDose(s);
-  return fatigueProximity(s.rir) * (s.setType === "warmup" ? WARMUP_SHARE : 1);
+  return fatigueProximity(s.rir) * setFatigueShare(s);
 }
 
 /** Share of an exercise's set that lands on `muscle` (0 when it isn't worked). */
@@ -205,10 +204,14 @@ function effectiveLoad(weightKg: number, equipment: Equipment, bodyweightKg: num
   return isBodyweight(equipment) ? bodyweightKg + Math.max(0, weightKg) : weightKg;
 }
 
-/** Epley 1RM from a set's reps-to-failure (reps + reserve). */
+/**
+ * Epley 1RM from a set's reps-to-failure (reps + reserve) — the same
+ * {@link epleyLoad} the Exercise screen uses, except a set with no RIR on
+ * record is assumed to have stopped {@link DEFAULT_RIR} short of failure.
+ */
 function capacityE1rm(load: number, reps: number, rir: number | undefined): number {
-  if (load <= 0 || reps <= 0) return 0;
-  return load * (1 + (reps + (rir ?? DEFAULT_RIR)) / 30);
+  if (reps <= 0) return 0;
+  return epleyLoad(load, reps + (rir ?? DEFAULT_RIR));
 }
 
 /**
@@ -277,7 +280,13 @@ export interface ExpectationInput {
   muscle: MuscleGroup;
   equipment: Equipment;
   exerciseId?: string;
+  /** Current body weight (today's sets and the forecast). */
   bodyweightKg?: number;
+  /**
+   * Dated body-weight log, so a historic bodyweight set is read at the weight
+   * carried that day rather than today's. Falls back to {@link bodyweightKg}.
+   */
+  bodyweights?: readonly BodyweightEntry[];
   now?: Date;
 }
 
@@ -301,7 +310,14 @@ export function expectNow(input: ExpectationInput): Expectation | null {
     .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
     .slice(0, BASELINE_PERFORMANCES);
   const bests = performances
-    .map((s) => freshBest(s, key, recoveryBefore(prior, s.startedAt, s.id), bodyweightKg))
+    .map((s) =>
+      freshBest(
+        s,
+        key,
+        recoveryBefore(prior, s.startedAt, s.id),
+        (input.bodyweights && bodyweightOn(input.bodyweights, s.startedAt)) ?? bodyweightKg,
+      ),
+    )
     .filter((v) => v > 0);
   const historic = bests.slice(0, BASELINE_RECENT).reduce((a, v) => Math.max(a, v), 0);
 

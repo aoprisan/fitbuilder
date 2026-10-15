@@ -86,3 +86,21 @@ export function latestBodyweight(): BodyweightEntry | null {
   const entries = loadBodyweights();
   return entries[entries.length - 1] ?? null;
 }
+
+/**
+ * Body weight as of a moment: the latest entry logged on or before that day,
+ * else the earliest entry (nothing earlier on record), else null. Lets a
+ * historic bodyweight set be read at the weight the lifter carried *then*.
+ */
+export function bodyweightOn(
+  entries: readonly BodyweightEntry[],
+  at: string | Date,
+): number | null {
+  const day = todayKey(typeof at === "string" ? new Date(at) : at);
+  let found: BodyweightEntry | undefined;
+  for (const e of entries) {
+    if (e.date > day) break;
+    found = e;
+  }
+  return (found ?? entries[0])?.kg ?? null;
+}

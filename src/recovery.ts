@@ -1,4 +1,10 @@
-import { CARDIO_LEG_CREDIT, cardioLegDose, fatigueProximity, setEffort } from "./effort";
+import {
+  CARDIO_LEG_CREDIT,
+  cardioLegDose,
+  fatigueProximity,
+  setEffort,
+  setFatigueShare,
+} from "./effort";
 import { cnsFactor, muscleDemandFactor } from "./loadProfile";
 import { SECONDARY_MUSCLE_SHARE } from "./movements";
 import type { LoggedExercise, MuscleGroup, TrainingSession } from "./types";
@@ -85,16 +91,17 @@ const CARDIO_LEG_DEMAND_PER_DOSE = RECOVERY_REF_DEMAND;
 interface MuscleBout {
   at: number;
   iso: string;
-  /** Recovery demand of this most-recent bout (effort × equipment/compound × share). */
+  /** Recovery demand of this bout (effort × equipment/compound × share). */
   demand: number;
 }
 
 /**
  * Per-muscle recovery readiness derived from logged training history. A muscle
  * counts as trained when it is the primary OR a secondary muscle of an exercise
- * that has at least one logged set. The recovery window is scaled by the demand
- * of the muscle's most recent bout — heavier / compound / free-weight work needs
- * longer than light supported isolation. Returned least-recovered first, so what
+ * that has at least one logged set. Each bout's recovery window is scaled by its
+ * demand — heavier / compound / free-weight work needs longer than light
+ * supported isolation — and the bout whose window ends last sets the clock, so
+ * a light session can't cut short the recovery a heavy one still needs. Returned least-recovered first, so what
  * still needs rest leads; never-trained groups read as fully ready and sink to
  * the end.
  */
@@ -102,16 +109,19 @@ export function muscleRecovery(
   sessions: readonly TrainingSession[],
   now: Date = new Date(),
 ): MuscleRecovery[] {
-  const lastTrained = new Map<MuscleGroup, MuscleBout>();
+  // Every bout per muscle, keyed by session start: a light session the day
+  // after a heavy one mustn't cut the heavy bout's recovery short, so each
+  // bout keeps its own demand-scaled window and the latest-ending one rules.
+  const bouts = new Map<MuscleGroup, Map<number, MuscleBout>>();
   const mark = (muscle: MuscleGroup, at: number, iso: string, demand: number): void => {
-    const prev = lastTrained.get(muscle);
-    if (prev === undefined || at > prev.at) {
-      // A newer bout replaces the clock and resets accumulated demand.
-      lastTrained.set(muscle, { at, iso, demand });
-    } else if (at === prev.at) {
-      // Same bout, another set's worth of demand on this muscle.
-      prev.demand += demand;
+    let byStart = bouts.get(muscle);
+    if (byStart === undefined) {
+      byStart = new Map();
+      bouts.set(muscle, byStart);
     }
+    const prev = byStart.get(at);
+    if (prev === undefined) byStart.set(at, { at, iso, demand });
+    else prev.demand += demand; // same bout, another set's worth of demand
   };
 
   for (const session of sessions) {
@@ -124,7 +134,8 @@ export function muscleRecovery(
       for (const s of ex.sets) {
         // Proximity to failure scales local damage: a set taken to failure
         // demands more recovery than the same set stopped well short.
-        const demand = setEffort(s, ex.equipment) * demandFactor * fatigueProximity(s.rir);
+        const demand =
+          setEffort(s, ex.equipment) * demandFactor * fatigueProximity(s.rir) * setFatigueShare(s);
         mark(ex.muscle, at, session.startedAt, demand);
         for (const sec of ex.secondaryMuscles ?? [])
           mark(sec, at, session.startedAt, demand * SECONDARY_MUSCLE_SHARE);
@@ -145,22 +156,29 @@ export function muscleRecovery(
 
   const nowMs = now.getTime();
   return MUSCLE_GROUPS.map((muscle): MuscleRecovery => {
-    const entry = lastTrained.get(muscle);
-    if (entry === undefined) {
+    const byStart = bouts.get(muscle);
+    if (byStart === undefined || byStart.size === 0) {
       return { muscle, lastTrainedAt: null, recovered: 1, hoursRemaining: 0 };
     }
-    const scale = clamp(
-      entry.demand / RECOVERY_REF_DEMAND,
-      RECOVERY_SCALE_MIN,
-      RECOVERY_SCALE_MAX,
-    );
-    const window = RECOVERY_HOURS[muscle] * scale;
-    const hoursSince = (nowMs - entry.at) / HOUR_MS;
+    let latest: MuscleBout | null = null;
+    let ruling: { bout: MuscleBout; window: number; endsAt: number } | null = null;
+    for (const bout of byStart.values()) {
+      if (latest === null || bout.at > latest.at) latest = bout;
+      const scale = clamp(
+        bout.demand / RECOVERY_REF_DEMAND,
+        RECOVERY_SCALE_MIN,
+        RECOVERY_SCALE_MAX,
+      );
+      const window = RECOVERY_HOURS[muscle] * scale;
+      const endsAt = bout.at + window * HOUR_MS;
+      if (ruling === null || endsAt > ruling.endsAt) ruling = { bout, window, endsAt };
+    }
+    const hoursSince = (nowMs - ruling!.bout.at) / HOUR_MS;
     return {
       muscle,
-      lastTrainedAt: entry.iso,
-      recovered: clamp(hoursSince / window, 0, 1),
-      hoursRemaining: Math.max(0, Math.ceil(window - hoursSince)),
+      lastTrainedAt: latest!.iso,
+      recovered: clamp(hoursSince / ruling!.window, 0, 1),
+      hoursRemaining: Math.max(0, Math.ceil(ruling!.window - hoursSince)),
     };
   }).sort(
     (a, b) => a.recovered - b.recovered || RECOVERY_HOURS[b.muscle] - RECOVERY_HOURS[a.muscle],
@@ -239,6 +257,7 @@ const CNS_FALLBACK_LOAD = 45;
  * Proximity to failure (applied separately) does most of the differentiating.
  */
 function repsIntensity(reps: number): number {
+  if (reps <= 0) return 1; // timed hold (plank, dead hang) — no rep range to weigh
   if (reps <= 5) return 1.1; // strength / heavy singles & triples
   return 1; // hypertrophy and high-rep — comparable total fatigue cost
 }
@@ -264,7 +283,8 @@ function sessionCnsLoad(session: TrainingSession): number {
         setEffort(s, ex.equipment) *
         (cardio ? 1 : repsIntensity(s.reps)) *
         factor *
-        fatigueProximity(s.rir);
+        fatigueProximity(s.rir) *
+        setFatigueShare(s);
   }
   return load;
 }

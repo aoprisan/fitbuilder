@@ -30,10 +30,26 @@ import { round2 } from "./util";
 const HYPERTROPHY_MIN_REPS = 6;
 const HYPERTROPHY_MAX_REPS = 20;
 
-/** Estimated one-rep max via the Epley formula. Bodyweight-only sets (0 kg) read 0. */
+/**
+ * Epley one-rep max for a load lifted for `repsToFailure` reps (reps done plus
+ * reps left in reserve). A true single *is* the max — Epley's `w·(1+1/30)`
+ * would inflate it by 3.3%, so one rep to failure returns the load itself.
+ * The one formula every screen's e1RM goes through.
+ */
+export function epleyLoad(loadKg: number, repsToFailure: number): number {
+  if (loadKg <= 0 || repsToFailure <= 0) return 0;
+  if (repsToFailure <= 1) return loadKg;
+  return loadKg * (1 + repsToFailure / 30);
+}
+
+/**
+ * Estimated one-rep max of a logged set, counting its reps in reserve when
+ * logged (a set of 8 @ RIR 2 is a 10-rep max). Bodyweight-only sets (0 kg) and
+ * timed holds (0 reps) read 0 — they carry no load-for-reps to project from.
+ */
 export function epley1RM(set: WorkSet): number {
-  if (set.weightKg <= 0) return 0;
-  return set.weightKg * (1 + set.reps / 30);
+  if (set.reps <= 0) return 0;
+  return epleyLoad(set.weightKg, set.reps + (set.rir ?? 0));
 }
 
 /** A lift counts as compound when it taxes secondary muscles. */
@@ -585,12 +601,12 @@ export function bestRawOneRm(
 
 /**
  * Reps a given 1RM predicts at a given load — the Epley formula solved for reps
- * (`1RM = w × (1 + reps/30)`). 0 once the load reaches the max itself, and
+ * (`1RM = w × (1 + reps/30)`). 0 once the load passes the max, 1 at it, and
  * increasingly optimistic past ~10 reps, where Epley's linearity breaks down.
  */
 export function estimatedRepsAt(oneRmKg: number, weightKg: number): number {
-  if (oneRmKg <= 0 || weightKg <= 0) return 0;
-  return Math.max(0, Math.round(30 * (oneRmKg / weightKg - 1)));
+  if (oneRmKg <= 0 || weightKg <= 0 || weightKg > oneRmKg) return 0;
+  return Math.max(1, Math.round(30 * (oneRmKg / weightKg - 1)));
 }
 
 /** What the user can do at one load: their best set there, beside the estimate. */
