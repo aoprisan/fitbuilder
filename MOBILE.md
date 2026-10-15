@@ -79,14 +79,19 @@ In a browser the old in-page beep/vibration/Web Notification cue is used instead
 - **iOS** shows the banner even while the app is open (`presentationOptions` in
   `capacitor.config.ts`). No extra entitlements or background modes are needed.
 
-## CI builds
+## Building locally
 
-`.github/workflows/mobile.yml` runs on every branch push (docs-only changes skipped) and on manual dispatch:
+Mobile builds are done on your own machine (no CI job, so they cost no GitHub Actions
+minutes):
 
-- **android** assembles a debug APK and uploads it as the `gym-log-debug-apk` artifact
-  (installable via `adb install` or by side-loading).
-- **ios** compiles an unsigned simulator build to prove the Xcode project and Swift
-  packages build. Signed device/App Store builds need your Apple signing setup in Xcode.
+- **Android debug APK:** see *Build a debug APK from the CLI* above.
+- **iOS simulator build** (macOS), the same check Xcode's Run does:
+
+  ```bash
+  npm run build && npx cap sync ios
+  cd ios/App && xcodebuild -project App.xcodeproj -scheme App -sdk iphonesimulator \
+    -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+  ```
 
 Release builds (signed AAB/IPA) are produced locally: Android Studio →
 *Build › Generate Signed Bundle*, Xcode → *Product › Archive*.
