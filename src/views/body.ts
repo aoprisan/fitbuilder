@@ -33,6 +33,7 @@ import {
   sessionSetCount,
 } from "../util";
 import { buildBodySvg } from "./bodySvg";
+import { isOnboarded, renderWelcome } from "./welcome";
 
 registerTranslations({
   // — Readiness header · start CTA · last session —
@@ -197,16 +198,20 @@ export function mountBody(root: HTMLElement, nav: Nav): Cleanup {
   ]);
 
   if (sessions.length === 0) {
-    container.append(
-      header,
-      cta,
+    const emptyCard = (): HTMLElement =>
       h("section", { class: "card" }, [
         h("p", {
           class: "empty",
           text: t("No sessions logged yet — train a live session and your body map fills in here."),
         }),
-      ]),
-    );
+      ]);
+    if (isOnboarded() || inFlight) {
+      container.append(header, cta, emptyCard());
+    } else {
+      // First run: the welcome card stands in for the CTA and the empty note.
+      const welcome = renderWelcome(startSession, () => welcome.replaceWith(cta, emptyCard()));
+      container.append(header, welcome);
+    }
     return () => {};
   }
 
