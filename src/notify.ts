@@ -32,9 +32,12 @@ export function isNativeApp(): boolean {
 const REST_ID = 4201;
 const REST_CHANNEL = "rest-timer";
 
-let pluginP: Promise<LocalNotificationsPlugin> | null = null;
-function plugin(): Promise<LocalNotificationsPlugin> {
-  pluginP ??= import("@capacitor/local-notifications").then((m) => m.LocalNotifications);
+// The plugin is a Proxy that answers *every* property — `then` included — so
+// it must never be a promise's resolved value (the promise machinery would
+// call `plugin.then()` and reject with "not implemented"). Box it instead.
+let pluginP: Promise<{ ln: LocalNotificationsPlugin }> | null = null;
+function plugin(): Promise<{ ln: LocalNotificationsPlugin }> {
+  pluginP ??= import("@capacitor/local-notifications").then((m) => ({ ln: m.LocalNotifications }));
   return pluginP;
 }
 
@@ -86,7 +89,7 @@ function markExactAsked(): void {
 export async function requestNotifyPermission(): Promise<boolean> {
   if (!isNativeApp()) return false;
   try {
-    const p = await plugin();
+    const { ln: p } = await plugin();
     let perm = await p.checkPermissions();
     if (perm.display === "prompt" || perm.display === "prompt-with-rationale") {
       perm = await p.requestPermissions();
@@ -126,7 +129,7 @@ export function scheduleRestAlert(atEpochMs: number, title: string, body: string
   if (!isNativeApp()) return Promise.resolve(false);
   return enqueue(async () => {
     try {
-      const p = await plugin();
+      const { ln: p } = await plugin();
       if ((await p.checkPermissions()).display !== "granted") return false;
       // Never let schedule() open the exact-alarm screen itself (it would on
       // every rest): ask exact only when it is already allowed.
@@ -163,7 +166,7 @@ export function scheduleRestAlert(atEpochMs: number, title: string, body: string
 export function cancelRestAlert(): void {
   if (!isNativeApp()) return;
   void enqueue(async () => {
-    const p = await plugin();
+    const { ln: p } = await plugin();
     await p.cancel({ notifications: [{ id: REST_ID }] });
     // Also clear one already delivered to the tray — it's stale once the
     // next set is under way.

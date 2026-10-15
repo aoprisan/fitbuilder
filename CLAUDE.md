@@ -59,4 +59,5 @@ Dependency-free PNG/PDF/share output in the "Training Ledger" visual language. `
 - **Naming is inconsistent and that's expected:** the repo dir is `fitbuilder`, the package is `gym-log-exercise-builder`, the UI brand is "GYM LOG". Match whatever the surrounding code/file uses; don't "unify" them.
 - Much UI text is bilingual **English/Romanian** — new user-facing strings need a Romanian translation registered next to them. Sample legacy fixtures in the repo root (`RUTINE FLUX 2026.xlsx`, `rutine.pdf`) are leftovers from the deleted import pipeline; they're harmless.
 - `vite.config.ts` uses `base: "./"` (relative paths, for GitHub Pages / any sub-path) and defines `__BUILD_TIME__`.
+- **Capacitor plugin objects are Proxies that answer every property, `then` included** — never resolve a promise (or `return` from an `async` function) with a plugin itself, or it's treated as a thenable and rejects with `"X.then()" is not implemented`. Box it (`notify.ts` returns `{ ln: LocalNotifications }`).
 - Three.js is lazy-loaded only by the body map (`body3d.ts`); keep it out of the initial chunk.

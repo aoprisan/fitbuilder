@@ -764,6 +764,15 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   // Bumped on every (re-)arm so a slow native schedule result can't speak for
   // an alert that has since been replaced.
   let restArmGen = 0;
+  // Re-checks the rest alert when the page becomes visible again (set by the
+  // resting screen, null elsewhere). A phone that slept froze the JS timer
+  // along with the clock it counts on, so the pending timeout can fire long
+  // after unlock — this flips the dial the moment the screen is back.
+  let restOnWake: (() => void) | null = null;
+  const onVisibility = (): void => {
+    if (!document.hidden) restOnWake?.();
+  };
+  document.addEventListener("visibilitychange", onVisibility);
 
   // After a render, bring this element to the top of the viewport instead of
   // jumping to page top. Used during a running set / rest so the action button
@@ -817,6 +826,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       cancelRestAlert();
     }
     restArmGen++;
+    restOnWake = null;
     // The session HUD's wall-clock tick; re-armed by the next renderHud().
     if (hudTimer) {
       clearInterval(hudTimer);
@@ -2455,6 +2465,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       };
       paintAlert();
       armAlert();
+      restOnWake = armAlert;
 
       const summary = state.activeLog
         ? renderSessionSummary(state.activeLog, loadSessions())
@@ -2769,6 +2780,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   render();
   return () => {
     stopRaf();
+    document.removeEventListener("visibilitychange", onVisibility);
     fabObserver.disconnect();
     fab.remove();
   };
