@@ -45,8 +45,20 @@ export function showUndo(message: string, onUndo: () => void): void {
   pendingUndo = onUndo;
   msgEl!.textContent = message;
   undoBtn!.textContent = t("Undo");
+  undoBtn!.hidden = false;
   host!.classList.add("is-open");
   hideTimer = window.setTimeout(() => dismissSnackbar(), UNDO_WINDOW_MS);
+}
+
+/** Show a plain `message` (no Undo) for a while — e.g. a failed save. */
+export function showNotice(message: string, ms = UNDO_WINDOW_MS * 2): void {
+  ensureHost();
+  if (hideTimer) clearTimeout(hideTimer);
+  pendingUndo = null;
+  msgEl!.textContent = message;
+  undoBtn!.hidden = true;
+  host!.classList.add("is-open");
+  hideTimer = window.setTimeout(() => dismissSnackbar(), ms);
 }
 
 /** Hide the snackbar and drop any pending undo (the deletion stands). */

@@ -30,13 +30,28 @@ export function loadSessions(): TrainingSession[] {
   return sessions;
 }
 
+/** Event fired on `window` when a write to the session log fails (quota / privacy mode). */
+export const PERSIST_ERROR_EVENT = "gymlog:persist-error";
+
+/**
+ * Raw stored entries that fail validation. They're hidden from the app but
+ * written back untouched on every save, so a schema bug or a partially
+ * corrupted log never permanently destroys what the user recorded.
+ */
+function unreadableEntries(): unknown[] {
+  const raw = readRaw();
+  return Array.isArray(raw) ? raw.filter((entry) => coerceSession(entry) === null) : [];
+}
+
 function writeAll(sessions: TrainingSession[]): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(sessions));
+    localStorage.setItem(KEY, JSON.stringify([...sessions, ...unreadableEntries()]));
   } catch (err) {
     // Quota or privacy-mode failure: don't crash mid-workout — the session
-    // stays usable in memory, it just won't survive a reload.
+    // stays usable in memory, but tell the UI so the user knows it won't
+    // survive a reload.
     console.warn("[gymlog] could not persist sessions", err);
+    window.dispatchEvent(new Event(PERSIST_ERROR_EVENT));
   }
 }
 
@@ -49,28 +64,6 @@ export function saveSession(session: TrainingSession): TrainingSession & { updat
   else sessions.push(stored);
   writeAll(sessions);
   return stored;
-}
-
-/**
- * Merge externally sourced sessions (a student's exported archive) into the
- * local log. Existing ids are skipped, never overwritten — re-importing the
- * same archive is idempotent and a student's re-export can't clobber a session
- * the trainer already has. Timestamps are kept as exported.
- */
-export function importSessions(
-  incoming: readonly TrainingSession[],
-): { added: number; skipped: number } {
-  const sessions = loadSessions();
-  const have = new Set(sessions.map((s) => s.id));
-  let added = 0;
-  for (const s of incoming) {
-    if (have.has(s.id)) continue;
-    have.add(s.id);
-    sessions.push(s);
-    added += 1;
-  }
-  if (added > 0) writeAll(sessions);
-  return { added, skipped: incoming.length - added };
 }
 
 /** Remove a session by id. */

@@ -529,6 +529,10 @@ const RECOVERY_WARN_SEVERE = 0.35;
  *  arc is the shortest, so a wedge past this starts eating its own label. */
 const QUICK_PICK_RING = 6;
 
+/** Ceiling on a timed set's recorded duration — anything longer is a forgotten Stop. */
+const MAX_SET_MIN = 15;
+const MAX_CARDIO_SET_MIN = 180;
+
 /**
  * Pre-training caution for the muscles a movement works that haven't recovered
  * from *earlier* sessions yet — the most direct guard against hammering a still-
@@ -1252,6 +1256,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       movementId,
       selectMode,
       hasCurrentEx: currentEx !== null,
+      currentExIndex: currentEx ? s.exercises.indexOf(currentEx) : -1,
       setReps,
       setWeight,
       setHoldSec,
@@ -1282,10 +1287,11 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     equipment = saved.equipment;
     movementId = saved.movementId;
     selectMode = saved.selectMode;
-    currentEx =
-      saved.hasCurrentEx && session.exercises.length > 0
-        ? session.exercises[session.exercises.length - 1]!
-        : null;
+    currentEx = saved.hasCurrentEx
+      ? (session.exercises[saved.currentExIndex] ??
+        session.exercises[session.exercises.length - 1] ??
+        null)
+      : null;
     setReps = saved.setReps;
     setWeight = saved.setWeight;
     setHoldSec = saved.setHoldSec;
@@ -1297,6 +1303,10 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     setStartEpoch = saved.setStartEpoch;
     setElapsedMs = saved.setElapsedMs;
     restStartEpoch = saved.restStartEpoch;
+    // A running/resting snapshot without its start stamp can't be timed; drop
+    // back to idle rather than measuring from the epoch.
+    if (sub === "running" && setStartEpoch <= 0) sub = "idle";
+    if (sub === "resting" && restStartEpoch <= 0) sub = "idle";
   }
 
   // ───────────────────────── Toggles (muscle / equipment) ─────────────────────
@@ -1428,7 +1438,12 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
 
   function stopSet(): void {
     stopRaf();
-    setElapsedMs = Date.now() - setStartEpoch;
+    // A set left running (forgotten Stop, resumed hours later) would otherwise
+    // record the whole gap as its duration and inflate effort; clamp it.
+    setElapsedMs = Math.min(
+      Date.now() - setStartEpoch,
+      (isCardio(equipment) ? MAX_CARDIO_SET_MIN : MAX_SET_MIN) * 60_000,
+    );
     const last =
       currentEx && currentEx.sets.length ? currentEx.sets[currentEx.sets.length - 1]! : null;
     if (isCardio(equipment)) {

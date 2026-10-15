@@ -1,7 +1,8 @@
 import "./fonts";
 import "./styles.css";
 import { track } from "./analytics";
-import { backupFilename, buildBackup, restoreBackup } from "./backup";
+import { PERSIST_ERROR_EVENT } from "./logStorage";
+import { backupFilename, buildBackup, RestoreQuotaError, restoreBackup } from "./backup";
 import { latestBodyweight, logBodyweight } from "./bodyweightStore";
 import { clear, h } from "./dom";
 import { forceAppUpdate, registerServiceWorker } from "./pwa";
@@ -13,7 +14,7 @@ import { mountBody } from "./views/body";
 import { mountExercise } from "./views/exercise";
 import { mountHistory } from "./views/history";
 import { mountLive } from "./views/live";
-import { dismissSnackbar } from "./views/snackbar";
+import { dismissSnackbar, showNotice } from "./views/snackbar";
 
 // Chrome strings — the tab bar and the Settings sheet (device maintenance,
 // backup, bodyweight and the about block).
@@ -37,8 +38,15 @@ registerTranslations({
     "Salvează tot ce este stocat pe acest dispozitiv — sesiuni, recorduri și setări — într-un singur fișier, sau restaurează o copie de rezervă (de ex. pe un telefon nou).",
   "Download backup": "Descarcă copia de rezervă",
   "Restore backup": "Restaurează copia",
-  "Restore this backup? Sessions, records and settings in the file will replace this device's copies.":
-    "Restaurezi această copie de rezervă? Sesiunile, recordurile și setările din fișier vor înlocui copiile de pe acest dispozitiv.",
+  "Restore this backup? Sessions in the file are merged with this device's; records and settings in the file replace this device's copies.":
+    "Restaurezi această copie de rezervă? Sesiunile din fișier se combină cu cele de pe acest dispozitiv; recordurile și setările din fișier le înlocuiesc pe cele de aici.",
+  "Not enough storage on this device to restore that backup. Nothing was changed.":
+    "Nu există suficient spațiu pe acest dispozitiv pentru a restaura copia. Nu s-a modificat nimic.",
+  "Couldn't save — this device's storage is full. Download a backup before closing the app.":
+    "Nu s-a putut salva — spațiul de stocare al dispozitivului este plin. Descarcă o copie de rezervă înainte de a închide aplicația.",
+  About: "Despre",
+  Privacy: "Confidențialitate",
+  Terms: "Termeni",
   "That file is not a Gym Log backup.": "Acel fișier nu este o copie de rezervă Gym Log.",
   Bodyweight: "Greutate corporală",
   "Your bodyweight sharpens the protein and calorie estimates.":
@@ -120,6 +128,18 @@ function boot(): void {
   const viewHost = h("main", { class: "view-host", id: "view" });
 
   const navButtons = new Map<ViewName, HTMLButtonElement>();
+
+  // A save that hit a full disk would otherwise vanish silently on reload —
+  // tell the user (at most every 30 s, since every logged set re-saves).
+  let lastPersistWarn = 0;
+  window.addEventListener(PERSIST_ERROR_EVENT, () => {
+    const now = Date.now();
+    if (now - lastPersistWarn < 30_000) return;
+    lastPersistWarn = now;
+    showNotice(
+      t("Couldn't save — this device's storage is full. Download a backup before closing the app."),
+    );
+  });
 
   // Every view name navigate() can mount — the whitelist popstate restores from,
   // so a stale or foreign history entry can never mount an unknown view.
@@ -416,7 +436,7 @@ function boot(): void {
     if (
       !confirm(
         t(
-          "Restore this backup? Sessions, records and settings in the file will replace this device's copies.",
+          "Restore this backup? Sessions in the file are merged with this device's; records and settings in the file replace this device's copies.",
         ),
       )
     )
@@ -424,8 +444,12 @@ function boot(): void {
     void file.text().then((text) => {
       try {
         restoreBackup(text);
-      } catch {
-        alert(t("That file is not a Gym Log backup."));
+      } catch (err) {
+        alert(
+          err instanceof RestoreQuotaError
+            ? t("Not enough storage on this device to restore that backup. Nothing was changed.")
+            : t("That file is not a Gym Log backup."),
+        );
         return;
       }
       track("backup", { action: "restore" });
