@@ -9,7 +9,7 @@ import { clear, h, scrollBehavior } from "../dom";
 import { parseTargetReps } from "../prescription";
 import { exportSessionPdf, exportSessionPng, shareSession } from "../exporters";
 import { filterField, matchesFilter } from "./filter";
-import { newLoggedExercise, newTrainingSession } from "../log";
+import { newLoggedExercise, newTrainingSession, repeatSession } from "../log";
 import { clearProgress, loadProgress, saveProgress, type SelectMode } from "../liveProgress";
 import {
   deleteEmptySessions,
@@ -47,6 +47,8 @@ import {
   type ExerciseKey,
   musclesByFrequency,
   recentMovements,
+  WEEKLY_PRODUCTIVE_MIN,
+  weeklyMuscleVolume,
 } from "../stats";
 import type { Cleanup, Nav } from "../router";
 import { bySectionRuns, renderSessionSummary } from "./sessionSummary";
@@ -151,6 +153,7 @@ registerTranslations({
     "Partajarea nu este disponibilă aici, așa că PNG-ul a fost descărcat în schimb.",
   // — Ring picker —
   Recent: "Recente",
+  Suggested: "Sugerate",
   "Pick an exercise": "Alege un exercițiu",
   // — Toggles —
   "Compound lift": "Exercițiu compus",
@@ -193,6 +196,14 @@ registerTranslations({
   "Past sessions — and the Claude analysis — live in History.":
     "Sesiunile trecute — și analiza Claude — sunt în Istoric.",
   "History ▸": "Istoric ▸",
+  "↻ Repeat {0}": "↻ Repetă {0}",
+  "Start a new session with the same exercises as your last one.":
+    "Pornește o sesiune nouă cu aceleași exerciții ca ultima.",
+  "Ready now": "Pregătit acum",
+  "Still recovering": "Încă în recuperare",
+  "Behind on volume this week": "Volum sub țintă săptămâna aceasta",
+  "{0}/{1} sets": "{0}/{1} serii",
+  "Everything you've trained is recovered.": "Tot ce ai antrenat este recuperat.",
   "{0} set": "{0} serie",
   "{0} sets": "{0} serii",
   "End ▸": "Termină ▸",
@@ -1617,10 +1628,11 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           on: { click: startSession },
         }),
       ]),
+      ...(count > 0 ? renderTrainBrief() : []),
       ...(count > 0
         ? [
             h("p", {
-              class: "plan-meta",
+              class: "plan-meta plan-note",
               text: t("Past sessions — and the Claude analysis — live in History."),
             }),
             h("div", { class: "btn-row" }, [
@@ -1634,6 +1646,75 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           ]
         : []),
     );
+  }
+
+  /**
+   * What to train, before a session starts: a one-tap repeat of the last
+   * session, which muscles are ready vs. still on the recovery clock, and
+   * which are short of a productive week's volume.
+   */
+  function renderTrainBrief(): HTMLElement[] {
+    const sessions = loadSessions();
+    const out: HTMLElement[] = [];
+
+    const last = [...sessions]
+      .filter((x) => x.exercises.some((ex) => ex.sets.length > 0))
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
+    if (last) {
+      out.push(
+        h("div", { class: "btn-row" }, [
+          h("button", {
+            class: "btn",
+            type: "button",
+            text: t("↻ Repeat {0}").replace("{0}", last.name || t("this session")),
+            aria: { label: t("Start a new session with the same exercises as your last one.") },
+            on: {
+              click: () => {
+                setActiveLog(saveSession(repeatSession(last)));
+                clearProgress();
+                currentEx = null;
+                sub = "idle";
+                stage = "select";
+                render();
+              },
+            },
+          }),
+        ]),
+      );
+    }
+
+    const trained = muscleRecovery(sessions).filter(
+      (r) => r.lastTrainedAt !== null && r.muscle !== "cardio",
+    );
+    const ready = trained.filter((r) => r.recovered >= 1).map((r) => t(MUSCLE_LABELS[r.muscle]));
+    const recovering = trained
+      .filter((r) => r.recovered < 1)
+      .map((r) => `${t(MUSCLE_LABELS[r.muscle])} ~${r.hoursRemaining}h`);
+    const behind = weeklyMuscleVolume(sessions)
+      .filter((v) => v.muscle !== "cardio" && v.sets > 0 && v.sets < WEEKLY_PRODUCTIVE_MIN)
+      .sort((a, b) => a.sets - b.sets)
+      .slice(0, 6)
+      .map((v) =>
+        `${t(MUSCLE_LABELS[v.muscle])} ${t("{0}/{1} sets")
+          .replace("{0}", String(Math.round(v.sets * 10) / 10))
+          .replace("{1}", String(WEEKLY_PRODUCTIVE_MIN))}`,
+      );
+
+    const row = (label: string, items: readonly string[]): HTMLElement =>
+      h("div", { class: "train-brief-row" }, [
+        h("p", { class: "eyebrow", text: label }),
+        h("p", { class: "train-brief-items", text: items.join(" · ") }),
+      ]);
+    const rows: HTMLElement[] = [];
+    if (recovering.length > 0) {
+      rows.push(row(t("Still recovering"), recovering));
+      if (ready.length > 0) rows.push(row(t("Ready now"), ready));
+    } else if (trained.length > 0) {
+      rows.push(h("p", { class: "plan-meta plan-note", text: t("Everything you've trained is recovered.") }));
+    }
+    if (behind.length > 0) rows.push(row(t("Behind on volume this week"), behind));
+    if (rows.length > 0) out.push(h("section", { class: "card train-brief" }, rows));
+    return out;
   }
 
   /**
@@ -1666,7 +1747,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         ),
       ),
       h("p", {
-        class: "plan-meta",
+        class: "plan-meta plan-note",
         text: t("Logged at the start — pre-session fatigue affects performance."),
       }),
     ]);
@@ -1771,7 +1852,10 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           h("span", { class: "field-label", text: t("Session name") }),
           nameInput,
         ]),
-        h("p", { class: "session-date", text: formatSessionDate(session.startedAt) }),
+        // The default name *is* the start date — only repeat it once renamed.
+        ...(session.name.trim() !== formatSessionDate(session.startedAt)
+          ? [h("p", { class: "session-date", text: formatSessionDate(session.startedAt) })]
+          : []),
         renderFatiguePicker(session),
       ]),
     );
@@ -1924,12 +2008,11 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       // the compounds, so the recall runs deeper than the ring holds before it
       // is filtered. A fresh log has nothing to recall at all — the ring falls
       // back to the catalog's compounds, so it's never empty.
-      const quickPicks = (): readonly Movement[] => {
-        const recent = recentMovements(allSessions, QUICK_PICK_RING * 4).filter((mv) =>
-          selectMode === "compound" ? isCompoundMovement(mv) : true,
-        );
-        return (recent.length > 0 ? recent : compounds).slice(0, QUICK_PICK_RING);
-      };
+      const recentPicks = recentMovements(allSessions, QUICK_PICK_RING * 4).filter((mv) =>
+        selectMode === "compound" ? isCompoundMovement(mv) : true,
+      );
+      const quickPicks = (): readonly Movement[] =>
+        (recentPicks.length > 0 ? recentPicks : compounds).slice(0, QUICK_PICK_RING);
 
       const filtered = (movements: readonly Movement[]): readonly Movement[] => {
         const shown = movements.filter((mv) => matchesFilter(mv.name, movementFilter));
@@ -1974,7 +2057,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
             tone: "exercise",
           },
           {
-            label: t("Recent"),
+            // Named for what it holds: with nothing logged yet it's the
+            // catalog's compounds, not anything the lifter did recently.
+            label: recentPicks.length > 0 ? t("Recent") : t("Suggested"),
             items: toItems(quickPicks()),
             activeId: movementId,
             onPick: pickMovement,

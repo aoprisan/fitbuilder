@@ -284,7 +284,7 @@ export function mountBody(root: HTMLElement, nav: Nav): Cleanup {
   const legendBar = h("div", { class: "bodymap-legend-bar" });
   const legendLow = h("span", { class: "bodymap-legend-end" });
   const legendHigh = h("span", { class: "bodymap-legend-end" });
-  const legendDesc = h("p", { class: "plan-meta bodymap-legend-desc" });
+  const legendDesc = h("p", { class: "plan-meta plan-note bodymap-legend-desc" });
   const legend = h("div", { class: "bodymap-legend" }, [
     h("div", { class: "bodymap-legend-scale" }, [legendLow, legendBar, legendHigh]),
     legendDesc,
@@ -292,7 +292,7 @@ export function mountBody(root: HTMLElement, nav: Nav): Cleanup {
 
   const stageCard = h("section", { class: "card bodymap-card" }, [
     h("p", {
-      class: "plan-meta",
+      class: "plan-meta plan-note",
       text: t("Each muscle is shaded by the selected metric. Drag to spin the body; tap a muscle for its reading."),
     }),
     metricToggle,
@@ -393,7 +393,7 @@ export function mountBody(root: HTMLElement, nav: Nav): Cleanup {
         onPick: showReadout,
       });
       stage.append(
-        h("p", { class: "plan-meta", text: t("3D view unavailable — showing a flat diagram instead.") }),
+        h("p", { class: "plan-meta plan-note", text: t("3D view unavailable — showing a flat diagram instead.") }),
         fallback.el,
       );
       applyMetric();
@@ -441,7 +441,7 @@ function renderExportPanel(sessions: TrainingSession[], getMetric: () => BodyMet
   return h("section", { class: "card live-export" }, [
     h("h2", { class: "section-title", text: t("Export · Share") }),
     h("p", {
-      class: "plan-meta",
+      class: "plan-meta plan-note",
       text: canShareFiles()
         ? t("Share sends a PNG of your body map (front, back & side) to the native share sheet — or save a PNG/PDF.")
         : t("Save a PNG or PDF of this body map. (Direct share works on phones.)"),

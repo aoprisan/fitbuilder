@@ -265,7 +265,7 @@ export function mountExercise(root: HTMLElement, _nav: Nav): Cleanup {
           : []),
       ]),
       h("p", {
-        class: "plan-meta",
+        class: "plan-meta plan-note",
         text: t("Record a max you actually tested — it feeds the rep estimates."),
       }),
     ]);
@@ -337,7 +337,7 @@ export function mountExercise(root: HTMLElement, _nav: Nav): Cleanup {
             h("span", { class: "oneRm-unit", text: t("kg") }),
           ]),
           h("p", {
-            class: "plan-meta",
+            class: "plan-meta plan-note",
             text: `${t("Epley estimate off your best working set.")} ${t("from {0} on {1}")
               .replace("{0}", fmtPastSet(latest, est.set))
               .replace("{1}", formatSessionDate(est.date))}`,
@@ -346,7 +346,7 @@ export function mountExercise(root: HTMLElement, _nav: Nav): Cleanup {
       } else {
         headlineKids.push(
           h("p", {
-            class: "plan-meta",
+            class: "plan-meta plan-note",
             text: t("No loaded sets yet — the estimate needs weighted work."),
           }),
         );

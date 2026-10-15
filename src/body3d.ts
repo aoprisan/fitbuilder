@@ -9,8 +9,8 @@ import type { MuscleGroup } from "./types";
  * bundle — the same lazy-loading pattern the spreadsheet/PDF import pipeline
  * uses for its heavy parsers.
  *
- * The body is built procedurally from primitive geometry (capsules, boxes,
- * spheres) grouped by muscle, so there's no external 3D-model asset to ship.
+ * The body is built procedurally from primitive geometry (ellipsoids, capsules,
+ * boxes) grouped by muscle, so there's no external 3D-model asset to ship.
  * Each muscle group owns one material; recolouring the map is just setting those
  * materials' colours. Neutral parts (head, hands, feet, joints) share an inert
  * material and are never recoloured. The figure spins on a finger drag (with a
@@ -36,6 +36,10 @@ export interface BodyScene {
 interface PartSpec {
   geo: THREE.BufferGeometry;
   pos: readonly [number, number, number];
+  /** Per-axis stretch — turns a unit sphere into a muscle-shaped ellipsoid. */
+  scale?: readonly [number, number, number];
+  /** Euler rotation (radians), e.g. to fan the lats out into a V. */
+  rot?: readonly [number, number, number];
   /** Owning muscle, or undefined for inert structural parts. */
   muscle?: MuscleGroup;
 }
@@ -47,59 +51,86 @@ const AUTO_SPIN = 0.0045; // idle auto-rotate, radians per frame
 const IDLE_MS = 2500; // resume auto-rotate this long after the last drag
 const TAP_SLOP = 6; // px of movement still counted as a tap, not a drag
 
-/** Build the full set of body parts. Front faces +z; the group is auto-centred. */
+/**
+ * Build the full set of body parts. Front faces +z; the group is auto-centred.
+ * Muscles are ellipsoids laid over a neutral frame — paired pecs, lats fanned
+ * into a V, a segmented core, erectors either side of the spine, calves bulging
+ * behind the shins — so each colour patch reads as the muscle it stands for.
+ */
 function buildParts(): PartSpec[] {
   const cap = (r: number, len: number): THREE.CapsuleGeometry =>
     new THREE.CapsuleGeometry(r, len, 10, 20);
-  const ball = (r: number): THREE.SphereGeometry => new THREE.SphereGeometry(r, 24, 18);
   const box = (w: number, h: number, d: number): THREE.BoxGeometry =>
     new THREE.BoxGeometry(w, h, d);
+  // One shared-shape unit sphere per part; `scale` makes it an ellipsoid.
+  const unit = (): THREE.SphereGeometry => new THREE.SphereGeometry(1, 28, 20);
+  const blob = (
+    pos: readonly [number, number, number],
+    scale: readonly [number, number, number],
+    muscle?: MuscleGroup,
+    rot?: readonly [number, number, number],
+  ): PartSpec => ({
+    geo: unit(),
+    pos,
+    scale,
+    ...(rot ? { rot } : {}),
+    ...(muscle ? { muscle } : {}),
+  });
+  // Both sides of a symmetric part: `x` is the right-hand offset; a z-rotation
+  // is mirrored so a fanned pair opens the same way on each side.
+  const pair = (
+    x: number,
+    y: number,
+    z: number,
+    scale: readonly [number, number, number],
+    muscle: MuscleGroup,
+    rotZ = 0,
+  ): PartSpec[] => [
+    blob([-x, y, z], scale, muscle, rotZ !== 0 ? [0, 0, -rotZ] : undefined),
+    blob([x, y, z], scale, muscle, rotZ !== 0 ? [0, 0, rotZ] : undefined),
+  ];
 
   return [
-    // — structural / neutral —
-    { geo: ball(0.34), pos: [0, 3.02, 0] }, // head
-    { geo: cap(0.13, 0.16), pos: [0, 2.74, 0] }, // neck
-    { geo: cap(0.42, 0.95), pos: [0, 1.95, 0] }, // trunk core
-    { geo: cap(0.34, 0.16), pos: [0, 1.16, 0] }, // pelvis
-    { geo: ball(0.12), pos: [-0.8, 1.62, 0.0] }, // left elbow
-    { geo: ball(0.12), pos: [0.8, 1.62, 0.0] }, // right elbow
-    { geo: ball(0.11), pos: [-0.9, 0.95, 0.04] }, // left hand
-    { geo: ball(0.11), pos: [0.9, 0.95, 0.04] }, // right hand
-    { geo: ball(0.13), pos: [-0.3, 0.05, 0.03] }, // left knee
-    { geo: ball(0.13), pos: [0.3, 0.05, 0.03] }, // right knee
-    { geo: box(0.24, 0.16, 0.5), pos: [-0.3, -1.12, 0.12] }, // left foot
-    { geo: box(0.24, 0.16, 0.5), pos: [0.3, -1.12, 0.12] }, // right foot
+    // — structural / neutral frame —
+    blob([0, 3.04, 0], [0.29, 0.35, 0.31]), // head
+    { geo: cap(0.13, 0.18), pos: [0, 2.74, -0.02] }, // neck
+    blob([0, 2.12, 0], [0.5, 0.5, 0.28]), // rib cage
+    blob([0, 1.62, 0], [0.4, 0.42, 0.25]), // waist
+    blob([0, 1.17, 0], [0.4, 0.24, 0.26]), // pelvis
+    blob([-0.8, 1.62, 0], [0.11, 0.11, 0.11]), // left elbow
+    blob([0.8, 1.62, 0], [0.11, 0.11, 0.11]), // right elbow
+    blob([-0.9, 0.93, 0.04], [0.09, 0.13, 0.07]), // left hand
+    blob([0.9, 0.93, 0.04], [0.09, 0.13, 0.07]), // right hand
+    blob([-0.28, 0.05, 0.04], [0.13, 0.13, 0.13]), // left knee
+    blob([0.28, 0.05, 0.04], [0.13, 0.13, 0.13]), // right knee
+    { geo: cap(0.09, 0.78), pos: [-0.28, -0.48, 0.03] }, // left shin
+    { geo: cap(0.09, 0.78), pos: [0.28, -0.48, 0.03] }, // right shin
+    { geo: box(0.22, 0.14, 0.48), pos: [-0.28, -1.1, 0.12] }, // left foot
+    { geo: box(0.22, 0.14, 0.48), pos: [0.28, -1.1, 0.12] }, // right foot
 
-    // — torso muscles (plates on the trunk's front/back faces) —
-    { geo: box(0.72, 0.22, 0.36), pos: [0, 2.48, -0.05], muscle: "traps" },
-    { geo: box(0.62, 0.4, 0.14), pos: [0, 2.18, 0.34], muscle: "chest" },
-    { geo: box(0.46, 0.5, 0.14), pos: [0, 1.66, 0.34], muscle: "core" },
-    { geo: box(0.64, 0.5, 0.14), pos: [0, 2.14, -0.34], muscle: "back" },
-    { geo: box(0.46, 0.4, 0.14), pos: [0, 1.64, -0.34], muscle: "lower-back" },
+    // — torso front: pecs over the rib cage, a 3×2 segmented core —
+    ...pair(0.2, 2.24, 0.2, [0.23, 0.16, 0.1], "chest", -0.12),
+    ...[1.84, 1.65, 1.46].flatMap((y) => pair(0.09, y, 0.21, [0.085, 0.08, 0.06], "core")),
 
-    // — deltoids: each shoulder split into front (+z), side (outer) and rear (-z) heads —
-    { geo: ball(0.15), pos: [-0.58, 2.4, 0.12], muscle: "front-delts" },
-    { geo: ball(0.15), pos: [0.58, 2.4, 0.12], muscle: "front-delts" },
-    { geo: ball(0.15), pos: [-0.7, 2.42, 0], muscle: "side-delts" },
-    { geo: ball(0.15), pos: [0.7, 2.42, 0], muscle: "side-delts" },
-    { geo: ball(0.15), pos: [-0.58, 2.4, -0.12], muscle: "rear-delts" },
-    { geo: ball(0.15), pos: [0.58, 2.4, -0.12], muscle: "rear-delts" },
+    // — torso back: traps over the neck, lats fanned into a V, erectors —
+    blob([0, 2.46, -0.1], [0.36, 0.15, 0.17], "traps"),
+    ...pair(0.27, 2.06, -0.18, [0.2, 0.36, 0.1], "back", 0.32),
+    ...pair(0.1, 1.6, -0.21, [0.075, 0.3, 0.06], "lower-back"),
 
-    // — arms: biceps (front) / triceps (back) / forearms —
-    { geo: cap(0.12, 0.34), pos: [-0.74, 1.95, 0.1], muscle: "biceps" },
-    { geo: cap(0.12, 0.34), pos: [0.74, 1.95, 0.1], muscle: "biceps" },
-    { geo: cap(0.12, 0.34), pos: [-0.74, 1.95, -0.1], muscle: "triceps" },
-    { geo: cap(0.12, 0.34), pos: [0.74, 1.95, -0.1], muscle: "triceps" },
-    { geo: cap(0.1, 0.4), pos: [-0.86, 1.35, 0.03], muscle: "forearms" },
-    { geo: cap(0.1, 0.4), pos: [0.86, 1.35, 0.03], muscle: "forearms" },
+    // — deltoids: front (+z), side (outer) and rear (-z) heads per shoulder —
+    ...pair(0.56, 2.4, 0.11, [0.13, 0.15, 0.1], "front-delts"),
+    ...pair(0.67, 2.38, 0, [0.12, 0.16, 0.12], "side-delts"),
+    ...pair(0.56, 2.4, -0.11, [0.13, 0.15, 0.1], "rear-delts"),
 
-    // — hips / legs —
-    { geo: ball(0.22), pos: [-0.18, 1.02, -0.16], muscle: "glutes" },
-    { geo: ball(0.22), pos: [0.18, 1.02, -0.16], muscle: "glutes" },
-    { geo: cap(0.2, 0.55), pos: [-0.3, 0.55, 0.02], muscle: "legs" },
-    { geo: cap(0.2, 0.55), pos: [0.3, 0.55, 0.02], muscle: "legs" },
-    { geo: cap(0.14, 0.8), pos: [-0.3, -0.45, -0.04], muscle: "calves" },
-    { geo: cap(0.14, 0.8), pos: [0.3, -0.45, -0.04], muscle: "calves" },
+    // — arms: biceps (front) / triceps (back) / forearms tapering to the wrist —
+    ...pair(0.74, 1.96, 0.07, [0.1, 0.25, 0.1], "biceps"),
+    ...pair(0.74, 1.98, -0.07, [0.1, 0.27, 0.1], "triceps"),
+    ...pair(0.85, 1.32, 0.03, [0.09, 0.3, 0.09], "forearms", 0.08),
+
+    // — hips / legs: glutes, thighs tapering to the knee, calves behind the shin —
+    ...pair(0.17, 1.03, -0.14, [0.2, 0.2, 0.16], "glutes"),
+    ...pair(0.28, 0.58, 0.03, [0.2, 0.5, 0.2], "legs"),
+    ...pair(0.28, -0.3, -0.06, [0.11, 0.3, 0.12], "calves"),
   ];
 }
 
@@ -155,6 +186,8 @@ export function createBodyScene(initialSize = 320): BodyScene {
     }
     const mesh = new THREE.Mesh(part.geo, material);
     mesh.position.set(part.pos[0], part.pos[1], part.pos[2]);
+    if (part.scale) mesh.scale.set(part.scale[0], part.scale[1], part.scale[2]);
+    if (part.rot) mesh.rotation.set(part.rot[0], part.rot[1], part.rot[2]);
     mesh.castShadow = true;
     if (part.muscle) {
       meshMuscle.set(mesh, part.muscle);

@@ -760,6 +760,16 @@ textarea {
   margin: 8px 0 0;
 }
 
+/* A full sentence in the meta voice: spaced capitals are for short stamps
+   (dates, counts, tags) — a sentence set that way is slow to read. */
+.plan-meta.plan-note {
+  font-weight: 500;
+  font-size: 12.5px;
+  letter-spacing: 0.01em;
+  line-height: 1.5;
+  text-transform: none;
+}
+
 .empty {
   position: relative;
   font-family: var(--font-mono);
@@ -1237,10 +1247,10 @@ textarea {
   margin: 0 0 14px;
 }
 
-.live-filter-row .plan-name-input {
+.live-filter-row .filter-input {
   flex: 1;
   min-width: 0;
-  font-size: 16px;
+  margin: 0;
 }
 
 /* Shared list-filter input (views/filter.ts) — the compact search stamp above
@@ -1805,6 +1815,25 @@ textarea {
 }
 
 /* ─────────────────────────── LIVE SESSION FLOW ─────────────────────────── */
+
+/* Train tab, no session open: what's ready, what's recovering, what's behind. */
+.train-brief {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.train-brief .eyebrow {
+  margin: 0 0 4px;
+}
+
+.train-brief-items {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink);
+}
 
 .live-select .field + .field {
   margin-top: 14px;
@@ -2984,8 +3013,21 @@ textarea:focus-visible {
   align-items: center;
 }
 
+/* Four metrics must fit a phone-width card: each tab grows from its label's
+   width, tightened so the strip stays inside the card's edges. */
 .bodymap-metrics {
-  align-self: center;
+  align-self: stretch;
+  display: flex;
+  max-width: 100%;
+}
+
+.bodymap-metrics .mode-toggle-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
 }
 
 .bodymap-stage {
