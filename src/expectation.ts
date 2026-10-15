@@ -334,6 +334,31 @@ function repsFrom(e1rm: number, exp: Expectation, weightKg: number): number {
   return clamp(Math.round(30 * (e1rm / load - 1) - TARGET_RIR), 0, MAX_REPS);
 }
 
+/**
+ * Unrounded expected reps (≈1 in reserve) at a dialled load, now and if fresh —
+ * for drawing smooth curves; capped like {@link expectedReps}.
+ */
+export function expectedRepsCurve(exp: Expectation, weightKg: number): { now: number; fresh: number } {
+  const at = (e1rm: number): number => {
+    const load = effectiveLoad(weightKg, exp.equipment, exp.bodyweightKg);
+    return load <= 0 ? 0 : clamp(30 * (e1rm / load - 1) - TARGET_RIR, 0, MAX_REPS);
+  };
+  return { now: at(exp.nowE1rm), fresh: at(exp.freshE1rm) };
+}
+
+/**
+ * Dialled-load range worth plotting for a movement: from roughly 50 % of the
+ * fresh max (a high-rep set) up to 95 % (a single). On bodyweight gear the
+ * range is in *added* kg and starts at bodyweight alone. Null when the range is
+ * too narrow to draw (e.g. bodyweight work far from any added load).
+ */
+export function plotLoadRange(exp: Expectation): { lo: number; hi: number } | null {
+  const offset = isBodyweight(exp.equipment) ? exp.bodyweightKg : 0;
+  const lo = Math.max(0, exp.freshE1rm * 0.5 - offset);
+  const hi = exp.freshE1rm * 0.95 - offset;
+  return hi - lo >= 1 ? { lo: round2(lo), hi: round2(hi) } : null;
+}
+
 /** Expected reps (≈1 in reserve) at a dialled load, now and if fresh. */
 export function expectedReps(exp: Expectation, weightKg: number): { now: number; fresh: number } {
   return { now: repsFrom(exp.nowE1rm, exp, weightKg), fresh: repsFrom(exp.freshE1rm, exp, weightKg) };

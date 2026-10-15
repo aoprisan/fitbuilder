@@ -5498,7 +5498,7 @@ textarea:focus-visible {
 }
 
 .live-expect[data-fatigue="med"] {
-  border-left-color: var(--gold, var(--brick));
+  border-left-color: var(--mustard);
 }
 
 .live-expect[data-fatigue="high"] {
@@ -5514,9 +5514,162 @@ textarea:focus-visible {
 
 .live-expect-sources {
   margin: 2px 0 0;
-  padding-left: 18px;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
   font-size: 12px;
   color: var(--ink-soft);
+}
+
+.live-expect-sources li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.expect-swatch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--ink);
+}
+
+/* Strength bar: fresh capacity as a tank — what's left now in slate, each
+   fatigue source's bite in its own colour. */
+.expect-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.expect-bar {
+  flex: 1 1 auto;
+  display: flex;
+  height: 16px;
+  border: 2px solid var(--ink);
+  background: var(--paper-deep);
+  overflow: hidden;
+}
+
+.expect-bar > span {
+  display: block;
+  height: 100%;
+}
+
+.expect-bar-now {
+  background: var(--navy);
+}
+
+.expect-bar-seg + .expect-bar-seg {
+  border-left: 1px solid var(--paper);
+}
+
+.expect-bar-label {
+  margin: 0;
+  flex: none;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Reps-vs-load: fresh (dashed) over now (solid), the gap shaded as fatigue. */
+.expect-chart {
+  margin-top: 4px;
+}
+
+.expect-chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.expect-axis {
+  stroke: var(--ink-faint);
+  stroke-width: 1;
+}
+
+.expect-tick {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  fill: var(--ink-soft);
+}
+
+.expect-gap {
+  fill: var(--signal);
+  fill-opacity: 0.16;
+  stroke: none;
+}
+
+.expect-fresh {
+  fill: none;
+  stroke: var(--ink-soft);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+}
+
+.expect-now {
+  fill: none;
+  stroke: var(--signal);
+  stroke-width: 2.5;
+}
+
+.expect-mark {
+  stroke: var(--ink);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+
+.expect-dot-fresh {
+  fill: var(--paper);
+  stroke: var(--ink-soft);
+  stroke-width: 1.5;
+}
+
+.expect-dot-now {
+  fill: var(--signal);
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+
+.expect-mark-text {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 10px;
+  fill: var(--ink);
+  /* Paper halo so the readout stays legible over the curves. */
+  paint-order: stroke;
+  stroke: var(--paper);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.expect-legend {
+  margin: 2px 0 0;
+  display: flex;
+  gap: 14px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+.expect-key::before {
+  content: "";
+  display: inline-block;
+  width: 16px;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+
+.expect-key-fresh::before {
+  border-top: 2px dashed var(--ink-soft);
+}
+
+.expect-key-now::before {
+  border-top: 3px solid var(--signal);
 }
 
 .live-expect-basis {
