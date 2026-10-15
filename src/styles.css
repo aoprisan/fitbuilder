@@ -3804,3 +3804,16 @@ textarea:focus-visible {
 .set-preview-expect.is-short {
   color: var(--brick);
 }
+
+/* Settings → Notifications: one labelled stamp per reminder preference. */
+.notify-pref {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.notify-toggle .mode-toggle-btn {
+  padding: 7px 9px 5px;
+  letter-spacing: 0.08em;
+}

@@ -16,6 +16,8 @@ registerTranslations({
   // Android notification channel, shown in the system's app-notification settings.
   "Rest timer": "Cronometru de pauză",
   "Rest-over alert between sets": "Alertă de final de pauză între seturi",
+  Reminders: "Mementouri",
+  "Recovery-ready and time-to-train reminders": "Mementouri de recuperare și de antrenament",
 });
 
 /** True inside the Capacitor iOS/Android shell (not a browser / PWA). */
@@ -31,6 +33,7 @@ export function isNativeApp(): boolean {
 // simply replaces it and cancelling needs no bookkeeping.
 const REST_ID = 4201;
 const REST_CHANNEL = "rest-timer";
+const REMINDER_CHANNEL = "reminders";
 
 // The plugin is a Proxy that answers *every* property — `then` included — so
 // it must never be a promise's resolved value (the promise machinery would
@@ -41,20 +44,33 @@ function plugin(): Promise<{ ln: LocalNotificationsPlugin }> {
   return pluginP;
 }
 
-// Android: the high-importance channel the rest alert posts to (heads-up,
-// default sound, vibration, shown on the lock screen). Created once per run.
+// Android channels, created once per run: the rest alert's high-importance
+// one (heads-up, default sound, vibration, shown on the lock screen) and a
+// default-importance one for the between-sessions reminders. Both post as
+// ordinary (not ongoing, not silent) notifications, which is what a paired
+// watch's companion app (Fitbit, Wear OS, Garmin…) mirrors to the wrist.
 let channelP: Promise<void> | null = null;
 function ensureChannel(p: LocalNotificationsPlugin): Promise<void> {
   if (Capacitor.getPlatform() !== "android") return Promise.resolve();
-  channelP ??= p
-    .createChannel({
+  channelP ??= Promise.all([
+    p.createChannel({
       id: REST_CHANNEL,
       name: t("Rest timer"),
       description: t("Rest-over alert between sets"),
       importance: 5,
       visibility: 1,
       vibration: true,
-    })
+    }),
+    p.createChannel({
+      id: REMINDER_CHANNEL,
+      name: t("Reminders"),
+      description: t("Recovery-ready and time-to-train reminders"),
+      importance: 4,
+      visibility: 1,
+      vibration: true,
+    }),
+  ])
+    .then(() => undefined)
     .catch(() => {
       channelP = null; // retry on the next schedule
     });
@@ -152,6 +168,7 @@ export function scheduleRestAlert(atEpochMs: number, title: string, body: string
             // Android: present as a heads-up notification.
             foreground: true,
             isExactNotification: exact,
+            extra: { view: "live" },
           },
         ],
       });
@@ -174,4 +191,77 @@ export function cancelRestAlert(): void {
   }).catch(() => {
     // Nothing pending / plugin unavailable — fine.
   });
+}
+
+/** One between-sessions reminder (see `reminders.ts`). */
+export interface Reminder {
+  id: number;
+  at: Date;
+  title: string;
+  body: string;
+  /** Screen a tap on the notification opens (see `onNotificationTap`). */
+  view?: string;
+}
+
+/** Whether native notifications may be posted right now (no prompt). */
+export async function notifyGranted(): Promise<boolean> {
+  if (!isNativeApp()) return false;
+  try {
+    const { ln: p } = await plugin();
+    return (await p.checkPermissions()).display === "granted";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Replace the reminders whose ids are in `ownIds` with `next` (any of them may
+ * be absent). Reminders are inexact on purpose — a few minutes late is fine
+ * and needs no "Alarms & reminders" permission. Resolves true when the OS
+ * accepted the set; false in a browser or without permission.
+ */
+export function replaceReminders(ownIds: readonly number[], next: readonly Reminder[]): Promise<boolean> {
+  if (!isNativeApp()) return Promise.resolve(false);
+  return enqueue(async () => {
+    try {
+      const { ln: p } = await plugin();
+      await p.cancel({ notifications: ownIds.map((id) => ({ id })) });
+      if (next.length === 0) return true;
+      if ((await p.checkPermissions()).display !== "granted") return false;
+      await ensureChannel(p);
+      await p.schedule({
+        notifications: next.map((r) => ({
+          id: r.id,
+          title: r.title,
+          body: r.body,
+          schedule: { at: r.at, allowWhileIdle: true },
+          channelId: REMINDER_CHANNEL,
+          smallIcon: "ic_stat_bell",
+          autoCancel: true,
+          ...(r.view !== undefined ? { extra: { view: r.view } } : {}),
+        })),
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  });
+}
+
+/**
+ * Call `fn` with the screen a tapped notification asks for (its `view`
+ * extra). Native only; register once at boot.
+ */
+export function onNotificationTap(fn: (view: string) => void): void {
+  if (!isNativeApp()) return;
+  void plugin()
+    .then(({ ln: p }) =>
+      p.addListener("localNotificationActionPerformed", (action) => {
+        const view = (action.notification.extra as { view?: unknown } | undefined)?.view;
+        if (typeof view === "string") fn(view);
+      }),
+    )
+    .catch(() => {
+      // Plugin unavailable — taps just open the app.
+    });
 }

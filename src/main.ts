@@ -17,6 +17,9 @@ import { mountExercise } from "./views/exercise";
 import { mountHistory } from "./views/history";
 import { mountLive } from "./views/live";
 import { dismissSnackbar, showNotice } from "./views/snackbar";
+import { mountNotifySettings } from "./views/notifySettings";
+import { onNotificationTap } from "./notify";
+import { syncReminders } from "./reminders";
 
 // Chrome strings — the tab bar and the Settings sheet (device maintenance,
 // backup, bodyweight and the about block).
@@ -495,6 +498,10 @@ function boot(): void {
     });
   });
 
+  // Notifications — reminders, a test, and the Fitbit (watch) pairing steps.
+  const notifyRow = h("div", { class: "settings-row" });
+  const repaintNotify = mountNotifySettings(notifyRow);
+
   // Data — wipe everything this app stored on the device (all gymlog.* keys).
   const dataLabel = h("span", { class: "settings-label", text: t("Data") });
   const clearDataDesc = h("p", {
@@ -541,6 +548,7 @@ function boot(): void {
         h("div", { class: "settings-links" }, [bodyweightInput, bodyweightSave]),
         bodyweightStatus,
       ]),
+      notifyRow,
       h("div", { class: "settings-row" }, [updatesLabel, updateBtn, buildStamp]),
       h("div", { class: "settings-row" }, [
         backupLabel,
@@ -634,6 +642,8 @@ function boot(): void {
     highlightLang();
     relabelTheme();
     relabelSettings();
+    repaintNotify();
+    void syncReminders(); // reminder texts follow the language
     renderNav();
     navigate(currentView, { push: false });
   });
@@ -660,6 +670,17 @@ function boot(): void {
     if (typeof view === "string" && (ALL_VIEWS as readonly string[]).includes(view)) {
       navigate(view as ViewName, { push: false });
     }
+  });
+
+  // Reminders are planned from the logged history, so re-plan whenever the app
+  // goes to the background (the moment they start to matter) and at boot. A
+  // tapped notification opens the screen it names.
+  void syncReminders();
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) void syncReminders();
+  });
+  onNotificationTap((view) => {
+    if ((ALL_VIEWS as readonly string[]).includes(view)) nav.go(view as ViewName);
   });
 
   app.append(header, viewHost);
