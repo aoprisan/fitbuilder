@@ -1,6 +1,16 @@
+import type { Expectation } from "../expectation";
 import type { SelectMode } from "../liveProgress";
 import type { PrHit } from "../records";
-import type { Equipment, LoggedExercise, MuscleGroup, SetType } from "../types";
+import type { Nav } from "../router";
+import type {
+  Equipment,
+  LoggedExercise,
+  MuscleGroup,
+  SetType,
+  TrainingSession,
+  WorkSet,
+} from "../types";
+import type { LiveTimers } from "./liveTimers";
 
 /** Top-level place in the live flow. */
 export type Stage = "list" | "select" | "exercise";
@@ -128,4 +138,72 @@ export interface RenderFrame {
   focusAnchorEl: HTMLElement | null;
   focusAnchorText: string;
   focusAnchorAria: string;
+}
+
+/**
+ * What the live logger's screens (views/liveList.ts, liveSelect.ts,
+ * liveExercise.ts) get from `mountLive`: the shared state, the actions that
+ * change it, and the view's DOM handles. A screen renders into `container`
+ * from `st`, wires its controls to these actions, and calls `render()` to
+ * repaint after changing state directly.
+ */
+export interface LiveCtx {
+  // — state and view plumbing —
+  st: LiveState;
+  view: RenderFrame;
+  timers: LiveTimers;
+  nav: Nav;
+  /** The screen's root; each render clears and refills it. */
+  container: HTMLElement;
+  /** Status line shared by the export / share buttons. */
+  statusEl: HTMLElement;
+  /** Repaint the current stage (stops timers, snapshots, re-renders). */
+  render: () => void;
+  /** Save the open session. */
+  persist: () => void;
+  /** Store the resume snapshot. */
+  snapshot: () => void;
+
+  // — session —
+  startSession: () => void;
+  endSession: () => void;
+  sessionExportRow: (s: TrainingSession) => HTMLElement;
+
+  // — selection —
+  selectMovement: (id: string) => void;
+  selectMuscle: (m: MuscleGroup) => void;
+  ensureMovement: () => void;
+  ensureCompound: () => void;
+  /** The next planned-but-unstarted exercise of a routine-loaded session. */
+  nextPlanned: () => LoggedExercise | undefined;
+  startExercise: () => void;
+  resumeExercise: (ex: LoggedExercise) => void;
+  finishExercise: () => void;
+
+  // — sets —
+  startSet: () => void;
+  stopSet: () => void;
+  commitSet: () => void;
+  deleteSet: (i: number) => void;
+  startEditSet: (i: number) => void;
+  saveEditSet: () => void;
+  cancelEditSet: () => void;
+
+  // — reads —
+  /** Stats key of the exercise being worked (or about to be). */
+  currentKey: () => string;
+  /** Whether the exercise being worked is a timed isometric hold. */
+  holdActive: () => boolean;
+  /** Last time's set at this index, for the ghost row / presets. */
+  historyGhost: (setIndex: number) => WorkSet | null;
+  expectationFor: (m: MuscleGroup, eq: Equipment, id: string) => Expectation | null;
+
+  /** A labelled single-choice toggle row. */
+  renderToggle: (
+    groupLabel: string,
+    options: readonly string[],
+    label: (value: string) => string,
+    current: string,
+    onPick: (value: string) => void,
+  ) => HTMLElement;
 }
