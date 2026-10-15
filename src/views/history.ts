@@ -13,6 +13,7 @@ import {
   shareSession,
 } from "../exporters";
 import { registerTranslations, t } from "../i18n";
+import { exportStatus } from "./exportStatus";
 import { repeatSession } from "../log";
 import { clearProgress, loadProgress } from "../liveProgress";
 import { deleteSession, getSession, loadSessions, saveSession } from "../logStorage";
@@ -66,9 +67,6 @@ registerTranslations({
     "Clipboard indisponibil — s-a salvat un fișier Markdown în schimb.",
   "Copied the prompt — paste it into any AI (ChatGPT, Gemini, Claude…).":
     "Prompt copiat — lipește-l în orice AI (ChatGPT, Gemini, Claude…).",
-  "{0}…": "{0}…",
-  "{0} ready.": "{0} gata.",
-  "Could not {0}. Try again.": "Nu s-a putut {0}. Încearcă din nou.",
   // — Session cards —
   "{0} exercises · {1} sets": "{0} exerciții · {1} serii",
   "{0} kg lifted": "{0} kg ridicate",
@@ -139,11 +137,8 @@ export function mountHistory(root: HTMLElement, nav: Nav): Cleanup {
 
   // ─────────────────────── Status + busy guard (shared) ──────────────────────
 
-  const statusEl = h("p", { class: "status", role: "status", aria: { live: "polite" } });
-  const setStatus = (msg: string, kind: "ok" | "err" | "info"): void => {
-    statusEl.textContent = msg;
-    statusEl.className = `status status-${kind}`;
-  };
+  // Persists across re-renders because the element is reused, not recreated.
+  const { el: statusEl, set: setStatus, run: runExport } = exportStatus();
   const analyzeMsg = (result: AnalyzeResult): string => {
     switch (result) {
       case "shared":
@@ -164,21 +159,6 @@ export function mountHistory(root: HTMLElement, nav: Nav): Cleanup {
         return t("Clipboard unavailable — saved a Markdown file instead.");
     }
   };
-  let busy = false;
-  async function runExport(label: string, fn: () => Promise<void>): Promise<void> {
-    if (busy) return;
-    busy = true;
-    const tLabel = t(label);
-    setStatus(t("{0}…").replace("{0}", tLabel), "info");
-    try {
-      await fn();
-      setStatus(t("{0} ready.").replace("{0}", tLabel), "ok");
-    } catch {
-      setStatus(t("Could not {0}. Try again.").replace("{0}", tLabel.toLowerCase()), "err");
-    } finally {
-      busy = false;
-    }
-  }
 
   // ───────────────────────── Analyze with Claude ──────────────────────────────
 

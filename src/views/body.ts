@@ -18,6 +18,7 @@ import {
   shareBodyMap,
 } from "../exporters";
 import { registerTranslations, t } from "../i18n";
+import { exportStatus } from "./exportStatus";
 import { newTrainingSession } from "../log";
 import { clearProgress, loadProgress } from "../liveProgress";
 import { getSession, loadSessions, saveSession } from "../logStorage";
@@ -115,9 +116,6 @@ registerTranslations({
   "save png": "salvează png",
   "Save PDF": "Salvează PDF",
   "save pdf": "salvează pdf",
-  "{0}…": "{0}…",
-  "{0} ready.": "{0} gata.",
-  "Could not {0}. Try again.": "Nu s-a putut {0}. Încearcă din nou.",
 });
 
 // The 3D stage is a touch taller than it is wide so the standing figure fits.
@@ -418,25 +416,7 @@ export function mountBody(root: HTMLElement, nav: Nav): Cleanup {
  * so the export always matches the toggle the user is looking at.
  */
 function renderExportPanel(sessions: TrainingSession[], getMetric: () => BodyMetric): HTMLElement {
-  const statusEl = h("p", { class: "status", role: "status", aria: { live: "polite" } });
-  const setStatus = (msg: string, kind: "ok" | "err" | "info"): void => {
-    statusEl.textContent = msg;
-    statusEl.className = `status status-${kind}`;
-  };
-  let busy = false;
-  async function runExport(label: string, fn: () => Promise<void>): Promise<void> {
-    if (busy) return;
-    busy = true;
-    setStatus(t("{0}…").replace("{0}", t(label)), "info");
-    try {
-      await fn();
-      setStatus(t("{0} ready.").replace("{0}", t(label)), "ok");
-    } catch {
-      setStatus(t("Could not {0}. Try again.").replace("{0}", t(label.toLowerCase())), "err");
-    } finally {
-      busy = false;
-    }
-  }
+  const { el: statusEl, set: setStatus, run: runExport } = exportStatus();
 
   return h("section", { class: "card live-export" }, [
     h("h2", { class: "section-title", text: t("Export · Share") }),
