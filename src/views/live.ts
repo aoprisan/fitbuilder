@@ -68,7 +68,6 @@ registerTranslations({
   "Rest alert": "Alertă pauză",
   Off: "Oprit",
   "Rest over": "Pauza s-a terminat",
-  "Time to start your next set.": "E timpul pentru următorul set.",
   // — Warm-up ramp —
   "Warm-up ramp · working {0}": "Încălzire progresivă · lucru {0}",
   Use: "Folosește",

@@ -726,7 +726,11 @@ export function renderExercise(ctx: LiveCtx): void {
       dialWrap.classList.toggle("rest-over", dueEpoch !== null && dueEpoch <= Date.now());
       ctx.timers.armRestAlert(
         dueEpoch,
-        { title: t("Rest over"), body: t("Time to start your next set.") },
+        // Short and specific: the notification may be read off a watch face.
+        {
+          title: t("Rest over"),
+          body: `${exName} · ${t("Set {0}").replace("{0}", String((st.currentEx?.sets.length ?? 0) + 1))}`,
+        },
         () => dialWrap.classList.add("rest-over"),
       );
     };
