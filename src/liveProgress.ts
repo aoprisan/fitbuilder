@@ -1,6 +1,8 @@
 import { EQUIPMENT, MUSCLE_GROUPS, type Equipment, type MuscleGroup, type SetType } from "./types";
 
-const KEY = "gymlog.liveProgress";
+/** localStorage key of the resume snapshot (also watched for cross-tab changes). */
+export const PROGRESS_KEY = "gymlog.liveProgress";
+const KEY = PROGRESS_KEY;
 
 /** Top-level place in the live flow worth resuming (the "list" screen is the default, so it isn't stored). */
 export type ProgressStage = "select" | "exercise";
@@ -32,6 +34,13 @@ export interface LiveProgress {
   selectMode: SelectMode;
   /** True when the session's last exercise is the one being worked (sets already logged for it). */
   hasCurrentEx: boolean;
+  /**
+   * Index into the session's exercises of the one being worked, so a resume
+   * reopens *that* exercise rather than the last one (a repeated routine has
+   * every planned exercise pre-filled). -1 when unknown (older snapshots), in
+   * which case restore falls back to the last exercise.
+   */
+  currentExIndex: number;
   /** In-flight reps/weight while logging a set. */
   setReps: number;
   setWeight: number;
@@ -132,6 +141,10 @@ export function loadProgress(): LiveProgress | null {
     movementId,
     selectMode,
     hasCurrentEx: raw["hasCurrentEx"] === true,
+    currentExIndex:
+      typeof raw["currentExIndex"] === "number" && Number.isInteger(raw["currentExIndex"])
+        ? raw["currentExIndex"]
+        : -1,
     setReps: num(raw["setReps"]),
     setWeight: num(raw["setWeight"]),
     setHoldSec: num(raw["setHoldSec"]),

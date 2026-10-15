@@ -6,17 +6,12 @@ import {
   MUSCLE_LABELS,
   SESSION_ARCHIVE_SCHEMA_ID,
   SESSION_ARCHIVE_SCHEMA_VERSION,
-  SHEET_SCHEMA_ID,
-  SHEET_SCHEMA_VERSION,
   type Equipment,
   type ExerciseTarget,
-  type LoggedExercise,
-  type PerSetTarget,
   type Routine,
   type RoutineExercise,
   type RoutineKind,
   type RoutineSection,
-  type RoutineSheet,
   type SessionArchive,
   type SetTarget,
   type TrainingSession,
@@ -65,31 +60,6 @@ export function cloneTarget(t: ExerciseTarget): ExerciseTarget {
   };
 }
 
-/**
- * Recast a target as a per-set scheme (the shape a structured session uses). A
- * volume goal collapses to a single set of `totalReps`, carrying its load, so
- * switching a routine to "Structured session" never silently drops work.
- */
-export function toSetsTarget(cur: ExerciseTarget): PerSetTarget {
-  if (cur.kind === "sets") return cur;
-  return {
-    kind: "sets",
-    sets: [{ reps: cur.totalReps, ...(cur.loadKg !== undefined ? { loadKg: cur.loadKg } : {}) }],
-  };
-}
-
-/**
- * Recast a target as a rep volume (the shape a movement list uses). A per-set
- * scheme sums to a single total-rep goal, carrying the first prescribed load, so
- * switching a routine to "Movement list" keeps the overall work intact.
- */
-export function toVolumeTarget(cur: ExerciseTarget): VolumeTarget {
-  if (cur.kind === "volume") return cur;
-  const totalReps = cur.sets.reduce((a, t) => a + t.reps, 0) || 10;
-  const loadKg = cur.sets.find((t) => t.loadKg !== undefined)?.loadKg;
-  return { kind: "volume", totalReps, ...(loadKg !== undefined ? { loadKg } : {}) };
-}
-
 /** Deep clone a routine exercise so editing never mutates stored data. */
 export function cloneRoutineExercise(e: RoutineExercise): RoutineExercise {
   return {
@@ -103,22 +73,6 @@ export function cloneRoutineExercise(e: RoutineExercise): RoutineExercise {
       ? { secondaryMuscles: [...e.secondaryMuscles] }
       : {}),
     ...(e.supersetWithPrevious === true ? { supersetWithPrevious: true } : {}),
-  };
-}
-
-/** Deep clone a routine section (named block of a structured session). */
-function cloneSection(s: RoutineSection): RoutineSection {
-  return { title: s.title, exercises: s.exercises.map(cloneRoutineExercise) };
-}
-
-/** Deep clone a routine — its kind, flat exercise list, and any sections. */
-export function cloneRoutine(r: Routine): Routine {
-  return {
-    ...(r.kind !== undefined ? { kind: r.kind } : {}),
-    title: r.title,
-    tags: [...r.tags],
-    exercises: r.exercises.map(cloneRoutineExercise),
-    ...(r.sections !== undefined ? { sections: r.sections.map(cloneSection) } : {}),
   };
 }
 
@@ -144,28 +98,6 @@ export function routineExercises(r: Routine): RoutineExercise[] {
 export function routineSections(r: Routine): RoutineSection[] {
   if (routineKind(r) === "session" && r.sections) return r.sections;
   return [{ title: "", exercises: r.exercises }];
-}
-
-/** Count a routine's exercises without materialising the flattened list. */
-export function routineExerciseCount(r: Routine): number {
-  if (routineKind(r) === "session" && r.sections) {
-    return r.sections.reduce((n, s) => n + s.exercises.length, 0);
-  }
-  return r.exercises.length;
-}
-
-/** Deep clone a routine sheet so editing never mutates stored data. */
-export function cloneSheet(sheet: RoutineSheet): RoutineSheet {
-  return {
-    schema: sheet.schema,
-    version: sheet.version,
-    id: sheet.id,
-    name: sheet.name,
-    routines: sheet.routines.map(cloneRoutine),
-    ...(sheet.mesoWeeks !== undefined ? { mesoWeeks: sheet.mesoWeeks } : {}),
-    ...(sheet.createdAt !== undefined ? { createdAt: sheet.createdAt } : {}),
-    ...(sheet.updatedAt !== undefined ? { updatedAt: sheet.updatedAt } : {}),
-  };
 }
 
 /**
@@ -198,23 +130,6 @@ export function formatVolumeTarget(t: VolumeTarget): string {
   return t.loadKg !== undefined && t.loadKg > 0 ? `${reps} @ ${round2(t.loadKg)}kg` : reps;
 }
 
-/**
- * A compact human label for an exercise's target — the per-set scheme, the rep
- * volume, or (for a note-only row) its note. Used by the builder preview, the
- * shared PNG/PDF exports, and as the target carried into a live/run session.
- */
-export function formatTarget(ex: RoutineExercise): string {
-  const t = ex.target;
-  if (t?.kind === "sets") return formatSetTargets(t.sets);
-  if (t?.kind === "volume") return formatVolumeTarget(t);
-  return (ex.note ?? "").trim();
-}
-
-/** Pretty-print a routine sheet as interop JSON. */
-export function sheetToJson(sheet: RoutineSheet): string {
-  return JSON.stringify(sheet, null, 2);
-}
-
 /** Clamp a number into [min, max]. */
 export function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
@@ -226,51 +141,6 @@ export function formatClock(totalSeconds: number): string {
   const mins = Math.floor(s / 60);
   const secs = s % 60;
   return `${mins}:${secs.toString().padStart(2, "0")}`;
-}
-
-/**
- * Build a per-set target from an exercise's logged sets (reps + any added/external
- * load). Placeholder sets with no reps (timed/manual rows) are dropped; returns
- * undefined when nothing countable was logged.
- */
-function loggedSetsToTarget(ex: LoggedExercise): ExerciseTarget | undefined {
-  const sets = ex.sets
-    .filter((s) => s.reps > 0)
-    .map((s) => ({ reps: s.reps, ...(s.weightKg > 0 ? { loadKg: round2(s.weightKg) } : {}) }));
-  return sets.length > 0 ? { kind: "sets", sets } : undefined;
-}
-
-/**
- * Turn a logged training session into a one-routine sheet so it can be reused
- * and shared through the routine export/share pipeline (PNG/PDF/WhatsApp/JSON).
- * Each logged exercise becomes a per-set target reflecting what was actually done.
- */
-export function sessionToSheet(session: TrainingSession): RoutineSheet {
-  return {
-    schema: SHEET_SCHEMA_ID,
-    version: SHEET_SCHEMA_VERSION,
-    id: uuid(),
-    name: session.name || "Session",
-    routines: [
-      {
-        title: session.name || "Session",
-        tags: [formatSessionDate(session.startedAt)],
-        exercises: session.exercises.map((ex, i, all) => {
-          const target = loggedSetsToTarget(ex);
-          // Re-link supersets: a row sharing the previous row's group id was
-          // performed back-to-back with it, so the shareable sheet keeps the pair.
-          const linked =
-            ex.supersetGroup !== undefined && all[i - 1]?.supersetGroup === ex.supersetGroup;
-          return {
-            name: ex.name,
-            ...(target ? { target } : {}),
-            ...(linked ? { supersetWithPrevious: true } : {}),
-          };
-        }),
-      },
-    ],
-    updatedAt: new Date().toISOString(),
-  };
 }
 
 /** Filesystem-friendly slug derived from a plan name. */
@@ -401,17 +271,6 @@ export function formatDuration(totalSeconds: number): string {
   if (hours > 0) return `${hours}h ${mins.toString().padStart(2, "0")}m`;
   if (mins > 0) return `${mins} min`;
   return `${s} sec`;
-}
-
-/** Format an ISO timestamp as a short, time-less date like "22 May 2026". */
-export function formatShortDate(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 /**

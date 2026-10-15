@@ -1,5 +1,5 @@
 import { stimulusProximity } from "./effort";
-import { SECONDARY_MUSCLE_SHARE } from "./movements";
+import { movementLoadReferenceKg, SECONDARY_MUSCLE_SHARE } from "./movements";
 import { muscleRecovery, recoveryColor } from "./recovery";
 import {
   strengthScore,
@@ -54,8 +54,13 @@ export const BODY_MUSCLES: readonly MuscleGroup[] = MUSCLE_GROUPS.filter((m) => 
 export interface MuscleScore {
   /** 0..1 intensity for the colour ramp, or null when the metric has no data here. */
   value: number | null;
-  /** Short human read shown when the muscle is selected, e.g. "82 kg est. 1RM". */
+  /**
+   * Short human read shown when the muscle is selected, as an i18n template
+   * key with `{0}`, `{1}` placeholders, e.g. "≈ {0} kg est. 1RM".
+   */
   detail: string;
+  /** Values for the {@link detail} template's placeholders, in order. */
+  args?: readonly string[];
 }
 
 /** A lift counts as compound — and feeds secondary muscles — when it lists any. */
@@ -69,25 +74,32 @@ const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * Best estimated 1-rep max per muscle (its strongest logged set as primary
- * mover), plus the peak across muscles used to normalise the map. Bodyweight-only
- * work scores 0 and reads as "no data" rather than weakness.
+ * mover), plus the peak used to normalise the map. Each set is weighed against
+ * its movement's typical working load ({@link movementLoadReferenceKg}) before
+ * muscles are compared, so a 20 kg curl and a 140 kg squat are judged against
+ * what each muscle normally moves — otherwise small muscles would always read
+ * weak next to the legs. Bodyweight-only work scores 0 and reads as "no data"
+ * rather than weakness.
  */
 function strengthByMuscle(sessions: readonly TrainingSession[]): {
-  best: Map<MuscleGroup, number>;
+  best: Map<MuscleGroup, { kg: number; relative: number }>;
   peak: number;
 } {
-  const best = new Map<MuscleGroup, number>();
+  const best = new Map<MuscleGroup, { kg: number; relative: number }>();
   let peak = 0;
   for (const session of sessions) {
     for (const ex of session.exercises) {
       if (isCardio(ex.equipment)) continue;
       const compound = isCompound(ex);
+      const reference = movementLoadReferenceKg(ex.exerciseId, ex.muscle);
       for (const s of ex.sets) {
-        const score = strengthScore(s, ex.equipment, compound);
-        if (score <= 0) continue;
-        const prev = best.get(ex.muscle) ?? 0;
-        if (score > prev) best.set(ex.muscle, score);
-        if (score > peak) peak = score;
+        if (s.setType === "warmup") continue;
+        const kg = strengthScore(s, ex.equipment, compound);
+        if (kg <= 0 || reference <= 0) continue;
+        const relative = kg / reference;
+        const prev = best.get(ex.muscle);
+        if (prev === undefined || relative > prev.relative) best.set(ex.muscle, { kg, relative });
+        if (relative > peak) peak = relative;
       }
     }
   }
@@ -100,6 +112,8 @@ function strengthByMuscle(sessions: readonly TrainingSession[]): {
 interface SetQuality {
   raw: number;
   eff: number;
+  /** Raw sets that carried a logged RIR — 0 means "near failure" is an assumption. */
+  rated: number;
 }
 
 /**
@@ -116,10 +130,11 @@ function trailingSetQuality(
   const cutoff = now.getTime() - WEEK_MS;
   const nowMs = now.getTime();
   const map = new Map<MuscleGroup, SetQuality>();
-  const credit = (muscle: MuscleGroup, raw: number, eff: number): void => {
-    const e = map.get(muscle) ?? { raw: 0, eff: 0 };
+  const credit = (muscle: MuscleGroup, raw: number, eff: number, rated: boolean): void => {
+    const e = map.get(muscle) ?? { raw: 0, eff: 0, rated: 0 };
     e.raw += raw;
     e.eff += eff;
+    if (rated) e.rated += raw;
     map.set(muscle, e);
   };
   for (const session of sessions) {
@@ -128,10 +143,12 @@ function trailingSetQuality(
     for (const ex of session.exercises) {
       if (isCardio(ex.equipment)) continue;
       for (const s of ex.sets) {
+        if (s.setType === "warmup") continue; // ramp-up work is no hard set
         const q = stimulusProximity(s.rir);
-        credit(ex.muscle, 1, q);
+        const rated = s.rir !== undefined;
+        credit(ex.muscle, 1, q, rated);
         for (const sec of ex.secondaryMuscles ?? [])
-          credit(sec, SECONDARY_MUSCLE_SHARE, q * SECONDARY_MUSCLE_SHARE);
+          credit(sec, SECONDARY_MUSCLE_SHARE, q * SECONDARY_MUSCLE_SHARE, rated);
       }
     }
   }
@@ -157,9 +174,16 @@ function efficiencyScore(q: SetQuality | undefined): MuscleScore {
   const dose = clamp(volumeStimulus(q.eff) / DOSE_REFERENCE, 0, 1);
   const overshoot = q.eff > WEEKLY_PRODUCTIVE_MAX ? WEEKLY_PRODUCTIVE_MAX / q.eff : 1;
   const value = clamp(proximityQuality * dose * overshoot, 0, 1);
+  // With no RIR logged every set is assumed close to failure, so quoting a
+  // "% near failure" would state a guess as a measurement.
   return {
     value,
-    detail: `${round2(q.eff)} effective sets · ${Math.round(proximityQuality * 100)}% near failure`,
+    ...(q.rated > 0
+      ? {
+          detail: "{0} effective sets · {1}% near failure",
+          args: [String(round2(q.eff)), String(Math.round(proximityQuality * 100))],
+        }
+      : { detail: "{0} sets · log RIR to rate effort", args: [String(round2(q.eff))] }),
   };
 }
 
@@ -180,11 +204,15 @@ export function muscleScores(
   if (metric === "strength") {
     const { best, peak } = strengthByMuscle(sessions);
     for (const muscle of BODY_MUSCLES) {
-      const score = best.get(muscle) ?? 0;
+      const score = best.get(muscle);
       out.set(
         muscle,
-        score > 0 && peak > 0
-          ? { value: clamp(score / peak, 0, 1), detail: `≈ ${round2(score)} kg est. 1RM` }
+        score !== undefined && peak > 0
+          ? {
+              value: clamp(score.relative / peak, 0, 1),
+              detail: "≈ {0} kg est. 1RM",
+              args: [String(round2(score.kg))],
+            }
           : { value: null, detail: "No loaded sets logged" },
       );
     }
@@ -198,10 +226,9 @@ export function muscleScores(
       const sets = v?.sets ?? 0;
       out.set(muscle, {
         value: v ? v.stimulus : 0,
-        detail:
-          sets > 0
-            ? `${sets} hard ${sets === 1 ? "set" : "sets"} this week`
-            : "No volume this week",
+        ...(sets > 0
+          ? { detail: sets === 1 ? "{0} hard set this week" : "{0} hard sets this week", args: [String(sets)] }
+          : { detail: "No volume this week" }),
       });
     }
     return out;
@@ -218,10 +245,9 @@ export function muscleScores(
       const fatigue = clamp(1 - r.recovered, 0, 1);
       out.set(muscle, {
         value: fatigue,
-        detail:
-          r.recovered >= 1
-            ? "Recovered"
-            : `~${r.hoursRemaining}h to recover`,
+        ...(r.recovered >= 1
+          ? { detail: "Recovered" }
+          : { detail: "~{0}h to recover", args: [String(r.hoursRemaining)] }),
       });
     }
     return out;
@@ -282,7 +308,7 @@ export const METRIC_LEGEND: Record<BodyMetric, MetricLegend> = {
   strength: {
     lowLabel: "Weaker",
     highLabel: "Stronger",
-    desc: "Relative strength per muscle — your best estimated 1-rep max.",
+    desc: "Relative strength per muscle — your best estimated 1-rep max against what that muscle typically moves.",
   },
   hypertrophy: {
     lowLabel: "Low",

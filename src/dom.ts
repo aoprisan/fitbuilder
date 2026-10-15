@@ -103,6 +103,11 @@ export function clear(node: Node): void {
   while (node.firstChild) node.removeChild(node.firstChild);
 }
 
-export function qs<T extends Element>(root: ParentNode, selector: string): T | null {
-  return root.querySelector<T>(selector);
+/** Smooth scrolling unless the user asked the OS for reduced motion. */
+export function scrollBehavior(): ScrollBehavior {
+  try {
+    return matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+  } catch {
+    return "auto";
+  }
 }

@@ -40,6 +40,16 @@ const WEDGE_GAP = 2.6;
 /** Unique ids for the per-wedge label arcs (`textPath` needs a real reference). */
 let uid = 0;
 
+/**
+ * Wedge to re-focus after the next paint. Every pick or page flip replaces the
+ * wedges (a pick even rebuilds the whole picker), which would drop keyboard
+ * and screen-reader focus to <body>; the activated wedge's key is parked here
+ * and the freshly drawn wedge with the same key takes focus back.
+ */
+let pendingFocusKey: string | null = null;
+/** When the key was parked — a pick that never repaints mustn't steal focus later. */
+let pendingFocusAt = 0;
+
 function svgEl(tag: string, attrs: Record<string, string>): SVGElement {
   const el = document.createElementNS(SVG_NS, tag);
   for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
@@ -219,10 +229,12 @@ export function radialSelector(opts: RadialSelectorOpts): HTMLElement {
 
     const active = item !== null && item.id === ring.activeId;
     const label = item ? item.label : `${pager!.page + 1}/${pager!.pages} ›`;
+    const focusKey = `${ring.label}|${item ? item.id : "pager"}`;
     const g = svgEl("g", {
       class: `radial-seg${active ? " is-active" : ""}${pager ? " is-pager" : ""}`,
       role: "button",
       tabindex: "0",
+      "data-focus-key": focusKey,
       "aria-label": item
         ? `${ring.label}: ${item.label}`
         : t("next page of {0}").replace("{0}", ring.label),
@@ -267,6 +279,10 @@ export function radialSelector(opts: RadialSelectorOpts): HTMLElement {
     drawn.push({ text, textPath, label, arcLen });
 
     const activate = (): void => {
+      if (document.activeElement === g) {
+        pendingFocusKey = focusKey;
+        pendingFocusAt = Date.now();
+      }
       if (item) {
         preview(null);
         ring.onPick(item.id);
@@ -356,8 +372,22 @@ export function radialSelector(opts: RadialSelectorOpts): HTMLElement {
       rOut = rIn - RING_GAP;
     });
     paintLegend();
-    // Wedges are measurable only once the caller has mounted them.
-    requestAnimationFrame(fitDrawnLabels);
+    // Wedges are measurable (and focusable) only once the caller has mounted them.
+    requestAnimationFrame(() => {
+      fitDrawnLabels();
+      restoreFocus();
+    });
+  }
+
+  function restoreFocus(): void {
+    if (pendingFocusKey === null || !svg.isConnected) return;
+    const key = pendingFocusKey;
+    pendingFocusKey = null;
+    if (Date.now() - pendingFocusAt > 1000) return;
+    const target = [...svg.querySelectorAll<SVGElement>("[data-focus-key]")].find(
+      (el) => el.getAttribute("data-focus-key") === key,
+    );
+    (target ?? hub).focus({ preventScroll: true });
   }
 
   // Legend doubles as the page readout, so it is repainted with the rings.

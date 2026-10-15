@@ -13,6 +13,7 @@ import {
   shareSession,
 } from "../exporters";
 import { registerTranslations, t } from "../i18n";
+import { exportStatus } from "./exportStatus";
 import { repeatSession } from "../log";
 import { clearProgress, loadProgress } from "../liveProgress";
 import { deleteSession, getSession, loadSessions, saveSession } from "../logStorage";
@@ -66,9 +67,6 @@ registerTranslations({
     "Clipboard indisponibil — s-a salvat un fișier Markdown în schimb.",
   "Copied the prompt — paste it into any AI (ChatGPT, Gemini, Claude…).":
     "Prompt copiat — lipește-l în orice AI (ChatGPT, Gemini, Claude…).",
-  "{0}…": "{0}…",
-  "{0} ready.": "{0} gata.",
-  "Could not {0}. Try again.": "Nu s-a putut {0}. Încearcă din nou.",
   // — Session cards —
   "{0} exercises · {1} sets": "{0} exerciții · {1} serii",
   "{0} kg lifted": "{0} kg ridicate",
@@ -139,11 +137,8 @@ export function mountHistory(root: HTMLElement, nav: Nav): Cleanup {
 
   // ─────────────────────── Status + busy guard (shared) ──────────────────────
 
-  const statusEl = h("p", { class: "status", role: "status", aria: { live: "polite" } });
-  const setStatus = (msg: string, kind: "ok" | "err" | "info"): void => {
-    statusEl.textContent = msg;
-    statusEl.className = `status status-${kind}`;
-  };
+  // Persists across re-renders because the element is reused, not recreated.
+  const { el: statusEl, set: setStatus, run: runExport } = exportStatus();
   const analyzeMsg = (result: AnalyzeResult): string => {
     switch (result) {
       case "shared":
@@ -164,21 +159,6 @@ export function mountHistory(root: HTMLElement, nav: Nav): Cleanup {
         return t("Clipboard unavailable — saved a Markdown file instead.");
     }
   };
-  let busy = false;
-  async function runExport(label: string, fn: () => Promise<void>): Promise<void> {
-    if (busy) return;
-    busy = true;
-    const tLabel = t(label);
-    setStatus(t("{0}…").replace("{0}", tLabel), "info");
-    try {
-      await fn();
-      setStatus(t("{0} ready.").replace("{0}", tLabel), "ok");
-    } catch {
-      setStatus(t("Could not {0}. Try again.").replace("{0}", tLabel.toLowerCase()), "err");
-    } finally {
-      busy = false;
-    }
-  }
 
   // ───────────────────────── Analyze with Claude ──────────────────────────────
 
@@ -217,7 +197,7 @@ export function mountHistory(root: HTMLElement, nav: Nav): Cleanup {
     return h("section", { class: "card history-analyze" }, [
       h("p", { class: "eyebrow", text: t("Analyze with Claude") }),
       h("p", {
-        class: "plan-meta",
+        class: "plan-meta plan-note",
         text: t(
           "Sends a training report to Claude for a read on progress, fatigue and what to do next.",
         ),
@@ -311,6 +291,21 @@ export function mountHistory(root: HTMLElement, nav: Nav): Cleanup {
   }
 
   function renderSessionCard(s: TrainingSession): HTMLElement {
+    const resumeBtn = (primary: boolean): HTMLElement =>
+      h("button", {
+        class: primary ? "btn btn-accent btn-small" : "btn btn-small",
+        type: "button",
+        text: t("Resume"),
+        on: { click: () => resumeSession(s) },
+      });
+    const repeatBtn = (primary: boolean): HTMLElement =>
+      h("button", {
+        class: primary ? "btn btn-accent btn-small" : "btn btn-small",
+        type: "button",
+        text: t("Repeat"),
+        aria: { label: t("repeat {0} as a new session").replace("{0}", s.name || t("this session")) },
+        on: { click: () => repeatPastSession(s) },
+      });
     const sets = sessionSetCount(s);
     const vol = sessionVolume(s);
     const meta =
@@ -362,19 +357,9 @@ export function mountHistory(root: HTMLElement, nav: Nav): Cleanup {
           ]
         : []),
       h("div", { class: "btn-row saved-actions" }, [
-        h("button", {
-          class: "btn btn-accent btn-small",
-          type: "button",
-          text: t("Resume"),
-          on: { click: () => resumeSession(s) },
-        }),
-        h("button", {
-          class: "btn btn-small",
-          type: "button",
-          text: t("Repeat"),
-          aria: { label: t("repeat {0} as a new session").replace("{0}", s.name || t("this session")) },
-          on: { click: () => repeatPastSession(s) },
-        }),
+        // A finished session is most often a template for the next one, so
+        // Repeat leads; one never ended is still in flight, so Resume does.
+        ...(s.endedAt !== undefined ? [repeatBtn(true), resumeBtn(false)] : [resumeBtn(true), repeatBtn(false)]),
         h("button", {
           class: "btn btn-small danger",
           type: "button",
@@ -504,7 +489,7 @@ export function mountHistory(root: HTMLElement, nav: Nav): Cleanup {
     return h("section", { class: "card live-export" }, [
       h("h2", { class: "section-title", text: t("Export sessions") }),
       h("p", {
-        class: "plan-meta",
+        class: "plan-meta plan-note",
         text: t("Download all {0} logged {1} to import into other tools and analyse elsewhere.")
           .replace("{0}", String(sessions.length))
           .replace("{1}", sessions.length === 1 ? t("session") : t("sessions")),
@@ -547,7 +532,7 @@ export function mountHistory(root: HTMLElement, nav: Nav): Cleanup {
 
     if (sessions.length > 1) {
       const searchInput = h("input", {
-        class: "plan-name-input",
+        class: "filter-input",
         type: "search",
         value: filterText,
         placeholder: t("Search sessions"),

@@ -35,6 +35,9 @@ export interface DialHandle {
   set(value: number): void;
 }
 
+/** Steps a PageUp / PageDown key press moves the dial. */
+const PAGE_STEPS = 10;
+
 export interface DialFieldOpts {
   label: string;
   value: number;
@@ -122,12 +125,16 @@ export function dialField(opts: DialFieldOpts): HTMLElement {
     [svg, center],
   );
 
+  /** Span above `min` the gauge currently shows — one ring, growing a ring at a time. */
+  const softSpanFor = (v: number): number => {
+    const ringSpan = step * RING_STEPS;
+    return ringSpan * Math.max(1, Math.ceil(Math.max(0, v - min) / ringSpan));
+  };
+
   const fracFor = (v: number): number => {
     const above = v - min;
     if (above <= 0) return 0;
-    const ringSpan = step * RING_STEPS;
-    const softMax = ringSpan * Math.max(1, Math.ceil(above / ringSpan));
-    return Math.min(1, above / softMax);
+    return Math.min(1, above / softSpanFor(v));
   };
 
   // Drag state lives up here so paint() can park the grip when idle.
@@ -143,6 +150,8 @@ export function dialField(opts: DialFieldOpts): HTMLElement {
     if (mode !== "drag") setSpin(fracFor(current) * 360);
     knob.setAttribute("aria-valuenow", String(current));
     knob.setAttribute("aria-valuetext", valueText());
+    // The dial has no hard ceiling; announce the end of the ring it's showing.
+    knob.setAttribute("aria-valuemax", String(round2(min + softSpanFor(current))));
   };
 
   const normalize = (n: number): number => round2(integer ? Math.round(n) : n);
@@ -246,6 +255,15 @@ export function dialField(opts: DialFieldOpts): HTMLElement {
     } else if (e.key === "ArrowDown" || e.key === "ArrowLeft") {
       e.preventDefault();
       setValue(current - step, true);
+    } else if (e.key === "PageUp") {
+      e.preventDefault();
+      setValue(current + step * PAGE_STEPS, true);
+    } else if (e.key === "PageDown") {
+      e.preventDefault();
+      setValue(current - step * PAGE_STEPS, true);
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      setValue(min, true);
     }
   });
 

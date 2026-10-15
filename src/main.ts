@@ -1,7 +1,10 @@
 import "./fonts";
 import "./styles.css";
 import { track } from "./analytics";
-import { backupFilename, buildBackup, restoreBackup } from "./backup";
+import { getSession, PERSIST_ERROR_EVENT, SESSIONS_KEY } from "./logStorage";
+import { setActiveLog, state } from "./state";
+import { PROGRESS_KEY } from "./liveProgress";
+import { backupFilename, buildBackup, RestoreQuotaError, restoreBackup } from "./backup";
 import { latestBodyweight, logBodyweight } from "./bodyweightStore";
 import { clear, h } from "./dom";
 import { forceAppUpdate, registerServiceWorker } from "./pwa";
@@ -13,7 +16,7 @@ import { mountBody } from "./views/body";
 import { mountExercise } from "./views/exercise";
 import { mountHistory } from "./views/history";
 import { mountLive } from "./views/live";
-import { dismissSnackbar } from "./views/snackbar";
+import { dismissSnackbar, showNotice } from "./views/snackbar";
 
 // Chrome strings — the tab bar and the Settings sheet (device maintenance,
 // backup, bodyweight and the about block).
@@ -37,8 +40,17 @@ registerTranslations({
     "Salvează tot ce este stocat pe acest dispozitiv — sesiuni, recorduri și setări — într-un singur fișier, sau restaurează o copie de rezervă (de ex. pe un telefon nou).",
   "Download backup": "Descarcă copia de rezervă",
   "Restore backup": "Restaurează copia",
-  "Restore this backup? Sessions, records and settings in the file will replace this device's copies.":
-    "Restaurezi această copie de rezervă? Sesiunile, recordurile și setările din fișier vor înlocui copiile de pe acest dispozitiv.",
+  "Restore this backup? Sessions in the file are merged with this device's; records and settings in the file replace this device's copies.":
+    "Restaurezi această copie de rezervă? Sesiunile din fișier se combină cu cele de pe acest dispozitiv; recordurile și setările din fișier le înlocuiesc pe cele de aici.",
+  "Not enough storage on this device to restore that backup. Nothing was changed.":
+    "Nu există suficient spațiu pe acest dispozitiv pentru a restaura copia. Nu s-a modificat nimic.",
+  "Couldn't save — this device's storage is full. Download a backup before closing the app.":
+    "Nu s-a putut salva — spațiul de stocare al dispozitivului este plin. Descarcă o copie de rezervă înainte de a închide aplicația.",
+  "This session was changed in another tab — showing the latest.":
+    "Această sesiune a fost modificată în altă filă — se afișează cea mai recentă versiune.",
+  About: "Despre",
+  Privacy: "Confidențialitate",
+  Terms: "Termeni",
   "That file is not a Gym Log backup.": "Acel fișier nu este o copie de rezervă Gym Log.",
   Bodyweight: "Greutate corporală",
   "Your bodyweight sharpens the protein and calorie estimates.":
@@ -120,6 +132,52 @@ function boot(): void {
   const viewHost = h("main", { class: "view-host", id: "view" });
 
   const navButtons = new Map<ViewName, HTMLButtonElement>();
+
+  // Two tabs (or the PWA plus a browser tab) share one localStorage. Each save
+  // re-reads the log first, so different sessions never clobber each other —
+  // but a tab holding the *same* open session in memory would overwrite the
+  // other tab's sets on its next save. So when another tab rewrites the log
+  // and our open session changed there, adopt that copy and remount; and while
+  // on Train, follow the other tab's place in the flow (its resume snapshot)
+  // too. A commit writes the log and then the snapshot, so the two events are
+  // coalesced into one remount. Re-saving an identical snapshot fires no
+  // event, so two tabs settle instead of ping-ponging remounts.
+  let syncTimer = 0;
+  let syncNotice = false;
+  window.addEventListener("storage", (e) => {
+    if (e.storageArea !== localStorage) return;
+    let remount = false;
+    if (e.key === null || e.key === SESSIONS_KEY) {
+      const open = state.activeLog;
+      const stored = open ? getSession(open.id) : undefined;
+      const strip = (x: object): string => JSON.stringify({ ...x, updatedAt: undefined });
+      if (open && !(stored && strip(stored) === strip(open))) {
+        setActiveLog(stored ?? null);
+        syncNotice = true;
+        remount = true;
+      }
+    }
+    if (e.key === PROGRESS_KEY && currentView === "live") remount = true;
+    if (!remount) return;
+    clearTimeout(syncTimer);
+    syncTimer = window.setTimeout(() => {
+      navigate(currentView, { push: false });
+      if (syncNotice) showNotice(t("This session was changed in another tab — showing the latest."));
+      syncNotice = false;
+    }, 60);
+  });
+
+  // A save that hit a full disk would otherwise vanish silently on reload —
+  // tell the user (at most every 30 s, since every logged set re-saves).
+  let lastPersistWarn = 0;
+  window.addEventListener(PERSIST_ERROR_EVENT, () => {
+    const now = Date.now();
+    if (now - lastPersistWarn < 30_000) return;
+    lastPersistWarn = now;
+    showNotice(
+      t("Couldn't save — this device's storage is full. Download a backup before closing the app."),
+    );
+  });
 
   // Every view name navigate() can mount — the whitelist popstate restores from,
   // so a stale or foreign history entry can never mount an unknown view.
@@ -416,7 +474,7 @@ function boot(): void {
     if (
       !confirm(
         t(
-          "Restore this backup? Sessions, records and settings in the file will replace this device's copies.",
+          "Restore this backup? Sessions in the file are merged with this device's; records and settings in the file replace this device's copies.",
         ),
       )
     )
@@ -424,8 +482,12 @@ function boot(): void {
     void file.text().then((text) => {
       try {
         restoreBackup(text);
-      } catch {
-        alert(t("That file is not a Gym Log backup."));
+      } catch (err) {
+        alert(
+          err instanceof RestoreQuotaError
+            ? t("Not enough storage on this device to restore that backup. Nothing was changed.")
+            : t("That file is not a Gym Log backup."),
+        );
         return;
       }
       track("backup", { action: "restore" });
@@ -524,7 +586,11 @@ function boot(): void {
   // Trap Tab within the open dialog so focus can't wander to the page behind it.
   dialog.addEventListener("keydown", (e) => {
     if (e.key !== "Tab") return;
-    const focusables = [...dialog.querySelectorAll<HTMLElement>("button")];
+    const focusables = [
+      ...dialog.querySelectorAll<HTMLElement>(
+        "button:not([disabled]), a[href], input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])",
+      ),
+    ].filter((el) => el.offsetParent !== null || el === document.activeElement);
     if (focusables.length === 0) return;
     const first = focusables[0]!;
     const last = focusables[focusables.length - 1]!;

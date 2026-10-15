@@ -30,10 +30,26 @@ import { round2 } from "./util";
 const HYPERTROPHY_MIN_REPS = 6;
 const HYPERTROPHY_MAX_REPS = 20;
 
-/** Estimated one-rep max via the Epley formula. Bodyweight-only sets (0 kg) read 0. */
+/**
+ * Epley one-rep max for a load lifted for `repsToFailure` reps (reps done plus
+ * reps left in reserve). A true single *is* the max — Epley's `w·(1+1/30)`
+ * would inflate it by 3.3%, so one rep to failure returns the load itself.
+ * The one formula every screen's e1RM goes through.
+ */
+export function epleyLoad(loadKg: number, repsToFailure: number): number {
+  if (loadKg <= 0 || repsToFailure <= 0) return 0;
+  if (repsToFailure <= 1) return loadKg;
+  return loadKg * (1 + repsToFailure / 30);
+}
+
+/**
+ * Estimated one-rep max of a logged set, counting its reps in reserve when
+ * logged (a set of 8 @ RIR 2 is a 10-rep max). Bodyweight-only sets (0 kg) and
+ * timed holds (0 reps) read 0 — they carry no load-for-reps to project from.
+ */
 export function epley1RM(set: WorkSet): number {
-  if (set.weightKg <= 0) return 0;
-  return set.weightKg * (1 + set.reps / 30);
+  if (set.reps <= 0) return 0;
+  return epleyLoad(set.weightKg, set.reps + (set.rir ?? 0));
 }
 
 /** A lift counts as compound when it taxes secondary muscles. */
@@ -188,17 +204,6 @@ export function recentMovements(
   return recent;
 }
 
-/** Distinct exercises that have at least one logged set, sorted for stable menus. */
-export function presentExerciseKeys(sessions: TrainingSession[]): ExerciseKey[] {
-  const keys = new Set<ExerciseKey>();
-  for (const session of sessions) {
-    for (const ex of session.exercises) {
-      if (ex.sets.length > 0) keys.add(exerciseKey(ex));
-    }
-  }
-  return [...keys].sort();
-}
-
 /** A scope for {@link buildProgress}: every set, or one exercise. */
 export type ProgressFilter = ExerciseKey | "all";
 
@@ -312,129 +317,6 @@ export function buildProgress(
   return points;
 }
 
-/* =============================================================================
-   Typical session per exercise — the "where am I usually at" read. While
-   buildProgress charts each session over time, this collapses every session a
-   movement appears in into one representative shape (average sets, reps and
-   load) plus the lightest/heaviest you've handled and a snapshot of the most
-   recent time you trained it. Strength-shaped, so the Stats view only shows it
-   for a single non-cardio scope.
-   ========================================================================== */
-
-/** The most recent session a movement appears in, reduced to a quick read. */
-export interface LastSession {
-  /** ISO timestamp the session started. */
-  date: string;
-  /** Short label, e.g. "22 May". */
-  label: string;
-  /** Sets logged for the movement that session. */
-  sets: number;
-  /** Total reps across those sets. */
-  totalReps: number;
-  /** Heaviest single set, kg (0 for bodyweight). */
-  topWeight: number;
-  /** Per-set "reps×kg" reads in order, e.g. ["10×40", "8×40", "8×35"]. */
-  setLabels: string[];
-}
-
-/** A movement's representative session, averaged across its whole history. */
-export interface TypicalSession {
-  /** Sessions the movement appears in with at least one set. */
-  sessions: number;
-  /** Mean sets per session. */
-  avgSets: number;
-  /** Mean reps per set. */
-  avgReps: number;
-  /** Mean load across loaded sets, kg (0 when every set was bodyweight). */
-  avgWeightKg: number;
-  /** Lightest loaded set seen, kg (0 when none was loaded). */
-  minWeightKg: number;
-  /** Heaviest loaded set seen, kg (0 when none was loaded). */
-  maxWeightKg: number;
-  /** The most recent session in scope, when there is one. */
-  last?: LastSession;
-}
-
-/**
- * Collapse one movement's whole logged history into its typical session and a
- * snapshot of the last time it was trained. Returns `undefined` when the
- * movement has no logged sets. Averages reps per *set* (not per session) so a
- * movement read as "3 sets · 10 reps · 40 kg" regardless of how its sessions
- * varied in length.
- */
-export function typicalSession(
-  sessions: TrainingSession[],
-  key: ExerciseKey,
-): TypicalSession | undefined {
-  const ordered = [...sessions].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
-  let sessionCount = 0;
-  let totalSets = 0;
-  let totalReps = 0;
-  let loadedSets = 0;
-  let loadedWeight = 0;
-  let minWeight = Infinity;
-  let maxWeight = 0;
-  let last: LastSession | undefined;
-
-  for (const session of ordered) {
-    let setsThis = 0;
-    let repsThis = 0;
-    let topThis = 0;
-    const setLabels: string[] = [];
-
-    for (const ex of session.exercises) {
-      if (exerciseKey(ex) !== key) continue;
-      for (const s of ex.sets) {
-        setsThis += 1;
-        repsThis += s.reps;
-        topThis = Math.max(topThis, s.weightKg);
-        if (s.weightKg > 0) {
-          loadedSets += 1;
-          loadedWeight += s.weightKg;
-          minWeight = Math.min(minWeight, s.weightKg);
-          maxWeight = Math.max(maxWeight, s.weightKg);
-        }
-        setLabels.push(s.weightKg > 0 ? `${s.reps}×${round2(s.weightKg)}` : `${s.reps}`);
-      }
-    }
-
-    if (setsThis === 0) continue;
-    sessionCount += 1;
-    totalSets += setsThis;
-    totalReps += repsThis;
-    // `ordered` is ascending, so the final qualifying session is the latest one.
-    last = {
-      date: session.startedAt,
-      label: shortDate(session.startedAt),
-      sets: setsThis,
-      totalReps: repsThis,
-      topWeight: round2(topThis),
-      setLabels,
-    };
-  }
-
-  if (sessionCount === 0) return undefined;
-
-  return {
-    sessions: sessionCount,
-    avgSets: round2(totalSets / sessionCount),
-    avgReps: round2(totalReps / totalSets),
-    avgWeightKg: loadedSets > 0 ? round2(loadedWeight / loadedSets) : 0,
-    minWeightKg: minWeight === Infinity ? 0 : round2(minWeight),
-    maxWeightKg: round2(maxWeight),
-    ...(last ? { last } : {}),
-  };
-}
-
-/* =============================================================================
-   Reps at one load — "how many reps do I get with 100 kg?". The series above
-   move reps and weight at the same time, so a jump in load reads as a drop in
-   reps and progress hides in the middle. Pinning the load isolates the rep side
-   of progressive overload: each weight the user has actually handled becomes
-   its own scope with a rep series over time, the best set ever performed at it,
-   and what their current 1RM says should be possible there.
-   ========================================================================== */
-
 /** A load the user has actually handled on one movement. */
 export interface LoadOption {
   /** The load, kg. */
@@ -480,70 +362,6 @@ export function loadsForExercise(sessions: TrainingSession[], key: ExerciseKey):
     .sort((a, b) => b.weightKg - a.weightKg);
 }
 
-/**
- * The load worth charting first: the one trained across the most sessions —
- * the user's working weight, which has the longest history to trend. Ties go to
- * the heavier load (the options come in heaviest-first).
- */
-export function defaultLoad(options: readonly LoadOption[]): number | undefined {
-  let best: LoadOption | undefined;
-  for (const option of options) {
-    if (best === undefined || option.sessions > best.sessions) best = option;
-  }
-  return best?.weightKg;
-}
-
-/** One session's rep work at a single load. */
-export interface LoadRepsPoint {
-  /** ISO timestamp the session started — used for ordering. */
-  date: string;
-  /** Short x-axis label, e.g. "22 May". */
-  label: string;
-  /** Most reps in a single set at this load — the capacity read. */
-  topReps: number;
-  /** Every rep logged at this load that session — the volume read. */
-  totalReps: number;
-  /** Sets logged at this load. */
-  sets: number;
-}
-
-/**
- * Chronological rep series for one movement at one load. Sessions that never
- * touched the load are skipped, so the line reads as "each time I trained this
- * weight", not "each session". Warm-ups are excluded, as in
- * {@link loadsForExercise}.
- */
-export function buildLoadReps(
-  sessions: TrainingSession[],
-  key: ExerciseKey,
-  weightKg: number,
-): LoadRepsPoint[] {
-  const target = round2(weightKg);
-  const ordered = [...sessions].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
-  const points: LoadRepsPoint[] = [];
-
-  for (const session of ordered) {
-    let topReps = 0;
-    let totalReps = 0;
-    let sets = 0;
-
-    for (const ex of session.exercises) {
-      if (exerciseKey(ex) !== key) continue;
-      for (const s of ex.sets) {
-        if (s.setType === "warmup" || round2(s.weightKg) !== target) continue;
-        sets += 1;
-        totalReps += s.reps;
-        topReps = Math.max(topReps, s.reps);
-      }
-    }
-
-    if (sets === 0) continue;
-    points.push({ date: session.startedAt, label: shortDate(session.startedAt), topReps, totalReps, sets });
-  }
-
-  return points;
-}
-
 /** The best one-rep max known for a movement, in raw kilos. */
 export interface RawOneRm {
   /** The max, kg; 0 when the movement has no loaded working set and no tested max. */
@@ -585,12 +403,12 @@ export function bestRawOneRm(
 
 /**
  * Reps a given 1RM predicts at a given load — the Epley formula solved for reps
- * (`1RM = w × (1 + reps/30)`). 0 once the load reaches the max itself, and
+ * (`1RM = w × (1 + reps/30)`). 0 once the load passes the max, 1 at it, and
  * increasingly optimistic past ~10 reps, where Epley's linearity breaks down.
  */
 export function estimatedRepsAt(oneRmKg: number, weightKg: number): number {
-  if (oneRmKg <= 0 || weightKg <= 0) return 0;
-  return Math.max(0, Math.round(30 * (oneRmKg / weightKg - 1)));
+  if (oneRmKg <= 0 || weightKg <= 0 || weightKg > oneRmKg) return 0;
+  return Math.max(1, Math.round(30 * (oneRmKg / weightKg - 1)));
 }
 
 /** What the user can do at one load: their best set there, beside the estimate. */
@@ -645,79 +463,6 @@ export function repCapacity(
     estimated: estimatedRepsAt(oneRm.kg, target),
     oneRm,
   };
-}
-
-/* =============================================================================
-   Cardio progress — distance, pace, time and climb per session. Cardio sets
-   carry no reps or load, so the strength series above read flat zero for them;
-   this is the parallel read the Stats view shows when the scope is a cardio
-   exercise (e.g. the treadmill).
-   ========================================================================== */
-
-/** One session reduced to its chartable cardio metrics. */
-export interface CardioPoint {
-  /** ISO timestamp the session started — used for ordering. */
-  date: string;
-  /** Short x-axis label, e.g. "22 May". */
-  label: string;
-  /** Total distance covered, km. */
-  distanceKm: number;
-  /** Total moving time across the cardio sets, seconds. */
-  durationSec: number;
-  /** Average speed, km/h — distance ÷ moving time (0 when time is unknown). */
-  speedKmh: number;
-  /** Pace, seconds per km — the inverse read of speed (0 when distance is unknown). */
-  paceSecPerKm: number;
-  /** Vertical climb from incline × distance, metres. */
-  climbM: number;
-}
-
-/**
- * Chronological cardio progress for the given scope. Sets are summed per session
- * (distance, time, climb); speed and pace are derived from the session totals so
- * a session of mixed-speed bouts reads as its true average. Sessions with no
- * cardio work in scope are skipped, mirroring {@link buildProgress}.
- */
-export function buildCardioProgress(
-  sessions: TrainingSession[],
-  filter: ProgressFilter,
-): CardioPoint[] {
-  const ordered = [...sessions].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
-  const points: CardioPoint[] = [];
-
-  for (const session of ordered) {
-    let distanceKm = 0;
-    let durationSec = 0;
-    let climbM = 0;
-    let any = false;
-
-    for (const ex of session.exercises) {
-      if (!isCardio(ex.equipment)) continue;
-      if (filter !== "all" && exerciseKey(ex) !== filter) continue;
-      for (const s of ex.sets) {
-        any = true;
-        const dist = Math.max(0, s.distanceKm ?? 0);
-        distanceKm += dist;
-        durationSec += s.durationSec ?? 0;
-        climbM += dist * 1000 * (Math.max(0, s.inclinePct ?? 0) / 100);
-      }
-    }
-
-    if (!any) continue;
-
-    const hours = durationSec / 3600;
-    points.push({
-      date: session.startedAt,
-      label: shortDate(session.startedAt),
-      distanceKm: round2(distanceKm),
-      durationSec: Math.round(durationSec),
-      speedKmh: hours > 0 ? round2(distanceKm / hours) : 0,
-      paceSecPerKm: distanceKm > 0 ? Math.round(durationSec / distanceKm) : 0,
-      climbM: Math.round(climbM),
-    });
-  }
-
-  return points;
 }
 
 /* =============================================================================

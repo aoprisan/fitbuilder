@@ -256,9 +256,6 @@ export interface RoutineSheet {
   updatedAt?: string;
 }
 
-export const SHEET_SCHEMA_ID = "gymlog.routine-sheet" as const;
-export const SHEET_SCHEMA_VERSION = 1 as const;
-
 /* =============================================================================
    Training sessions — live workout logs.
    Unlike an ExercisePlan (a template designed ahead of time), a TrainingSession

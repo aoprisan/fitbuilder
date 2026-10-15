@@ -73,34 +73,3 @@ export function priorSetsFor(
   }
   return out;
 }
-
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-
-/** Start (ms) of the Monday 00:00 local week containing `at`. */
-function weekStart(at: Date): number {
-  const d = new Date(at.getFullYear(), at.getMonth(), at.getDate());
-  const dow = (d.getDay() + 6) % 7; // Monday = 0
-  return d.getTime() - dow * 24 * 60 * 60 * 1000;
-}
-
-/**
- * Consecutive calendar weeks (Mondays, local time) with at least one logged
- * session, counting back from the current week. The current week counts when it
- * has a session; an empty current week doesn't break the streak — it just isn't
- * counted yet. 0 when even the previous week is empty.
- */
-export function weeklyStreak(sessions: readonly TrainingSession[], now: Date = new Date()): number {
-  const weeks = new Set<number>();
-  for (const s of sessions) {
-    const at = new Date(s.startedAt);
-    if (!Number.isNaN(at.getTime())) weeks.add(weekStart(at));
-  }
-  const thisWeek = weekStart(now);
-  let cursor = weeks.has(thisWeek) ? thisWeek : thisWeek - WEEK_MS;
-  let streak = 0;
-  while (weeks.has(cursor)) {
-    streak += 1;
-    cursor -= WEEK_MS;
-  }
-  return streak;
-}

@@ -9,7 +9,7 @@ import {
   type MuscleScore,
   muscleScores,
 } from "../bodyMap";
-import { h } from "../dom";
+import { clear, h } from "../dom";
 import { readEffort } from "../effort";
 import {
   canShareFiles,
@@ -18,6 +18,7 @@ import {
   shareBodyMap,
 } from "../exporters";
 import { registerTranslations, t } from "../i18n";
+import { exportStatus } from "./exportStatus";
 import { newTrainingSession } from "../log";
 import { clearProgress, loadProgress } from "../liveProgress";
 import { getSession, loadSessions, saveSession } from "../logStorage";
@@ -68,8 +69,8 @@ registerTranslations({
   Wasteful: "Ineficient",
   Efficient: "Eficient",
   // — legend descriptions —
-  "Relative strength per muscle — your best estimated 1-rep max.":
-    "Forța relativă pe mușchi — cea mai bună estimare 1RM.",
+  "Relative strength per muscle — your best estimated 1-rep max against what that muscle typically moves.":
+    "Forța relativă pe mușchi — cea mai bună estimare 1RM față de cât mută de obicei acel mușchi.",
   "Growth stimulus from hard-set volume over the last 7 days.":
     "Stimulul de creștere din volumul de serii grele din ultimele 7 zile.",
   "How fatigued each muscle is since you last trained it.":
@@ -82,6 +83,13 @@ registerTranslations({
   "No volume this week": "Niciun volum săptămâna aceasta",
   "Fresh — not trained recently": "Odihnit — neantrenat recent",
   Recovered: "Recuperat",
+  "All muscles": "Toți mușchii",
+  "≈ {0} kg est. 1RM": "≈ {0} kg 1RM estimat",
+  "{0} hard set this week": "{0} serie grea săptămâna aceasta",
+  "{0} hard sets this week": "{0} serii grele săptămâna aceasta",
+  "~{0}h to recover": "~{0}h până la recuperare",
+  "{0} effective sets · {1}% near failure": "{0} serii efective · {1}% aproape de epuizare",
+  "{0} sets · log RIR to rate effort": "{0} serii · înregistrează RIR pentru a evalua efortul",
   // — chrome —
   "No sessions logged yet — train a live session and your body map fills in here.":
     "Niciun antrenament înregistrat încă — fă un antrenament Live și harta corporală se va completa aici.",
@@ -108,13 +116,18 @@ registerTranslations({
   "save png": "salvează png",
   "Save PDF": "Salvează PDF",
   "save pdf": "salvează pdf",
-  "{0}…": "{0}…",
-  "{0} ready.": "{0} gata.",
-  "Could not {0}. Try again.": "Nu s-a putut {0}. Încearcă din nou.",
 });
 
 // The 3D stage is a touch taller than it is wide so the standing figure fits.
 const STAGE_ASPECT = 1.15;
+
+/** A muscle's translated read: its detail template filled with its args. */
+function scoreDetail(score: MuscleScore): string {
+  return (score.args ?? []).reduce(
+    (text, arg, i) => text.replace(`{${i}}`, arg),
+    t(score.detail),
+  );
+}
 
 /**
  * Body Map view: a rotatable 3D figure whose muscles are colour-coded by one of
@@ -252,13 +265,24 @@ export function mountBody(root: HTMLElement, nav: Nav): Cleanup {
   );
 
   const stage = h("div", { class: "bodymap-stage" });
-  const readout = h("p", { class: "bodymap-readout", text: t("Tap a muscle to see its reading.") });
+  const readout = h("p", {
+    class: "bodymap-readout",
+    aria: { live: "polite" },
+    text: t("Tap a muscle to see its reading."),
+  });
+  // Every muscle's reading as plain text — the figure itself is pointer-only,
+  // so this is the keyboard / screen-reader path to the same numbers.
+  const allList = h("ul", { class: "bodymap-all-list" });
+  const allReadings = h("details", { class: "bodymap-all" }, [
+    h("summary", { text: t("All muscles") }),
+    allList,
+  ]);
 
   // — legend: a gradient bar with low/high ends and a description —
   const legendBar = h("div", { class: "bodymap-legend-bar" });
   const legendLow = h("span", { class: "bodymap-legend-end" });
   const legendHigh = h("span", { class: "bodymap-legend-end" });
-  const legendDesc = h("p", { class: "plan-meta bodymap-legend-desc" });
+  const legendDesc = h("p", { class: "plan-meta plan-note bodymap-legend-desc" });
   const legend = h("div", { class: "bodymap-legend" }, [
     h("div", { class: "bodymap-legend-scale" }, [legendLow, legendBar, legendHigh]),
     legendDesc,
@@ -266,13 +290,14 @@ export function mountBody(root: HTMLElement, nav: Nav): Cleanup {
 
   const stageCard = h("section", { class: "card bodymap-card" }, [
     h("p", {
-      class: "plan-meta",
+      class: "plan-meta plan-note",
       text: t("Each muscle is shaded by the selected metric. Drag to spin the body; tap a muscle for its reading."),
     }),
     metricToggle,
     stage,
     readout,
     legend,
+    allReadings,
   ]);
 
   container.append(
@@ -310,6 +335,17 @@ export function mountBody(root: HTMLElement, nav: Nav): Cleanup {
     legendBar.style.background = metricGradientCss(metric);
     legendDesc.textContent = t(lg.desc);
     readout.textContent = t("Tap a muscle to see its reading.");
+    clear(allList);
+    for (const [muscle, sc] of scores) {
+      const swatch = h("span", { class: "bodymap-all-swatch", aria: { hidden: "true" } });
+      swatch.style.background = metricColor(metric, sc.value);
+      allList.append(
+        h("li", {}, [
+          swatch,
+          h("span", { text: `${t(MUSCLE_LABELS[muscle])} — ${scoreDetail(sc)}` }),
+        ]),
+      );
+    }
   }
 
   function setMetric(m: BodyMetric): void {
@@ -325,7 +361,7 @@ export function mountBody(root: HTMLElement, nav: Nav): Cleanup {
     }
     const s = scores.get(muscle);
     const label = t(MUSCLE_LABELS[muscle]);
-    readout.textContent = s ? `${label} — ${t(s.detail)}` : label;
+    readout.textContent = s ? `${label} — ${scoreDetail(s)}` : label;
   }
 
   // — lazy-load Three.js and build the figure; fall back to an SVG body on failure —
@@ -355,7 +391,7 @@ export function mountBody(root: HTMLElement, nav: Nav): Cleanup {
         onPick: showReadout,
       });
       stage.append(
-        h("p", { class: "plan-meta", text: t("3D view unavailable — showing a flat diagram instead.") }),
+        h("p", { class: "plan-meta plan-note", text: t("3D view unavailable — showing a flat diagram instead.") }),
         fallback.el,
       );
       applyMetric();
@@ -380,30 +416,12 @@ export function mountBody(root: HTMLElement, nav: Nav): Cleanup {
  * so the export always matches the toggle the user is looking at.
  */
 function renderExportPanel(sessions: TrainingSession[], getMetric: () => BodyMetric): HTMLElement {
-  const statusEl = h("p", { class: "status", role: "status", aria: { live: "polite" } });
-  const setStatus = (msg: string, kind: "ok" | "err" | "info"): void => {
-    statusEl.textContent = msg;
-    statusEl.className = `status status-${kind}`;
-  };
-  let busy = false;
-  async function runExport(label: string, fn: () => Promise<void>): Promise<void> {
-    if (busy) return;
-    busy = true;
-    setStatus(t("{0}…").replace("{0}", t(label)), "info");
-    try {
-      await fn();
-      setStatus(t("{0} ready.").replace("{0}", t(label)), "ok");
-    } catch {
-      setStatus(t("Could not {0}. Try again.").replace("{0}", t(label.toLowerCase())), "err");
-    } finally {
-      busy = false;
-    }
-  }
+  const { el: statusEl, set: setStatus, run: runExport } = exportStatus();
 
   return h("section", { class: "card live-export" }, [
     h("h2", { class: "section-title", text: t("Export · Share") }),
     h("p", {
-      class: "plan-meta",
+      class: "plan-meta plan-note",
       text: canShareFiles()
         ? t("Share sends a PNG of your body map (front, back & side) to the native share sheet — or save a PNG/PDF.")
         : t("Save a PNG or PDF of this body map. (Direct share works on phones.)"),
