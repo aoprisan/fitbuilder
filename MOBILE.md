@@ -43,16 +43,53 @@ cd android && ./gradlew assembleDebug
 # → android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-## Adding iOS
+## iOS
 
-iOS is wired up (`@capacitor/ios` is installed) but not yet scaffolded, since it needs
-Xcode + CocoaPods. On a Mac with those installed:
+The `ios/` Xcode project is committed and uses Swift Package Manager (Capacitor 8's
+default), so **no CocoaPods** is needed. On a Mac with Xcode:
 
 ```bash
-npm run build
-npm run cap:add:ios
-npm run ios
+npm run ios               # build + sync + open ios/App/App.xcodeproj in Xcode
 ```
 
-The `android/` (and future `ios/`) native projects are committed to the repo per
+Pick your team under *Signing & Capabilities* once, then run on a device or archive
+for TestFlight / the App Store.
+
+## Rest timer & notifications
+
+Timers (set stopwatch, rest clock, session HUD) are anchored to wall-clock time and the
+in-flight set is persisted (`liveProgress.ts`), so they read correctly after the phone
+is locked, the app is backgrounded, or the WebView is reloaded.
+
+The **rest alert** is what needs the OS: a JS timer is suspended on a locked phone. In
+the native app `src/notify.ts` schedules a local notification
+([`@capacitor/local-notifications`](https://capacitorjs.com/docs/apis/local-notifications))
+for the instant the rest target is crossed. The OS delivers it with sound/vibration on the
+lock screen, and it's cancelled as soon as the next set starts or the screen is left.
+In a browser the old in-page beep/vibration/Web Notification cue is used instead.
+
+- **Permissions** are asked the first time a rest-alert target (1:00, 1:30, …) is
+  tapped: the notification prompt on iOS / Android 13+, then, once, Android 12+'s
+  *Alarms & reminders* screen (exact alarms, so the alert isn't delayed). Declining exact
+  alarms still works; the alert is just scheduled inexact.
+- **Android** posts to a high-importance `rest-timer` channel (heads-up, lock screen)
+  with the monochrome status icon `res/drawable/ic_stat_timer.xml`. The plugin's
+  manifest merges `POST_NOTIFICATIONS`, `SCHEDULE_EXACT_ALARM`, `WAKE_LOCK` and
+  `RECEIVE_BOOT_COMPLETED`.
+- **iOS** shows the banner even while the app is open (`presentationOptions` in
+  `capacitor.config.ts`). No extra entitlements or background modes are needed.
+
+## CI builds
+
+`.github/workflows/mobile.yml` runs on pushes to `main`, PRs and manual dispatch:
+
+- **android** assembles a debug APK and uploads it as the `gym-log-debug-apk` artifact
+  (installable via `adb install` or by side-loading).
+- **ios** compiles an unsigned simulator build to prove the Xcode project and Swift
+  packages build. Signed device/App Store builds need your Apple signing setup in Xcode.
+
+Release builds (signed AAB/IPA) are produced locally: Android Studio →
+*Build › Generate Signed Bundle*, Xcode → *Product › Archive*.
+
+The `android/` and `ios/` native projects are committed to the repo per
 Capacitor's recommendation; build artifacts inside them are git-ignored.
