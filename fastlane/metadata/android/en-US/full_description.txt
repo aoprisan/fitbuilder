@@ -1,0 +1,31 @@
+Gym Log is a training ledger for people who log their own lifting. It opens on your body: which muscles are recovered, which are still on the clock, and one tap to start a session.
+
+READINESS FIRST
+• A rotatable 3D body map coloured by fatigue, strength, hypertrophy or efficiency
+• Per-muscle recovery clocks that scale with how hard you actually trained
+• A whole-body readiness gauge before you pick what to train
+
+LOG LIVE, SET BY SET
+• Pick any movement from a one-thumb ring picker — muscle groups, exercises and your recent lifts in one dial
+• Rotary reps and weight dials, one-tap picks from your last set, last session or the next progression step
+• Set stopwatch, rest timer with a lock-screen alert, reps-in-reserve, warm-up ramp and plate calculator
+• Personal-record flash the moment you beat a best
+
+KNOW WHAT TO EXPECT TODAY
+• A fatigue-adjusted forecast for every exercise: flies after six sets of bench aren't flies done fresh
+• See the load to aim for at your usual reps, how much strength today's work has cost, and what caused it
+• Progressive-overload nudges: add a rep, or move the load up when you've earned it
+
+UNDERSTAND YOUR TRAINING
+• Session history with effort, hydration and protein estimates
+• Per-exercise estimated 1RM, trend chart and reps you can expect at the loads you train
+• Export sessions as PNG or PDF, or share a Markdown recap to an AI assistant of your choice for analysis
+
+PRIVATE BY DESIGN
+• No account, no sign-in, no ads
+• Your training data stays on your phone — nothing is uploaded
+• Works fully offline; back up and restore everything to a single file whenever you like
+
+Available in English and Romanian.
+
+Gym Log is a training log, not medical advice. Check with a professional before starting a new training programme.

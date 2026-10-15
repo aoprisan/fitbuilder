@@ -1,5 +1,38 @@
 apply plugin: 'com.android.application'
 
+import groovy.json.JsonSlurper
+
+// ── Release versioning ───────────────────────────────────────────────────────
+// package.json's "version" is the single source of truth: `npm version patch`
+// bumps the app everywhere. versionName is that string; versionCode is derived
+// as MAJOR*10000 + MINOR*100 + PATCH (1.2.3 → 10203), so every semver bump is a
+// strictly higher code, as Google Play requires. Override the code for a one-off
+// re-upload with ANDROID_VERSION_CODE (env) or -PversionCode=….
+def pkg = new JsonSlurper().parse(rootProject.file('../package.json'))
+def appVersionName = pkg.version as String
+def semver = appVersionName.tokenize('-')[0].tokenize('.').collect { it as int }
+def derivedVersionCode = semver[0] * 10000 + semver[1] * 100 + semver[2]
+def appVersionCode = (project.findProperty('versionCode')
+        ?: System.getenv('ANDROID_VERSION_CODE')
+        ?: derivedVersionCode) as int
+
+// ── Release signing ──────────────────────────────────────────────────────────
+// Read from android/keystore.properties (git-ignored; template in
+// keystore.properties.example) or, failing that, the environment — so a signed
+// AAB comes out of `scripts/build-android.sh release` and Android Studio alike.
+// Without either, release builds are produced unsigned.
+def keystoreProps = new Properties()
+def keystorePropsFile = rootProject.file('keystore.properties')
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+def signingValue = { String prop, String env -> keystoreProps.getProperty(prop) ?: System.getenv(env) }
+def releaseStoreFile = signingValue('storeFile', 'ANDROID_KEYSTORE')
+def releaseStorePassword = signingValue('storePassword', 'ANDROID_KEYSTORE_PASSWORD')
+def releaseKeyAlias = signingValue('keyAlias', 'ANDROID_KEY_ALIAS')
+def releaseKeyPassword = signingValue('keyPassword', 'ANDROID_KEY_PASSWORD') ?: releaseStorePassword
+def hasReleaseSigning = releaseStoreFile && releaseStorePassword && releaseKeyAlias
+
 android {
     namespace = "com.fitbuilder.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +40,8 @@ android {
         applicationId "com.fitbuilder.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode appVersionCode
+        versionName appVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +49,22 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                // Relative paths resolve against android/ (where keystore.properties lives).
+                storeFile rootProject.file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
     buildTypes {
         release {
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

@@ -22,7 +22,12 @@
     "build:android": "bash scripts/build-android.sh debug",
     "build:android:release": "bash scripts/build-android.sh release",
     "build:ios": "bash scripts/build-ios.sh sim",
-    "build:ios:archive": "bash scripts/build-ios.sh archive"
+    "build:ios:archive": "bash scripts/build-ios.sh archive",
+    "play:assets": "node scripts/play-assets.mjs",
+    "play:validate": "bundle exec fastlane android validate",
+    "play:internal": "bundle exec fastlane android internal",
+    "play:metadata": "bundle exec fastlane android metadata",
+    "play:promote": "bundle exec fastlane android promote"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.3.4",

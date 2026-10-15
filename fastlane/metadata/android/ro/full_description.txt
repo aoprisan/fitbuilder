@@ -1,0 +1,31 @@
+Gym Log este un jurnal de antrenament pentru cei care își notează singuri antrenamentele de forță. Se deschide pe corpul tău: ce mușchi s-au refăcut, care încă se recuperează și un singur tap pentru a începe sesiunea.
+
+ÎNTÂI, CÂT EȘTI DE PREGĂTIT
+• Hartă 3D a corpului, rotibilă, colorată după oboseală, forță, hipertrofie sau eficiență
+• Ceasuri de recuperare pe fiecare mușchi, ajustate după cât de greu te-ai antrenat
+• Indicator de pregătire generală înainte să alegi ce antrenezi
+
+NOTEZI LIVE, SET CU SET
+• Alegi orice exercițiu dintr-un selector circular, cu un singur deget — grupe musculare, exerciții și exercițiile recente
+• Cadrane rotative pentru repetări și greutate, alegeri rapide din ultimul set, ultima sesiune sau următorul pas de progresie
+• Cronometru de set, pauză cu alertă pe ecranul blocat, repetări în rezervă, încălzire progresivă și calculator de discuri
+• Semnal de record personal în clipa în care îl bați
+
+ȘTII CE SĂ AȘTEPȚI AZI
+• Estimare ajustată după oboseală pentru fiecare exercițiu: fluturările după șase seturi de împins nu sunt ca fluturările făcute odihnit
+• Vezi greutatea țintă pentru repetările obișnuite, cât te-a costat munca de azi și ce a cauzat oboseala
+• Sugestii de progresie: încă o repetare sau mai multă greutate când ai câștigat-o
+
+ÎȚI ÎNȚELEGI ANTRENAMENTUL
+• Istoric de sesiuni cu efort, hidratare și proteine estimate
+• 1RM estimat pe exercițiu, grafic de evoluție și repetările de așteptat la greutățile folosite
+• Exportă sesiunile ca PNG sau PDF, sau trimite un rezumat Markdown unui asistent AI ales de tine pentru analiză
+
+PRIVAT DIN CONSTRUCȚIE
+• Fără cont, fără autentificare, fără reclame
+• Datele de antrenament rămân pe telefon — nimic nu este încărcat
+• Funcționează complet offline; salvezi și restaurezi totul într-un singur fișier oricând
+
+Disponibil în engleză și română.
+
+Gym Log este un jurnal de antrenament, nu un sfat medical. Consultă un specialist înainte de a începe un program nou.
