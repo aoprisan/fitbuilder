@@ -30,13 +30,11 @@ import {
 import { loadIncrementKg, suggestOverload } from "../overload";
 import { platesPerSide, BAR_KG } from "../plates";
 import {
-  cueRestOver,
   ensureNotifyPermission,
   loadRestAlertSec,
   REST_ALERT_OPTIONS,
   saveRestAlertSec,
 } from "../restAlert";
-import { cancelRestAlert, isNativeApp, scheduleRestAlert } from "../notify";
 import { detectPrs, priorSetsFor } from "../records";
 import { muscleRecovery, type MuscleRecovery, recoveryColor } from "../recovery";
 import { radialSelector, type RadialItem, type RadialRing } from "./radial";
@@ -81,6 +79,7 @@ import { loadBodyweights } from "../bodyweightStore";
 import { dialField, type DialHandle } from "./dial";
 import { registerTranslations, t } from "../i18n";
 import { initialLiveState, type LiveState, type RenderFrame } from "./liveState";
+import { LiveTimers } from "./liveTimers";
 import { exportStatus } from "./exportStatus";
 import {
   DIAL_C,
@@ -411,14 +410,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     focusAnchorText: "",
     focusAnchorAria: "",
   };
-  const timers = {
-    rafId: 0,
-    restAlertTimer: 0,
-    restNotifyArmed: false,
-    restArmGen: 0,
-    restOnWake: null as (() => void) | null,
-    hudTimer: 0,
-  };
+  const timers = new LiveTimers();
 
   /** Point the selection at a movement id, syncing the derived muscle + load type. */
   function selectMovement(id: string): void {
@@ -473,10 +465,10 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       (ex) => ex.sets.length === 0 && ex.prescription !== undefined,
     );
   }
-  const onVisibility = (): void => {
-    if (!document.hidden) timers.restOnWake?.();
-  };
-  document.addEventListener("visibilitychange", onVisibility);
+
+  // Floating "jump back to the timer" button: once the action/timer row (or
+  // the select screen's dial) scrolls out of view it fades in, and one tap
+  // returns there. Its target and caption are repointed each render (`view`).
   const fab = h("button", {
     class: "live-fab",
     type: "button",
@@ -493,28 +485,6 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     { threshold: 0 },
   );
 
-  function stopRaf(): void {
-    if (timers.rafId) {
-      cancelAnimationFrame(timers.rafId);
-      timers.rafId = 0;
-    }
-    // The rest-alert cue belongs to the resting screen; re-armed by its render.
-    if (timers.restAlertTimer) {
-      clearTimeout(timers.restAlertTimer);
-      timers.restAlertTimer = 0;
-    }
-    if (timers.restNotifyArmed) {
-      timers.restNotifyArmed = false;
-      cancelRestAlert();
-    }
-    timers.restArmGen++;
-    timers.restOnWake = null;
-    // The session HUD's wall-clock tick; re-armed by the next renderHud().
-    if (timers.hudTimer) {
-      clearInterval(timers.hudTimer);
-      timers.hudTimer = 0;
-    }
-  }
 
   /**
    * Strip above the select/exercise screens while a session is open: session
@@ -533,8 +503,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       const secs = (Date.now() - new Date(session.startedAt).getTime()) / 1000;
       time.textContent = formatClock(Math.max(0, secs));
     };
-    tick();
-    timers.hudTimer = window.setInterval(tick, 1000);
+    timers.everySecond(tick);
     const sets = sessionSetCount(session);
     return h("div", { class: st.stage === "exercise" ? "live-hud is-flow" : "live-hud" }, [
       h("span", { class: "live-hud-name", text: session.name || t("Live Session") }),
@@ -708,7 +677,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   }
 
   function endSession(): void {
-    stopRaf();
+    timers.stopAll();
     const s = state.activeLog;
     if (s) {
       if (s.exercises.some((ex) => ex.sets.length > 0)) {
@@ -797,7 +766,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   }
 
   function stopSet(): void {
-    stopRaf();
+    timers.stopAll();
     // A set left running (forgotten Stop, resumed hours later) would otherwise
     // record the whole gap as its duration and inflate effort; clamp it.
     st.setElapsedMs = Math.min(
@@ -2164,14 +2133,12 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       view.scrollTargetEl = actionRow;
       view.focusAnchorEl = actionRow;
 
-      const frame = (): void => {
+      timers.loop(() => {
         st.setElapsedMs = Date.now() - st.setStartEpoch;
         const secs = st.setElapsedMs / 1000;
         num.textContent = formatClock(secs);
         fill.setAttribute("stroke-dashoffset", String(DIAL_C * (1 - ((secs % 60) / 60))));
-        timers.rafId = requestAnimationFrame(frame);
-      };
-      timers.rafId = requestAnimationFrame(frame);
+      });
       return;
     }
 
@@ -2202,39 +2169,13 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       // was accepted it owns the sound, so the in-page cue stays quiet.
       let alertSec = loadRestAlertSec();
       const armAlert = (): void => {
-        if (timers.restAlertTimer) {
-          clearTimeout(timers.restAlertTimer);
-          timers.restAlertTimer = 0;
-        }
-        const gen = ++timers.restArmGen;
-        const dueEpoch = st.restStartEpoch + alertSec * 1000;
-        const remainingMs = dueEpoch - Date.now();
-        dialWrap.classList.toggle("rest-over", alertSec > 0 && remainingMs <= 0);
-        // Already over when this screen rendered (e.g. resumed later): no late cue.
-        if (alertSec <= 0 || remainingMs <= 0) {
-          if (timers.restNotifyArmed) {
-            timers.restNotifyArmed = false;
-            cancelRestAlert();
-          }
-          return;
-        }
-        let nativeOwnsCue = false;
-        if (isNativeApp()) {
-          timers.restNotifyArmed = true;
-          void scheduleRestAlert(dueEpoch, t("Rest over"), t("Time to start your next set.")).then(
-            (ok) => {
-              if (gen === timers.restArmGen) nativeOwnsCue = ok;
-            },
-          );
-        }
-        timers.restAlertTimer = window.setTimeout(() => {
-          timers.restAlertTimer = 0;
-          dialWrap.classList.add("rest-over");
-          // A timer suspended while the phone was locked fires on unlock —
-          // far too late to be useful, so only the dial flips.
-          const late = Date.now() - dueEpoch > 5000;
-          if (!nativeOwnsCue && !late) cueRestOver(t("Rest over"), t("Time to start your next set."));
-        }, remainingMs);
+        const dueEpoch = alertSec > 0 ? st.restStartEpoch + alertSec * 1000 : null;
+        dialWrap.classList.toggle("rest-over", dueEpoch !== null && dueEpoch <= Date.now());
+        timers.armRestAlert(
+          dueEpoch,
+          { title: t("Rest over"), body: t("Time to start your next set.") },
+          () => dialWrap.classList.add("rest-over"),
+        );
       };
       const alertField = h("div", { class: "field rest-alert-field" });
       const paintAlert = (): void => {
@@ -2270,7 +2211,6 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       };
       paintAlert();
       armAlert();
-      timers.restOnWake = armAlert;
 
       const summary = state.activeLog
         ? renderSessionSummary(state.activeLog, loadSessions())
@@ -2336,13 +2276,11 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         ]),
       );
 
-      const frame = (): void => {
+      timers.loop(() => {
         const secs = (Date.now() - st.restStartEpoch) / 1000;
         num.textContent = formatClock(secs);
         fill.setAttribute("stroke-dashoffset", String(DIAL_C * (1 - ((secs % 60) / 60))));
-        timers.rafId = requestAnimationFrame(frame);
-      };
-      timers.rafId = requestAnimationFrame(frame);
+      });
       return;
     }
 
@@ -2551,7 +2489,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   // ─────────────────────────────── Render ─────────────────────────────────────
 
   function render(): void {
-    stopRaf();
+    timers.stopAll();
     clear(container);
     if (!state.activeLog) st.stage = "list";
     snapshot();
@@ -2584,8 +2522,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   restore();
   render();
   return () => {
-    stopRaf();
-    document.removeEventListener("visibilitychange", onVisibility);
+    timers.dispose();
     fabObserver.disconnect();
     fab.remove();
   };
