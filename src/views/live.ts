@@ -76,6 +76,17 @@ import {
   sessionSetCount,
 } from "../util";
 import { warmupRamp } from "../warmup";
+import {
+  type Expectation,
+  expectedLoad,
+  expectedReps,
+  expectedRepsCurve,
+  expectNow,
+  plotLoadRange,
+  fatigueCostPct,
+  type FatigueSource,
+} from "../expectation";
+import { latestBodyweight } from "../bodyweightStore";
 import { dialField, type DialHandle } from "./dial";
 import { registerTranslations, t } from "../i18n";
 
@@ -277,6 +288,26 @@ registerTranslations({
   // — Progressive-overload nudge —
   "Next step": "Pasul următor",
   "Try {0}": "Încearcă {0}",
+  // — Fatigue-adjusted expectation —
+  "Expected now · −{0}% fatigue": "Așteptat acum · −{0}% oboseală",
+  "Expected now · fresh": "Așteptat acum · odihnit",
+  "~{0} reps @ {1}": "~{0} rep. @ {1}",
+  "~{0} reps": "~{0} rep.",
+  "Fresh you: {0}": "Odihnit: {0}",
+  "{0} · {1} sets earlier": "{0} · {1} seturi înainte",
+  "{0} · {1}% unrecovered": "{0} · {1}% nerecuperat",
+  "Session load · {0} sets": "Volum sesiune · {0} seturi",
+  "Started the session: {0}": "Ai început sesiunea: {0}",
+  "From {0} past sessions": "Din {0} sesiuni anterioare",
+  "From {0} past sessions + today's sets": "Din {0} sesiuni anterioare + seturile de azi",
+  "From today's sets": "Din seturile de azi",
+  "Expect ~{0} reps here": "Aștepți ~{0} rep. aici",
+  "Expect ~{0} reps here (fresh {1})": "Aștepți ~{0} rep. aici (odihnit {1})",
+  "Too heavy for now — expect 0 reps": "Prea greu acum — aștepți 0 rep.",
+  "Strength available now: {0}% of fresh": "Forță disponibilă acum: {0}% din odihnit",
+  "Now {0}%": "Acum {0}%",
+  Now: "Acum",
+  "Expected reps by load, fresh vs now": "Repetări așteptate după greutate, odihnit vs acum",
   "+{0} kg — you owned this load last time, move it up.":
     "+{0} kg — ai stăpânit această greutate data trecută, crește-o.",
   "+{0} rep — same load, beat last time by one.":
@@ -622,6 +653,260 @@ function renderOverloadHint(
     h("p", { class: "now-target", text: t("Try {0}").replace("{0}", target) }),
     h("p", { class: "plan-meta", text: note }),
   ]);
+}
+
+// Below this fatigue cost the "fresh you" comparison is noise and stays hidden.
+const EXPECT_SHOW_FRESH_PCT = 3;
+
+/** One human line for a contributor to the pre-fatigue on a movement. */
+function fatigueSourceLine(src: FatigueSource): string {
+  switch (src.kind) {
+    case "exercise":
+      return t("{0} · {1} sets earlier").replace("{0}", src.label).replace("{1}", String(src.sets ?? 0));
+    case "residual":
+      return t("{0} · {1}% unrecovered")
+        .replace("{0}", t(MUSCLE_LABELS[src.label as MuscleGroup]))
+        .replace("{1}", String(Math.round((src.unrecovered ?? 0) * 100)));
+    case "systemic":
+      return t("Session load · {0} sets").replace("{0}", String(src.sets ?? 0));
+    case "start":
+      return t("Started the session: {0}").replace(
+        "{0}",
+        t(FATIGUE_LABELS[Number(src.label) as keyof typeof FATIGUE_LABELS]),
+      );
+  }
+}
+
+// One colour per fatigue source in the strength bar and its legend, biggest first.
+const EXPECT_SOURCE_COLORS = ["var(--signal)", "var(--mustard)", "var(--rust)", "var(--plum)"];
+const EXPECT_MAX_SOURCES = EXPECT_SOURCE_COLORS.length;
+
+/**
+ * Strength bar — fresh capacity as a full-width tank: what's still available now
+ * fills it from the left, and the part fatigue has eaten is split into one
+ * coloured segment per source, sized by its share of the pre-fatigue. So "6
+ * sets of bench took most of it" reads at a glance.
+ */
+function renderStrengthBar(exp: Expectation, sources: readonly FatigueSource[]): HTMLElement {
+  const nowPct = exp.fatigue.factor * 100;
+  const lost = 100 - nowPct;
+  const total = exp.fatigue.load || 1;
+  const segs: HTMLElement[] = [h("span", { class: "expect-bar-now" })];
+  segs[0]!.style.width = `${nowPct}%`;
+  let shown = 0;
+  sources.forEach((src, i) => {
+    const w = (lost * src.load) / total;
+    shown += w;
+    const seg = h("span", { class: "expect-bar-seg" });
+    seg.style.width = `${w}%`;
+    seg.style.background = EXPECT_SOURCE_COLORS[i] ?? "var(--ink-faint)";
+    segs.push(seg);
+  });
+  // Minor sources not listed in the legend share one neutral sliver.
+  if (lost - shown > 0.2) {
+    const rest = h("span", { class: "expect-bar-seg" });
+    rest.style.width = `${lost - shown}%`;
+    rest.style.background = "var(--ink-faint)";
+    segs.push(rest);
+  }
+  const pct = Math.round(nowPct);
+  return h("div", { class: "expect-bar-wrap" }, [
+    h(
+      "div",
+      {
+        class: "expect-bar",
+        role: "img",
+        aria: { label: t("Strength available now: {0}% of fresh").replace("{0}", String(pct)) },
+      },
+      segs,
+    ),
+    h("p", { class: "expect-bar-label", text: t("Now {0}%").replace("{0}", String(pct)) }),
+  ]);
+}
+
+// Reps-vs-load chart geometry (viewBox units; CSS scales it to the card).
+const EC_W = 320;
+const EC_H = 130;
+const EC_PAD_L = 26;
+const EC_PAD_R = 10;
+const EC_PAD_T = 10;
+const EC_PAD_B = 20;
+const EC_STEPS = 32;
+
+/**
+ * Reps-you-can-expect across loads: the fresh curve (dashed) above the curve
+ * for right now (solid), with the gap between them shaded — that band *is* the
+ * fatigue. A marker rides the load being considered (the dial on the exercise
+ * screen), with a dot on each curve. Returns null when there's no sensible load
+ * range to plot.
+ */
+function renderExpectChart(
+  exp: Expectation,
+): { el: HTMLElement; mark: (weightKg: number) => void } | null {
+  const range = plotLoadRange(exp);
+  if (!range) return null;
+  const { lo, hi } = range;
+  const yMax = Math.max(5, Math.ceil(expectedRepsCurve(exp, lo).fresh / 5) * 5);
+  const plotW = EC_W - EC_PAD_L - EC_PAD_R;
+  const plotH = EC_H - EC_PAD_T - EC_PAD_B;
+  const xAt = (kg: number): number => EC_PAD_L + ((kg - lo) / (hi - lo)) * plotW;
+  const yAt = (reps: number): number => EC_PAD_T + (1 - Math.min(reps, yMax) / yMax) * plotH;
+
+  const fresh: string[] = [];
+  const now: string[] = [];
+  for (let i = 0; i <= EC_STEPS; i++) {
+    const kg = lo + ((hi - lo) * i) / EC_STEPS;
+    const r = expectedRepsCurve(exp, kg);
+    fresh.push(`${xAt(kg).toFixed(1)},${yAt(r.fresh).toFixed(1)}`);
+    now.push(`${xAt(kg).toFixed(1)},${yAt(r.now).toFixed(1)}`);
+  }
+
+  const svg = svgEl("svg", {
+    class: "expect-chart-svg",
+    viewBox: `0 0 ${EC_W} ${EC_H}`,
+    role: "img",
+    "aria-label": t("Expected reps by load, fresh vs now"),
+  });
+  const base = EC_PAD_T + plotH;
+  svg.append(
+    // Axes: baseline + left rule, with rep ticks at 0 / half / top.
+    svgEl("line", { x1: String(EC_PAD_L), y1: String(base), x2: String(EC_W - EC_PAD_R), y2: String(base), class: "expect-axis" }),
+    svgEl("line", { x1: String(EC_PAD_L), y1: String(EC_PAD_T), x2: String(EC_PAD_L), y2: String(base), class: "expect-axis" }),
+    // The fatigue band between the two curves.
+    svgEl("polygon", { points: [...fresh, ...[...now].reverse()].join(" "), class: "expect-gap" }),
+    svgEl("polyline", { points: fresh.join(" "), class: "expect-fresh" }),
+    svgEl("polyline", { points: now.join(" "), class: "expect-now" }),
+  );
+  for (const v of [0, yMax / 2, yMax]) {
+    const tick = svgEl("text", { x: String(EC_PAD_L - 4), y: String(yAt(v) + 3), class: "expect-tick", "text-anchor": "end" });
+    tick.textContent = String(Math.round(v));
+    svg.append(tick);
+  }
+  const loadLabel = (kg: number, x: number, anchor: string): void => {
+    const el = svgEl("text", { x: String(x), y: String(EC_H - 5), class: "expect-tick", "text-anchor": anchor });
+    el.textContent = formatLoad(exp.equipment, Math.round(kg));
+    svg.append(el);
+  };
+  loadLabel(lo, EC_PAD_L, "start");
+  loadLabel(hi, EC_W - EC_PAD_R, "end");
+
+  // The marker: a vertical rule at the load in question, a dot on each curve and
+  // the expected-reps-now readout beside it.
+  const markLine = svgEl("line", { y1: String(EC_PAD_T), y2: String(base), class: "expect-mark" });
+  const freshDot = svgEl("circle", { r: "3", class: "expect-dot-fresh" });
+  const nowDot = svgEl("circle", { r: "4", class: "expect-dot-now" });
+  const markText = svgEl("text", { class: "expect-mark-text" });
+  const marker = svgEl("g", {});
+  marker.append(markLine, freshDot, nowDot, markText);
+  svg.append(marker);
+
+  const mark = (weightKg: number): void => {
+    const inRange = weightKg >= lo && weightKg <= hi;
+    marker.setAttribute("visibility", inRange ? "visible" : "hidden");
+    if (!inRange) return;
+    const x = xAt(weightKg);
+    const r = expectedRepsCurve(exp, weightKg);
+    const rounded = expectedReps(exp, weightKg);
+    for (const el of [markLine]) {
+      el.setAttribute("x1", x.toFixed(1));
+      el.setAttribute("x2", x.toFixed(1));
+    }
+    freshDot.setAttribute("cx", x.toFixed(1));
+    freshDot.setAttribute("cy", yAt(r.fresh).toFixed(1));
+    nowDot.setAttribute("cx", x.toFixed(1));
+    nowDot.setAttribute("cy", yAt(r.now).toFixed(1));
+    // Readout sits on the side with more room.
+    const right = x < EC_PAD_L + plotW * 0.6;
+    markText.setAttribute("x", (x + (right ? 7 : -7)).toFixed(1));
+    markText.setAttribute("y", (yAt(r.now) - 6).toFixed(1));
+    markText.setAttribute("text-anchor", right ? "start" : "end");
+    markText.textContent = `${t("~{0} reps").replace("{0}", String(rounded.now))} · ${formatLoad(exp.equipment, weightKg)}`;
+  };
+
+  const legend = h("p", { class: "expect-legend" }, [
+    h("span", { class: "expect-key expect-key-fresh", text: t("Fresh") }),
+    h("span", { class: "expect-key expect-key-now", text: t("Now") }),
+  ]);
+  return { el: h("div", { class: "expect-chart" }, [svg as unknown as HTMLElement, legend]), mark };
+}
+
+/** Rep target the expectation card speaks to — last time's top working set, else 10. */
+function usualReps(last: LoggedExercise | null): number {
+  let top: WorkSet | null = null;
+  for (const s of last?.sets ?? []) {
+    if (s.setType === "warmup" || s.reps <= 0) continue;
+    if (!top || s.weightKg > top.weightKg || (s.weightKg === top.weightKg && s.reps > top.reps)) top = s;
+  }
+  return top?.reps ?? 10;
+}
+
+/**
+ * Fatigue-adjusted expectation for the movement about to be (or being) trained:
+ * what your history says you can do *right now*, after the work already done
+ * this session and whatever earlier days left unrecovered — chest flies after
+ * six sets of bench read very differently from flies as the opener. Headline is
+ * the load expected for your usual rep count (or reps, on bare bodyweight), with
+ * the fresh number beside it and the fatigue sources listed underneath.
+ */
+function renderExpectation(
+  exp: Expectation,
+  reps: number,
+  step: number,
+): { el: HTMLElement; mark: (weightKg: number) => void } {
+  const cost = fatigueCostPct(exp);
+  const bodyweightOnly = isBodyweight(exp.equipment) && (expectedLoad(exp, reps, step) ?? 0) <= 0;
+  const headline = (now: boolean): string => {
+    if (bodyweightOnly) {
+      const r = expectedReps(exp, 0);
+      return t("~{0} reps").replace("{0}", String(now ? r.now : r.fresh));
+    }
+    const freshExp = { ...exp, nowE1rm: exp.freshE1rm };
+    const kg = expectedLoad(now ? exp : freshExp, reps, step);
+    return kg === null
+      ? t("~{0} reps").replace("{0}", String(expectedReps(exp, 0)[now ? "now" : "fresh"]))
+      : t("~{0} reps @ {1}").replace("{0}", String(reps)).replace("{1}", formatLoad(exp.equipment, kg));
+  };
+  const basis = exp.basis === 0
+    ? t("From today's sets")
+    : (exp.usesToday ? t("From {0} past sessions + today's sets") : t("From {0} past sessions")).replace(
+        "{0}",
+        String(exp.basis),
+      );
+  const sources = exp.fatigue.sources.filter((src) => src.load >= 0.25).slice(0, EXPECT_MAX_SOURCES);
+  const chart = renderExpectChart(exp);
+  // Until a dial says otherwise, the marker sits on the headline's load.
+  if (chart) chart.mark(bodyweightOnly ? 0 : (expectedLoad(exp, reps, step) ?? 0));
+  const el = h(
+    "section",
+    { class: "card live-expect", dataset: { fatigue: cost >= 15 ? "high" : cost >= 6 ? "med" : "low" } },
+    [
+      h("p", {
+        class: "now-eyebrow",
+        text: cost > 0 ? t("Expected now · −{0}% fatigue").replace("{0}", String(cost)) : t("Expected now · fresh"),
+      }),
+      h("p", { class: "now-target", text: headline(true) }),
+      ...(cost >= EXPECT_SHOW_FRESH_PCT
+        ? [h("p", { class: "plan-meta", text: t("Fresh you: {0}").replace("{0}", headline(false)) })]
+        : []),
+      ...(cost > 0 ? [renderStrengthBar(exp, sources)] : []),
+      ...(sources.length > 0
+        ? [
+            h(
+              "ul",
+              { class: "live-expect-sources" },
+              sources.map((src, i) => {
+                const sw = h("span", { class: "expect-swatch" });
+                sw.style.background = EXPECT_SOURCE_COLORS[i] ?? "var(--ink-faint)";
+                return h("li", {}, [sw, h("span", { text: fatigueSourceLine(src) })]);
+              }),
+            ),
+          ]
+        : []),
+      ...(chart ? [chart.el] : []),
+      h("p", { class: "live-expect-basis", text: basis }),
+    ],
+  );
+  return { el, mark: chart?.mark ?? (() => {}) };
 }
 
 /** Celebration card for the records the just-logged set broke. */
@@ -1085,6 +1370,22 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     return currentEx
       ? exerciseKey(currentEx)
       : exerciseKey({ muscle, equipment, exerciseId: movementId });
+  }
+
+  /** Moves the expectation chart's marker to a load; set while the dials are up. */
+  let markExpectLoad: ((weightKg: number) => void) | null = null;
+
+  /** Fatigue-adjusted forecast for a movement against the work logged so far this session. */
+  function expectationFor(m: MuscleGroup, eq: Equipment, id: string): Expectation | null {
+    const bw = latestBodyweight()?.kg;
+    return expectNow({
+      prior: loadSessions().filter((o) => o.id !== state.activeLog?.id),
+      active: state.activeLog,
+      muscle: m,
+      equipment: eq,
+      exerciseId: id,
+      ...(bw !== undefined ? { bodyweightKg: bw } : {}),
+    });
   }
 
   /**
@@ -1567,6 +1868,16 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       if (picked && isCompoundMovement(picked)) contextHost.append(renderMuscleShares(picked));
       if (lastPerf) contextHost.append(renderLastPerformance(lastPerf.date, lastPerf.exercise));
       if (overloadHint) contextHost.append(overloadHint);
+      const exp = expectationFor(muscle, equipment, movementId);
+      if (exp) {
+        contextHost.append(
+          renderExpectation(
+            exp,
+            (planned ? nextSetTarget(planned)?.reps : undefined) ?? usualReps(lastPerf?.exercise ?? null),
+            loadIncrementKg(equipment),
+          ).el,
+        );
+      }
       if (recWarn) contextHost.append(recWarn);
     };
 
@@ -2109,6 +2420,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       .reduce((best, s) => (s.setType === "warmup" ? best : Math.max(best, epley1RM(s))), 0);
     const mainEl = h("p", { class: "set-preview-main" });
     const deltaEl = h("p", { class: "set-preview-delta" });
+    // Fatigue-adjusted reps at whatever load is dialled in, repainted with it.
+    const exp = expectationFor(muscle, equipment, movementId);
+    const expectEl = h("p", { class: "set-preview-expect" });
     const signed = (n: number): string => (n > 0 ? `+${round2(n)}` : String(round2(n)));
     const paint = (): void => {
       const parts: string[] = [];
@@ -2144,9 +2458,23 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       deltaEl.textContent = delta;
       deltaEl.hidden = delta === "";
       deltaEl.className = `set-preview-delta${tone}`;
+      let expect = "";
+      if (exp && pendingSetType !== "warmup") {
+        const r = expectedReps(exp, setWeight);
+        expect =
+          r.now === 0
+            ? t("Too heavy for now — expect 0 reps")
+            : r.fresh - r.now >= 1
+              ? t("Expect ~{0} reps here (fresh {1})").replace("{0}", String(r.now)).replace("{1}", String(r.fresh))
+              : t("Expect ~{0} reps here").replace("{0}", String(r.now));
+        expectEl.classList.toggle("is-short", r.now > 0 && setReps > r.now);
+      }
+      expectEl.textContent = expect;
+      expectEl.hidden = expect === "";
+      markExpectLoad?.(setWeight);
     };
     paint();
-    return { el: h("div", { class: "set-preview" }, [mainEl, deltaEl]), paint };
+    return { el: h("div", { class: "set-preview" }, [mainEl, expectEl, deltaEl]), paint };
   }
 
   /**
@@ -2273,6 +2601,23 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       ...(lastPerf ? [renderLastPerformance(lastPerf.date, lastPerf.exercise)] : []),
       ...(overloadHint ? [overloadHint] : []),
     );
+    // What to expect on the next set given everything already done today.
+    const nextPlan = currentEx ? nextSetTarget(currentEx) : null;
+    const exp = expectationFor(muscle, equipment, movementId);
+    markExpectLoad = null;
+    if (exp) {
+      const card = renderExpectation(
+        exp,
+        nextPlan?.reps ?? usualReps(lastPerf?.exercise ?? null),
+        loadIncrementKg(equipment),
+      );
+      container.append(card.el);
+      // While the dials are up, the chart's marker follows the dialled load.
+      if (sub === "logging") {
+        markExpectLoad = card.mark;
+        card.mark(setWeight);
+      }
+    }
 
     // Performed sets + plan benchmark — the logged read-out for this exercise.
     // Collected into one block so the resting sub-stage can slot it below the
