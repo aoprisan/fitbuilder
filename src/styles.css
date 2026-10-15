@@ -1472,6 +1472,7 @@ textarea {
 }
 
 .set-preview-main,
+.set-preview-expect,
 .set-preview-delta {
   margin: 0;
   font-family: var(--font-mono);
@@ -5486,4 +5487,43 @@ textarea:focus-visible {
 
 .radial-ring-quick .radial-legend-swatch {
   background: var(--paper-ash);
+}
+
+/* Fatigue-adjusted expectation — what history says you can do right now, given
+   the work already done this session and what earlier days left unrecovered. */
+.live-expect {
+  border-left: 8px solid var(--navy);
+  display: grid;
+  gap: 4px;
+}
+
+.live-expect[data-fatigue="med"] {
+  border-left-color: var(--gold, var(--brick));
+}
+
+.live-expect[data-fatigue="high"] {
+  border-left-color: var(--brick);
+}
+
+.live-expect .now-eyebrow,
+.live-expect .now-target,
+.live-expect .plan-meta,
+.live-expect-basis {
+  margin: 0;
+}
+
+.live-expect-sources {
+  margin: 2px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.live-expect-basis {
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+.set-preview-expect.is-short {
+  color: var(--brick);
 }

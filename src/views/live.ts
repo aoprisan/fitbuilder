@@ -76,6 +76,15 @@ import {
   sessionSetCount,
 } from "../util";
 import { warmupRamp } from "../warmup";
+import {
+  type Expectation,
+  expectedLoad,
+  expectedReps,
+  expectNow,
+  fatigueCostPct,
+  type FatigueSource,
+} from "../expectation";
+import { latestBodyweight } from "../bodyweightStore";
 import { dialField, type DialHandle } from "./dial";
 import { registerTranslations, t } from "../i18n";
 
@@ -277,6 +286,22 @@ registerTranslations({
   // — Progressive-overload nudge —
   "Next step": "Pasul următor",
   "Try {0}": "Încearcă {0}",
+  // — Fatigue-adjusted expectation —
+  "Expected now · −{0}% fatigue": "Așteptat acum · −{0}% oboseală",
+  "Expected now · fresh": "Așteptat acum · odihnit",
+  "~{0} reps @ {1}": "~{0} rep. @ {1}",
+  "~{0} reps": "~{0} rep.",
+  "Fresh you: {0}": "Odihnit: {0}",
+  "{0} · {1} sets earlier": "{0} · {1} seturi înainte",
+  "{0} · {1}% unrecovered": "{0} · {1}% nerecuperat",
+  "Session load · {0} sets": "Volum sesiune · {0} seturi",
+  "Started the session: {0}": "Ai început sesiunea: {0}",
+  "From {0} past sessions": "Din {0} sesiuni anterioare",
+  "From {0} past sessions + today's sets": "Din {0} sesiuni anterioare + seturile de azi",
+  "From today's sets": "Din seturile de azi",
+  "Expect ~{0} reps here": "Aștepți ~{0} rep. aici",
+  "Expect ~{0} reps here (fresh {1})": "Aștepți ~{0} rep. aici (odihnit {1})",
+  "Too heavy for now — expect 0 reps": "Prea greu acum — aștepți 0 rep.",
   "+{0} kg — you owned this load last time, move it up.":
     "+{0} kg — ai stăpânit această greutate data trecută, crește-o.",
   "+{0} rep — same load, beat last time by one.":
@@ -622,6 +647,87 @@ function renderOverloadHint(
     h("p", { class: "now-target", text: t("Try {0}").replace("{0}", target) }),
     h("p", { class: "plan-meta", text: note }),
   ]);
+}
+
+// Below this fatigue cost the "fresh you" comparison is noise and stays hidden.
+const EXPECT_SHOW_FRESH_PCT = 3;
+
+/** One human line for a contributor to the pre-fatigue on a movement. */
+function fatigueSourceLine(src: FatigueSource): string {
+  switch (src.kind) {
+    case "exercise":
+      return t("{0} · {1} sets earlier").replace("{0}", src.label).replace("{1}", String(src.sets ?? 0));
+    case "residual":
+      return t("{0} · {1}% unrecovered")
+        .replace("{0}", t(MUSCLE_LABELS[src.label as MuscleGroup]))
+        .replace("{1}", String(Math.round((src.unrecovered ?? 0) * 100)));
+    case "systemic":
+      return t("Session load · {0} sets").replace("{0}", String(src.sets ?? 0));
+    case "start":
+      return t("Started the session: {0}").replace(
+        "{0}",
+        t(FATIGUE_LABELS[Number(src.label) as keyof typeof FATIGUE_LABELS]),
+      );
+  }
+}
+
+/** Rep target the expectation card speaks to — last time's top working set, else 10. */
+function usualReps(last: LoggedExercise | null): number {
+  let top: WorkSet | null = null;
+  for (const s of last?.sets ?? []) {
+    if (s.setType === "warmup" || s.reps <= 0) continue;
+    if (!top || s.weightKg > top.weightKg || (s.weightKg === top.weightKg && s.reps > top.reps)) top = s;
+  }
+  return top?.reps ?? 10;
+}
+
+/**
+ * Fatigue-adjusted expectation for the movement about to be (or being) trained:
+ * what your history says you can do *right now*, after the work already done
+ * this session and whatever earlier days left unrecovered — chest flies after
+ * six sets of bench read very differently from flies as the opener. Headline is
+ * the load expected for your usual rep count (or reps, on bare bodyweight), with
+ * the fresh number beside it and the fatigue sources listed underneath.
+ */
+function renderExpectation(exp: Expectation, reps: number, step: number): HTMLElement {
+  const cost = fatigueCostPct(exp);
+  const bodyweightOnly = isBodyweight(exp.equipment) && (expectedLoad(exp, reps, step) ?? 0) <= 0;
+  const headline = (now: boolean): string => {
+    if (bodyweightOnly) {
+      const r = expectedReps(exp, 0);
+      return t("~{0} reps").replace("{0}", String(now ? r.now : r.fresh));
+    }
+    const freshExp = { ...exp, nowE1rm: exp.freshE1rm };
+    const kg = expectedLoad(now ? exp : freshExp, reps, step);
+    return kg === null
+      ? t("~{0} reps").replace("{0}", String(expectedReps(exp, 0)[now ? "now" : "fresh"]))
+      : t("~{0} reps @ {1}").replace("{0}", String(reps)).replace("{1}", formatLoad(exp.equipment, kg));
+  };
+  const basis = exp.basis === 0
+    ? t("From today's sets")
+    : (exp.usesToday ? t("From {0} past sessions + today's sets") : t("From {0} past sessions")).replace(
+        "{0}",
+        String(exp.basis),
+      );
+  const sources = exp.fatigue.sources.filter((src) => src.load >= 0.25).slice(0, 4);
+  return h(
+    "section",
+    { class: "card live-expect", dataset: { fatigue: cost >= 15 ? "high" : cost >= 6 ? "med" : "low" } },
+    [
+      h("p", {
+        class: "now-eyebrow",
+        text: cost > 0 ? t("Expected now · −{0}% fatigue").replace("{0}", String(cost)) : t("Expected now · fresh"),
+      }),
+      h("p", { class: "now-target", text: headline(true) }),
+      ...(cost >= EXPECT_SHOW_FRESH_PCT
+        ? [h("p", { class: "plan-meta", text: t("Fresh you: {0}").replace("{0}", headline(false)) })]
+        : []),
+      ...(sources.length > 0
+        ? [h("ul", { class: "live-expect-sources" }, sources.map((src) => h("li", { text: fatigueSourceLine(src) })))]
+        : []),
+      h("p", { class: "live-expect-basis", text: basis }),
+    ],
+  );
 }
 
 /** Celebration card for the records the just-logged set broke. */
@@ -1085,6 +1191,19 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     return currentEx
       ? exerciseKey(currentEx)
       : exerciseKey({ muscle, equipment, exerciseId: movementId });
+  }
+
+  /** Fatigue-adjusted forecast for a movement against the work logged so far this session. */
+  function expectationFor(m: MuscleGroup, eq: Equipment, id: string): Expectation | null {
+    const bw = latestBodyweight()?.kg;
+    return expectNow({
+      prior: loadSessions().filter((o) => o.id !== state.activeLog?.id),
+      active: state.activeLog,
+      muscle: m,
+      equipment: eq,
+      exerciseId: id,
+      ...(bw !== undefined ? { bodyweightKg: bw } : {}),
+    });
   }
 
   /**
@@ -1567,6 +1686,12 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       if (picked && isCompoundMovement(picked)) contextHost.append(renderMuscleShares(picked));
       if (lastPerf) contextHost.append(renderLastPerformance(lastPerf.date, lastPerf.exercise));
       if (overloadHint) contextHost.append(overloadHint);
+      const exp = expectationFor(muscle, equipment, movementId);
+      if (exp) {
+        contextHost.append(
+          renderExpectation(exp, (planned ? nextSetTarget(planned)?.reps : undefined) ?? usualReps(lastPerf?.exercise ?? null), loadIncrementKg(equipment)),
+        );
+      }
       if (recWarn) contextHost.append(recWarn);
     };
 
@@ -2109,6 +2234,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       .reduce((best, s) => (s.setType === "warmup" ? best : Math.max(best, epley1RM(s))), 0);
     const mainEl = h("p", { class: "set-preview-main" });
     const deltaEl = h("p", { class: "set-preview-delta" });
+    // Fatigue-adjusted reps at whatever load is dialled in, repainted with it.
+    const exp = expectationFor(muscle, equipment, movementId);
+    const expectEl = h("p", { class: "set-preview-expect" });
     const signed = (n: number): string => (n > 0 ? `+${round2(n)}` : String(round2(n)));
     const paint = (): void => {
       const parts: string[] = [];
@@ -2144,9 +2272,22 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       deltaEl.textContent = delta;
       deltaEl.hidden = delta === "";
       deltaEl.className = `set-preview-delta${tone}`;
+      let expect = "";
+      if (exp && pendingSetType !== "warmup") {
+        const r = expectedReps(exp, setWeight);
+        expect =
+          r.now === 0
+            ? t("Too heavy for now — expect 0 reps")
+            : r.fresh - r.now >= 1
+              ? t("Expect ~{0} reps here (fresh {1})").replace("{0}", String(r.now)).replace("{1}", String(r.fresh))
+              : t("Expect ~{0} reps here").replace("{0}", String(r.now));
+        expectEl.classList.toggle("is-short", r.now > 0 && setReps > r.now);
+      }
+      expectEl.textContent = expect;
+      expectEl.hidden = expect === "";
     };
     paint();
-    return { el: h("div", { class: "set-preview" }, [mainEl, deltaEl]), paint };
+    return { el: h("div", { class: "set-preview" }, [mainEl, expectEl, deltaEl]), paint };
   }
 
   /**
@@ -2273,6 +2414,14 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       ...(lastPerf ? [renderLastPerformance(lastPerf.date, lastPerf.exercise)] : []),
       ...(overloadHint ? [overloadHint] : []),
     );
+    // What to expect on the next set given everything already done today.
+    const nextPlan = currentEx ? nextSetTarget(currentEx) : null;
+    const exp = expectationFor(muscle, equipment, movementId);
+    if (exp) {
+      container.append(
+        renderExpectation(exp, nextPlan?.reps ?? usualReps(lastPerf?.exercise ?? null), loadIncrementKg(equipment)),
+      );
+    }
 
     // Performed sets + plan benchmark — the logged read-out for this exercise.
     // Collected into one block so the resting sub-stage can slot it below the
