@@ -862,9 +862,16 @@ function renderExpectation(
     }
     const freshExp = { ...exp, nowE1rm: exp.freshE1rm };
     const kg = expectedLoad(now ? exp : freshExp, reps, step);
-    return kg === null
-      ? t("~{0} reps").replace("{0}", String(expectedReps(exp, 0)[now ? "now" : "fresh"]))
-      : t("~{0} reps @ {1}").replace("{0}", String(reps)).replace("{1}", formatLoad(exp.equipment, kg));
+    if (kg === null) {
+      return t("~{0} reps").replace("{0}", String(expectedReps(exp, 0)[now ? "now" : "fresh"]));
+    }
+    // The load is rounded down to a real plate step, which can leave a rep or
+    // so in hand — quote the reps expected at *that* load, so the headline and
+    // the chart's marker always agree.
+    const at = expectedReps(exp, kg);
+    return t("~{0} reps @ {1}")
+      .replace("{0}", String(now ? at.now : at.fresh))
+      .replace("{1}", formatLoad(exp.equipment, kg));
   };
   const basis = exp.basis === 0
     ? t("From today's sets")
