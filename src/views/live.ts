@@ -37,7 +37,7 @@ import {
   saveRestAlertSec,
 } from "../restAlert";
 import { cancelRestAlert, isNativeApp, scheduleRestAlert } from "../notify";
-import { detectPrs, priorSetsFor, type PrHit } from "../records";
+import { detectPrs, priorSetsFor } from "../records";
 import { muscleRecovery, type MuscleRecovery, recoveryColor } from "../recovery";
 import { radialSelector, type RadialItem, type RadialRing } from "./radial";
 import {
@@ -64,7 +64,6 @@ import {
   type Equipment,
   type LoggedExercise,
   type MuscleGroup,
-  type SetType,
   type TrainingSession,
   type WorkSet,
 } from "../types";
@@ -81,6 +80,7 @@ import { type Expectation, expectedReps, expectNow } from "../expectation";
 import { loadBodyweights } from "../bodyweightStore";
 import { dialField, type DialHandle } from "./dial";
 import { registerTranslations, t } from "../i18n";
+import { initialLiveState, type LiveState, type RenderFrame } from "./liveState";
 import { exportStatus } from "./exportStatus";
 import {
   DIAL_C,
@@ -399,58 +399,44 @@ registerTranslations({
 
 
 
-/** Top-level place in the live flow. */
-type Stage = "list" | "select" | "exercise";
-/** Where we are within a single exercise. */
-type SetSub = "idle" | "running" | "logging" | "resting";
 
 export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   const container = h("div", { class: "view view-live" });
   root.appendChild(container);
-
-  let stage: Stage = state.activeLog ? "select" : "list";
-  let sub: SetSub = "idle";
-
-  // Pending exercise selection (becomes a LoggedExercise on the first logged set).
-  let muscle: MuscleGroup = "chest";
-  let equipment: Equipment = "dumbbell";
-  // Selected catalog movement; drives the exercise name, load type, and secondary muscles.
-  let movementId = "";
-  // Which exercise picker the select screen shows: muscle+gear ("custom") or compound lifts.
-  let selectMode: SelectMode = "custom";
-  let currentEx: LoggedExercise | null = null;
-  // Which logged set is open for inline reps/weight editing (null = none), plus
-  // the in-flight edit values held until the user taps Save.
-  let editingSetIndex: number | null = null;
-  let editReps = 0;
-  let editWeight = 0;
-  // Hold time (seconds) for the open inline editor when the set is an isometric hold.
-  let editHoldSec = 0;
-  // Reps-in-reserve for the open inline editor (null = leave intensity unweighted).
-  let editRir: number | null = null;
-  // Records broken by the most recently committed set — shown while resting,
-  // cleared when the next set starts. Transient; not part of the resume snapshot.
-  let prFlash: PrHit[] = [];
-  // Name filter over the select screen's exercise chips (long muscle catalogs).
-  let movementFilter = "";
+  const st: LiveState = initialLiveState(state.activeLog !== null);
+  const view: RenderFrame = {
+    scrollTargetEl: null,
+    scrollTargetBlock: "start",
+    focusAnchorEl: null,
+    focusAnchorText: "",
+    focusAnchorAria: "",
+  };
+  const timers = {
+    rafId: 0,
+    restAlertTimer: 0,
+    restNotifyArmed: false,
+    restArmGen: 0,
+    restOnWake: null as (() => void) | null,
+    hudTimer: 0,
+  };
 
   /** Point the selection at a movement id, syncing the derived muscle + load type. */
   function selectMovement(id: string): void {
     const mv = findMovement(id);
     if (!mv) return;
-    movementId = mv.id;
+    st.movementId = mv.id;
     // A few movements are cross-listed under a muscle other than their primary
     // (Dead Hang under Back, Diamond Push-Up under Chest). Picking one from the
     // muscle the dial is on keeps the dial there instead of jumping to the
     // primary; the logged exercise still records its real primary muscle.
-    if (!movementsForMuscle(muscle).some((m) => m.id === mv.id)) muscle = mv.primaryMuscle;
-    equipment = mv.equipment;
+    if (!movementsForMuscle(st.muscle).some((m) => m.id === mv.id)) st.muscle = mv.primaryMuscle;
+    st.equipment = mv.equipment;
   }
 
   /** Switch muscle group and reset the movement to that group's first isolation option. */
   function selectMuscle(m: MuscleGroup): void {
-    muscle = m;
-    movementFilter = ""; // each muscle's chip list starts unfiltered
+    st.muscle = m;
+    st.movementFilter = ""; // each muscle's chip list starts unfiltered
     const first = isolationMovementsForMuscle(m)[0];
     if (first) selectMovement(first.id);
   }
@@ -462,8 +448,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
    * selection (e.g. a routine-prescribed lift) is dropped back to isolation here.
    */
   function ensureMovement(): void {
-    const movements = isolationMovementsForMuscle(muscle);
-    if (!movements.some((mv) => mv.id === movementId)) {
+    const movements = isolationMovementsForMuscle(st.muscle);
+    if (!movements.some((mv) => mv.id === st.movementId)) {
       const first = movements[0];
       if (first) selectMovement(first.id);
     }
@@ -472,7 +458,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   /** Ensure the selection points at a compound lift; default to the most-trained one if not. */
   function ensureCompound(): void {
     const compounds = compoundMovementsByFrequency(loadSessions());
-    if (!compounds.some((mv) => mv.id === movementId)) {
+    if (!compounds.some((mv) => mv.id === st.movementId)) {
       const first = compounds[0];
       if (first) selectMovement(first.id);
     }
@@ -487,73 +473,15 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       (ex) => ex.sets.length === 0 && ex.prescription !== undefined,
     );
   }
-
-  // In-flight set values.
-  let setReps = 10;
-  let setWeight = 10;
-  // In-flight hold time (seconds) for an isometric set (plank, dead hang).
-  let setHoldSec = 30;
-  // In-flight cardio values (treadmill bout): distance km, speed km/h, incline %.
-  let setDistanceKm = 1;
-  let setSpeedKmh = 8;
-  let setInclinePct = 0;
-  // Reps in reserve for the set being logged; null until tapped (optional).
-  let pendingRir: number | null = null;
-  // Warm-up / drop-set tag for the set being logged; null = working set.
-  let pendingSetType: SetType | null = null;
-
-  // Stopwatch. Anchored to wall-clock time (epoch ms) so it keeps correct time
-  // across a reload or phone lock, not just within one page session.
-  let setStartEpoch = 0;
-  let setElapsedMs = 0;
-  let rafId = 0;
-
-  // Rest clock — starts the moment a set is committed, runs until the next set.
-  let restStartEpoch = 0;
-  // Pending rest-alert cue (setTimeout id); armed on the resting screen, 0 otherwise.
-  let restAlertTimer = 0;
-  // Whether a native rest-over notification may be pending (Capacitor app),
-  // so leaving the resting screen knows to cancel it.
-  let restNotifyArmed = false;
-  // Bumped on every (re-)arm so a slow native schedule result can't speak for
-  // an alert that has since been replaced.
-  let restArmGen = 0;
-  // Re-checks the rest alert when the page becomes visible again (set by the
-  // resting screen, null elsewhere). A phone that slept froze the JS timer
-  // along with the clock it counts on, so the pending timeout can fire long
-  // after unlock — this flips the dial the moment the screen is back.
-  let restOnWake: (() => void) | null = null;
   const onVisibility = (): void => {
-    if (!document.hidden) restOnWake?.();
+    if (!document.hidden) timers.restOnWake?.();
   };
   document.addEventListener("visibilitychange", onVisibility);
-
-  // After a render, bring this element to the top of the viewport instead of
-  // jumping to page top. Used during a running set / rest so the action button
-  // and timer are in view without scrolling past the exercise header. Reset to
-  // null at the start of every render; null falls back to scroll-to-top.
-  let scrollTargetEl: HTMLElement | null = null;
-  // How that element is brought into view. The in-set screens pin their action
-  // row to the top of the viewport; the select screen only nudges its dial into
-  // view ("nearest"), so a repaint never shoves the page around under the thumb.
-  let scrollTargetBlock: ScrollLogicalPosition = "start";
-
-  // Floating "jump back to the timer" button. During a live set (running /
-  // resting / logging) the action button + timer sit at the top of the screen,
-  // but the set list and effort read-out below can run long — so once those
-  // controls scroll out of view this fixed button fades in and a single tap
-  // returns to them, instead of finger-scrolling back up. `focusAnchorEl` is the
-  // element to return to (the action/timer row — the ring dial on the select
-  // screen), repointed each render; an IntersectionObserver shows the button
-  // only while that anchor is off-screen, and its caption follows the anchor.
-  let focusAnchorEl: HTMLElement | null = null;
-  let focusAnchorText = "";
-  let focusAnchorAria = "";
   const fab = h("button", {
     class: "live-fab",
     type: "button",
     on: {
-      click: () => focusAnchorEl?.scrollIntoView({ block: "start", behavior: scrollBehavior() }),
+      click: () => view.focusAnchorEl?.scrollIntoView({ block: "start", behavior: scrollBehavior() }),
     },
   });
   root.appendChild(fab);
@@ -566,32 +494,27 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   );
 
   function stopRaf(): void {
-    if (rafId) {
-      cancelAnimationFrame(rafId);
-      rafId = 0;
+    if (timers.rafId) {
+      cancelAnimationFrame(timers.rafId);
+      timers.rafId = 0;
     }
     // The rest-alert cue belongs to the resting screen; re-armed by its render.
-    if (restAlertTimer) {
-      clearTimeout(restAlertTimer);
-      restAlertTimer = 0;
+    if (timers.restAlertTimer) {
+      clearTimeout(timers.restAlertTimer);
+      timers.restAlertTimer = 0;
     }
-    if (restNotifyArmed) {
-      restNotifyArmed = false;
+    if (timers.restNotifyArmed) {
+      timers.restNotifyArmed = false;
       cancelRestAlert();
     }
-    restArmGen++;
-    restOnWake = null;
+    timers.restArmGen++;
+    timers.restOnWake = null;
     // The session HUD's wall-clock tick; re-armed by the next renderHud().
-    if (hudTimer) {
-      clearInterval(hudTimer);
-      hudTimer = 0;
+    if (timers.hudTimer) {
+      clearInterval(timers.hudTimer);
+      timers.hudTimer = 0;
     }
   }
-
-  // ───────────────────────── Session HUD (sticky) ─────────────────────────────
-
-  // Ticks the HUD's elapsed read-out once a second; owned by render()/stopRaf.
-  let hudTimer = 0;
 
   /**
    * Strip above the select/exercise screens while a session is open: session
@@ -611,9 +534,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       time.textContent = formatClock(Math.max(0, secs));
     };
     tick();
-    hudTimer = window.setInterval(tick, 1000);
+    timers.hudTimer = window.setInterval(tick, 1000);
     const sets = sessionSetCount(session);
-    return h("div", { class: stage === "exercise" ? "live-hud is-flow" : "live-hud" }, [
+    return h("div", { class: st.stage === "exercise" ? "live-hud is-flow" : "live-hud" }, [
       h("span", { class: "live-hud-name", text: session.name || t("Live Session") }),
       time,
       h("span", {
@@ -681,31 +604,31 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   /** Snapshot the in-flight flow so a reload can resume exactly here. */
   function snapshot(): void {
     const s = state.activeLog;
-    if (!s || stage === "list") {
+    if (!s || st.stage === "list") {
       clearProgress();
       return;
     }
     saveProgress({
       sessionId: s.id,
-      stage,
-      sub,
-      muscle,
-      equipment,
-      movementId,
-      selectMode,
-      hasCurrentEx: currentEx !== null,
-      currentExIndex: currentEx ? s.exercises.indexOf(currentEx) : -1,
-      setReps,
-      setWeight,
-      setHoldSec,
-      setDistanceKm,
-      setSpeedKmh,
-      setInclinePct,
-      setRir: pendingRir,
-      setType: pendingSetType,
-      setStartEpoch,
-      setElapsedMs,
-      restStartEpoch,
+      stage: st.stage,
+      sub: st.sub,
+      muscle: st.muscle,
+      equipment: st.equipment,
+      movementId: st.movementId,
+      selectMode: st.selectMode,
+      hasCurrentEx: st.currentEx !== null,
+      currentExIndex: st.currentEx ? s.exercises.indexOf(st.currentEx) : -1,
+      setReps: st.setReps,
+      setWeight: st.setWeight,
+      setHoldSec: st.setHoldSec,
+      setDistanceKm: st.setDistanceKm,
+      setSpeedKmh: st.setSpeedKmh,
+      setInclinePct: st.setInclinePct,
+      setRir: st.pendingRir,
+      setType: st.pendingSetType,
+      setStartEpoch: st.setStartEpoch,
+      setElapsedMs: st.setElapsedMs,
+      restStartEpoch: st.restStartEpoch,
     });
   }
 
@@ -719,32 +642,32 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       return;
     }
     setActiveLog(session);
-    stage = saved.stage;
-    sub = saved.sub;
-    muscle = saved.muscle;
-    equipment = saved.equipment;
-    movementId = saved.movementId;
-    selectMode = saved.selectMode;
-    currentEx = saved.hasCurrentEx
+    st.stage = saved.stage;
+    st.sub = saved.sub;
+    st.muscle = saved.muscle;
+    st.equipment = saved.equipment;
+    st.movementId = saved.movementId;
+    st.selectMode = saved.selectMode;
+    st.currentEx = saved.hasCurrentEx
       ? (session.exercises[saved.currentExIndex] ??
         session.exercises[session.exercises.length - 1] ??
         null)
       : null;
-    setReps = saved.setReps;
-    setWeight = saved.setWeight;
-    setHoldSec = saved.setHoldSec;
-    setDistanceKm = saved.setDistanceKm;
-    setSpeedKmh = saved.setSpeedKmh;
-    setInclinePct = saved.setInclinePct;
-    pendingRir = saved.setRir;
-    pendingSetType = saved.setType;
-    setStartEpoch = saved.setStartEpoch;
-    setElapsedMs = saved.setElapsedMs;
-    restStartEpoch = saved.restStartEpoch;
+    st.setReps = saved.setReps;
+    st.setWeight = saved.setWeight;
+    st.setHoldSec = saved.setHoldSec;
+    st.setDistanceKm = saved.setDistanceKm;
+    st.setSpeedKmh = saved.setSpeedKmh;
+    st.setInclinePct = saved.setInclinePct;
+    st.pendingRir = saved.setRir;
+    st.pendingSetType = saved.setType;
+    st.setStartEpoch = saved.setStartEpoch;
+    st.setElapsedMs = saved.setElapsedMs;
+    st.restStartEpoch = saved.restStartEpoch;
     // A running/resting snapshot without its start stamp can't be timed; drop
     // back to idle rather than measuring from the epoch.
-    if (sub === "running" && setStartEpoch <= 0) sub = "idle";
-    if (sub === "resting" && restStartEpoch <= 0) sub = "idle";
+    if (st.sub === "running" && st.setStartEpoch <= 0) st.sub = "idle";
+    if (st.sub === "resting" && st.restStartEpoch <= 0) st.sub = "idle";
   }
 
   // ───────────────────────── Toggles (muscle / equipment) ─────────────────────
@@ -778,9 +701,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   function startSession(): void {
     setActiveLog(saveSession(newTrainingSession()));
     selectMuscle("chest");
-    currentEx = null;
-    sub = "idle";
-    stage = "select";
+    st.currentEx = null;
+    st.sub = "idle";
+    st.stage = "select";
     render();
   }
 
@@ -796,39 +719,36 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     }
     clearProgress();
     setActiveLog(null);
-    currentEx = null;
-    sub = "idle";
-    stage = "list";
+    st.currentEx = null;
+    st.sub = "idle";
+    st.stage = "list";
     render();
   }
 
   function startExercise(): void {
-    currentEx = null;
-    sub = "idle";
-    stage = "exercise";
+    st.currentEx = null;
+    st.sub = "idle";
+    st.stage = "exercise";
     render();
   }
 
   /** Re-open an exercise already in the session to add more sets (or review them). */
   function resumeExercise(ex: LoggedExercise): void {
-    currentEx = ex;
-    muscle = ex.muscle;
-    equipment = ex.equipment;
-    movementId = ex.exerciseId ?? `${ex.muscle}::${ex.equipment}`;
-    sub = "idle";
-    stage = "exercise";
+    st.currentEx = ex;
+    st.muscle = ex.muscle;
+    st.equipment = ex.equipment;
+    st.movementId = ex.exerciseId ?? `${ex.muscle}::${ex.equipment}`;
+    st.sub = "idle";
+    st.stage = "exercise";
     render();
   }
 
   /** Stable identity of the exercise being trained (logged or still pending). */
   function currentKey(): ExerciseKey {
-    return currentEx
-      ? exerciseKey(currentEx)
-      : exerciseKey({ muscle, equipment, exerciseId: movementId });
+    return st.currentEx
+      ? exerciseKey(st.currentEx)
+      : exerciseKey({ muscle: st.muscle, equipment: st.equipment, exerciseId: st.movementId });
   }
-
-  /** Moves the expectation chart's marker to a load; set while the dials are up. */
-  let markExpectLoad: ((weightKg: number) => void) | null = null;
 
   /** Fatigue-adjusted forecast for a movement against the work logged so far this session. */
   function expectationFor(m: MuscleGroup, eq: Equipment, id: string): Expectation | null {
@@ -851,7 +771,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
    * when one exists, else the pending movement selection.
    */
   function holdActive(): boolean {
-    return isIsometricHold(currentEx?.exerciseId ?? movementId);
+    return isIsometricHold(st.currentEx?.exerciseId ?? st.movementId);
   }
 
   /**
@@ -869,10 +789,10 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   }
 
   function startSet(): void {
-    prFlash = [];
-    setStartEpoch = Date.now();
-    setElapsedMs = 0;
-    sub = "running";
+    st.prFlash = [];
+    st.setStartEpoch = Date.now();
+    st.setElapsedMs = 0;
+    st.sub = "running";
     render();
   }
 
@@ -880,25 +800,25 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     stopRaf();
     // A set left running (forgotten Stop, resumed hours later) would otherwise
     // record the whole gap as its duration and inflate effort; clamp it.
-    setElapsedMs = Math.min(
-      Date.now() - setStartEpoch,
-      (isCardio(equipment) ? MAX_CARDIO_SET_MIN : MAX_SET_MIN) * 60_000,
+    st.setElapsedMs = Math.min(
+      Date.now() - st.setStartEpoch,
+      (isCardio(st.equipment) ? MAX_CARDIO_SET_MIN : MAX_SET_MIN) * 60_000,
     );
     const last =
-      currentEx && currentEx.sets.length ? currentEx.sets[currentEx.sets.length - 1]! : null;
-    if (isCardio(equipment)) {
+      st.currentEx && st.currentEx.sets.length ? st.currentEx.sets[st.currentEx.sets.length - 1]! : null;
+    if (isCardio(st.equipment)) {
       // Carry the last bout's speed/incline forward; estimate distance from speed
       // over the elapsed time as a starting point the user reads off the machine.
-      setSpeedKmh = last?.speedKmh ?? setSpeedKmh;
-      setInclinePct = last?.inclinePct ?? setInclinePct;
-      setDistanceKm = round2((setSpeedKmh * setElapsedMs) / 3_600_000) || (last?.distanceKm ?? setDistanceKm);
+      st.setSpeedKmh = last?.speedKmh ?? st.setSpeedKmh;
+      st.setInclinePct = last?.inclinePct ?? st.setInclinePct;
+      st.setDistanceKm = round2((st.setSpeedKmh * st.setElapsedMs) / 3_600_000) || (last?.distanceKm ?? st.setDistanceKm);
     } else if (holdActive()) {
       // Isometric hold: the stopwatch *is* the measurement — seed the hold dial
       // from the time just held (falling back to the last hold), and carry any
       // added load forward.
-      const held = Math.round(setElapsedMs / 1000);
-      setHoldSec = held > 0 ? held : last?.durationSec ?? setHoldSec;
-      setWeight = last?.weightKg ?? (isBodyweight(equipment) ? 0 : setWeight);
+      const held = Math.round(st.setElapsedMs / 1000);
+      st.setHoldSec = held > 0 ? held : last?.durationSec ?? st.setHoldSec;
+      st.setWeight = last?.weightKg ?? (isBodyweight(st.equipment) ? 0 : st.setWeight);
     } else {
       // Seed the dials from the trainer's prescription for this set when the
       // exercise carries a per-set guideline — so following the plan is a tap, and
@@ -906,83 +826,83 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       // forward; with nothing logged yet this exercise, ghost in the matching set
       // from the last session this movement was trained (set 1 seeds from last
       // time's set 1, and so on) before the generic default.
-      const planned = currentEx ? nextSetTarget(currentEx) : null;
-      const ghost = last ? null : historyGhost(currentEx?.sets.length ?? 0);
+      const planned = st.currentEx ? nextSetTarget(st.currentEx) : null;
+      const ghost = last ? null : historyGhost(st.currentEx?.sets.length ?? 0);
       const fallbackWeight =
-        last?.weightKg ?? ghost?.weightKg ?? (isBodyweight(equipment) ? 0 : 10);
-      setReps = planned?.reps ?? last?.reps ?? ghost?.reps ?? 10;
-      setWeight = planned?.loadKg ?? fallbackWeight;
+        last?.weightKg ?? ghost?.weightKg ?? (isBodyweight(st.equipment) ? 0 : 10);
+      st.setReps = planned?.reps ?? last?.reps ?? ghost?.reps ?? 10;
+      st.setWeight = planned?.loadKg ?? fallbackWeight;
     }
-    pendingRir = null; // proximity to failure is logged fresh per set
-    pendingSetType = null; // so a forgotten warm-up tag can't bleed into working sets
-    sub = "logging";
+    st.pendingRir = null; // proximity to failure is logged fresh per set
+    st.pendingSetType = null; // so a forgotten warm-up tag can't bleed into working sets
+    st.sub = "logging";
     render();
   }
 
   function commitSet(): void {
     const s = state.activeLog;
     if (!s) return;
-    const durationSec = Math.round(setElapsedMs / 1000);
-    const set: WorkSet = isCardio(equipment)
+    const durationSec = Math.round(st.setElapsedMs / 1000);
+    const set: WorkSet = isCardio(st.equipment)
       ? {
           reps: 0,
           weightKg: 0,
           durationSec,
-          distanceKm: setDistanceKm,
-          speedKmh: setSpeedKmh,
-          inclinePct: setInclinePct,
+          distanceKm: st.setDistanceKm,
+          speedKmh: st.setSpeedKmh,
+          inclinePct: st.setInclinePct,
         }
       : holdActive()
         ? {
             // Isometric hold: the hold time is the work, so it (not the raw
             // stopwatch) is stored as the duration, with reps left at 0.
             reps: 0,
-            weightKg: setWeight,
-            durationSec: setHoldSec,
-            ...(pendingSetType !== null ? { setType: pendingSetType } : {}),
+            weightKg: st.setWeight,
+            durationSec: st.setHoldSec,
+            ...(st.pendingSetType !== null ? { setType: st.pendingSetType } : {}),
           }
         : {
-            reps: setReps,
-            weightKg: setWeight,
+            reps: st.setReps,
+            weightKg: st.setWeight,
             durationSec,
-            ...(pendingRir !== null ? { rir: pendingRir } : {}),
-            ...(pendingSetType !== null ? { setType: pendingSetType } : {}),
+            ...(st.pendingRir !== null ? { rir: st.pendingRir } : {}),
+            ...(st.pendingSetType !== null ? { setType: st.pendingSetType } : {}),
           };
     // Records check before the set joins the history: everything previously
     // logged for this movement — other sessions plus this exercise's earlier sets.
     const prior = priorSetsFor(
       loadSessions().filter((other) => other.id !== s.id),
       currentKey(),
-    ).concat(currentEx?.sets ?? []);
-    prFlash = detectPrs(prior, set, equipment);
-    if (!currentEx) {
-      const mv = findMovement(movementId);
+    ).concat(st.currentEx?.sets ?? []);
+    st.prFlash = detectPrs(prior, set, st.equipment);
+    if (!st.currentEx) {
+      const mv = findMovement(st.movementId);
       if (!mv) return;
-      currentEx = newLoggedExercise(mv);
-      s.exercises.push(currentEx);
+      st.currentEx = newLoggedExercise(mv);
+      s.exercises.push(st.currentEx);
     }
-    currentEx.sets.push(set);
-    track("set_logged", { cardio: isCardio(equipment) });
+    st.currentEx.sets.push(set);
+    track("set_logged", { cardio: isCardio(st.equipment) });
     persist();
-    restStartEpoch = Date.now();
-    sub = "resting";
+    st.restStartEpoch = Date.now();
+    st.sub = "resting";
     render();
   }
 
   function finishExercise(): void {
-    prFlash = [];
-    currentEx = null;
-    sub = "idle";
-    stage = "select";
+    st.prFlash = [];
+    st.currentEx = null;
+    st.sub = "idle";
+    st.stage = "select";
     render();
   }
 
   function deleteSet(i: number): void {
-    const ex = currentEx;
+    const ex = st.currentEx;
     const removed = ex?.sets[i];
     if (!ex || !removed) return;
     ex.sets.splice(i, 1);
-    if (editingSetIndex !== null) editingSetIndex = null;
+    if (st.editingSetIndex !== null) st.editingSetIndex = null;
     persist();
     render();
     // Undo re-inserts the captured set — only while the exercise still belongs
@@ -997,38 +917,38 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
 
   /** Open the inline editor for an already-logged set (reps/weight, or hold/weight). */
   function startEditSet(i: number): void {
-    const set = currentEx?.sets[i];
+    const set = st.currentEx?.sets[i];
     if (!set) return;
-    editingSetIndex = i;
-    editReps = set.reps;
-    editWeight = set.weightKg;
-    editHoldSec = set.durationSec ?? 0;
-    editRir = set.rir ?? null;
+    st.editingSetIndex = i;
+    st.editReps = set.reps;
+    st.editWeight = set.weightKg;
+    st.editHoldSec = set.durationSec ?? 0;
+    st.editRir = set.rir ?? null;
     render();
   }
 
   /** Persist the edited values back onto the logged set (hold time, or reps × load). */
   function saveEditSet(): void {
-    if (!currentEx || editingSetIndex === null) return;
-    const set = currentEx.sets[editingSetIndex];
+    if (!st.currentEx || st.editingSetIndex === null) return;
+    const set = st.currentEx.sets[st.editingSetIndex];
     if (set) {
       if (holdActive()) {
-        set.durationSec = editHoldSec;
+        set.durationSec = st.editHoldSec;
       } else {
-        set.reps = editReps;
+        set.reps = st.editReps;
         // RIR only applies to strength (non-hold) sets; drop it when cleared.
-        if (editRir === null) delete set.rir;
-        else set.rir = editRir;
+        if (st.editRir === null) delete set.rir;
+        else set.rir = st.editRir;
       }
-      set.weightKg = editWeight;
+      set.weightKg = st.editWeight;
       persist();
     }
-    editingSetIndex = null;
+    st.editingSetIndex = null;
     render();
   }
 
   function cancelEditSet(): void {
-    editingSetIndex = null;
+    st.editingSetIndex = null;
     render();
   }
 
@@ -1099,9 +1019,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
               click: () => {
                 setActiveLog(saveSession(repeatSession(last)));
                 clearProgress();
-                currentEx = null;
-                sub = "idle";
-                stage = "select";
+                st.currentEx = null;
+                st.sub = "idle";
+                st.stage = "select";
                 render();
               },
             },
@@ -1185,7 +1105,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   function renderSelect(): void {
     const session = state.activeLog;
     if (!session) {
-      stage = "list";
+      st.stage = "list";
       renderList();
       return;
     }
@@ -1194,26 +1114,26 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     // sync the toggles to its current selection so the user can confirm it.
     const planned = nextPlanned();
     if (planned) {
-      muscle = planned.muscle;
+      st.muscle = planned.muscle;
       if (planned.exerciseId) {
-        movementId = planned.exerciseId;
+        st.movementId = planned.exerciseId;
       } else {
         // No catalog identity yet (free-text routine row): pre-highlight only a
         // generic-gear option matching its load, never a named lift it didn't ask for.
-        const match = movementsForMuscle(muscle).find(
+        const match = movementsForMuscle(st.muscle).find(
           (mv) => mv.id.includes("::") && mv.equipment === planned.equipment,
         );
-        if (match) movementId = match.id;
+        if (match) st.movementId = match.id;
       }
     }
     // A compound selection (commonly a routine-prescribed lift) can't live in the
     // isolation-only Custom picker, so default to the Compound picker whenever the
     // current movement is a compound; the Mode toggle still lets the user switch.
-    const selMv = findMovement(movementId);
+    const selMv = findMovement(st.movementId);
     if (selMv && isCompoundMovement(selMv)) {
-      selectMode = "compound";
+      st.selectMode = "compound";
     }
-    if (selectMode === "compound") ensureCompound();
+    if (st.selectMode === "compound") ensureCompound();
     else ensureMovement();
 
     const nameInput = h("input", {
@@ -1290,7 +1210,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     // Toggle picks update the view-level selection, and — when confirming a
     // planned routine exercise — write straight onto it so the choice sticks.
     const applyMovementToPlanned = (ex: LoggedExercise): void => {
-      const mv = findMovement(movementId);
+      const mv = findMovement(st.movementId);
       if (!mv) return;
       ex.muscle = mv.primaryMuscle;
       ex.equipment = mv.equipment;
@@ -1322,8 +1242,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       else render();
     };
     const pickMode = (m: string): void => {
-      selectMode = m as SelectMode;
-      if (selectMode === "compound") ensureCompound();
+      st.selectMode = m as SelectMode;
+      if (st.selectMode === "compound") ensureCompound();
       else ensureMovement();
       if (planned) {
         applyMovementToPlanned(planned);
@@ -1386,30 +1306,30 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     const contextHost = h("div", { class: "live-select-context" });
     const paintContext = (): void => {
       clear(contextHost);
-      const key = exerciseKey({ muscle, equipment, exerciseId: movementId });
-      const picked = findMovement(movementId);
+      const key = exerciseKey({ muscle: st.muscle, equipment: st.equipment, exerciseId: st.movementId });
+      const picked = findMovement(st.movementId);
       // Drawn from prior sessions only (the active one excluded), matching the
       // recovery-warning scope so a within-session repeat still recalls last week.
       const lastPerf = lastPerformance(priorSessions, key);
       // Progression nudge for a freestyle pick — a routine-planned exercise
       // defers to the trainer's prescribed scheme instead.
-      const overloadHint = planned ? null : renderOverloadHint(priorSessions, key, equipment);
+      const overloadHint = planned ? null : renderOverloadHint(priorSessions, key, st.equipment);
       // Caution if the picked movement's muscles haven't recovered from earlier
       // sessions; the active session is excluded so within-session repeats are fine.
       const targetMuscles = picked
         ? [picked.primaryMuscle, ...picked.secondaryMuscles]
-        : [muscle];
+        : [st.muscle];
       const recWarn = renderRecoveryWarning(targetMuscles, recByMuscle);
       if (picked && isCompoundMovement(picked)) contextHost.append(renderMuscleShares(picked));
       if (lastPerf) contextHost.append(renderLastPerformance(lastPerf.date, lastPerf.exercise));
       if (overloadHint) contextHost.append(overloadHint);
-      const exp = expectationFor(muscle, equipment, movementId);
+      const exp = expectationFor(st.muscle, st.equipment, st.movementId);
       if (exp) {
         contextHost.append(
           renderExpectation(
             exp,
             (planned ? nextSetTarget(planned)?.reps : undefined) ?? usualReps(lastPerf?.exercise ?? null),
-            loadIncrementKg(equipment),
+            loadIncrementKg(st.equipment),
           ).el,
         );
       }
@@ -1436,26 +1356,26 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       // is filtered. A fresh log has nothing to recall at all — the ring falls
       // back to the catalog's compounds, so it's never empty.
       const recentPicks = recentMovements(allSessions, QUICK_PICK_RING * 4).filter((mv) =>
-        selectMode === "compound" ? isCompoundMovement(mv) : true,
+        st.selectMode === "compound" ? isCompoundMovement(mv) : true,
       );
       const quickPicks = (): readonly Movement[] =>
         (recentPicks.length > 0 ? recentPicks : compounds).slice(0, QUICK_PICK_RING);
 
       const filtered = (movements: readonly Movement[]): readonly Movement[] => {
-        const shown = movements.filter((mv) => matchesFilter(mv.name, movementFilter));
+        const shown = movements.filter((mv) => matchesFilter(mv.name, st.movementFilter));
         return shown.length > 0 ? shown : movements;
       };
 
       const paintDial = (): void => {
         clear(dialHost);
         const exercises =
-          selectMode === "compound" ? compounds : isolationMovementsForMuscle(muscle);
+          st.selectMode === "compound" ? compounds : isolationMovementsForMuscle(st.muscle);
         // Picking a muscle clears the filter, so the input follows the dial.
-        if (filterEl.value !== movementFilter) filterEl.value = movementFilter;
+        if (filterEl.value !== st.movementFilter) filterEl.value = st.movementFilter;
         // Only worth showing once the exercise ring has to page to hold its list.
         filterEl.hidden = exercises.length <= 9;
         const rings: RadialRing[] = [
-          ...(selectMode === "compound"
+          ...(st.selectMode === "compound"
             ? []
             : [
                 {
@@ -1467,7 +1387,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
                       tint: recoveryColor(readiness(m)),
                     }),
                   ),
-                  activeId: muscle,
+                  activeId: st.muscle,
                   onPick: pickMuscle,
                   capacity: 10,
                   weight: 1,
@@ -1475,9 +1395,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
                 },
               ]),
           {
-            label: selectMode === "compound" ? t("Compound lift") : t("Exercise"),
+            label: st.selectMode === "compound" ? t("Compound lift") : t("Exercise"),
             items: toItems(filtered(exercises)),
-            activeId: movementId,
+            activeId: st.movementId,
             onPick: pickMovement,
             capacity: 9,
             weight: 1.1,
@@ -1488,19 +1408,19 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
             // catalog's compounds, not anything the lifter did recently.
             label: recentPicks.length > 0 ? t("Recent") : t("Suggested"),
             items: toItems(quickPicks()),
-            activeId: movementId,
+            activeId: st.movementId,
             onPick: pickMovement,
             capacity: QUICK_PICK_RING,
             weight: 1.15,
             tone: "quick",
           },
         ];
-        const picked = findMovement(movementId);
+        const picked = findMovement(st.movementId);
         dialHost.append(
           radialSelector({
             rings,
             hub: {
-              sub: t(MUSCLE_LABELS[muscle]),
+              sub: t(MUSCLE_LABELS[st.muscle]),
               title: picked?.name ?? t("Pick an exercise"),
               action: {
                 label: planned ? t("Start →") : t("Next →"),
@@ -1512,7 +1432,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       };
 
       const filterEl = filterField(t("Filter exercises"), (q) => {
-        movementFilter = q;
+        st.movementFilter = q;
         paintDial();
       });
       // Keyboard focus sits on the wedge that was just picked, and the repaint
@@ -1544,11 +1464,11 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       paintDial();
       // The dial is what this screen is for: park the scroll on it and point the
       // floating jump-back button at it, so it is always the thing in view.
-      scrollTargetEl = dialHost;
-      scrollTargetBlock = "nearest";
-      focusAnchorEl = dialHost;
-      focusAnchorText = t("↑ Selector");
-      focusAnchorAria = t("Back to the exercise selector");
+      view.scrollTargetEl = dialHost;
+      view.scrollTargetBlock = "nearest";
+      view.focusAnchorEl = dialHost;
+      view.focusAnchorText = t("↑ Selector");
+      view.focusAnchorAria = t("Back to the exercise selector");
       return h("div", {}, [filterEl, dialHost]);
     };
 
@@ -1585,7 +1505,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           t("Mode"),
           ["custom", "compound"],
           (m) => (m === "compound" ? t("Compound") : t("Custom")),
-          selectMode,
+          st.selectMode,
           pickMode,
         ),
         picker,
@@ -1629,7 +1549,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   // ─────────────────────────── Exercise screen ────────────────────────────────
 
   function renderSetList(): HTMLElement {
-    const sets = currentEx?.sets ?? [];
+    const sets = st.currentEx?.sets ?? [];
     const hold = holdActive();
     const host = h("div", { class: "live-set-list" });
     if (sets.length === 0) {
@@ -1640,7 +1560,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       // Inline editor for a previously-logged set: hold time + load for an
       // isometric hold, reps + load otherwise. Cardio bouts (distance/speed/
       // incline) aren't editable here.
-      if (!isCardio(equipment) && editingSetIndex === i) {
+      if (!isCardio(st.equipment) && st.editingSetIndex === i) {
         host.appendChild(
           h("div", { class: "live-set live-set-edit" }, [
             h("span", { class: "set-no", text: t("Set {0}").replace("{0}", String(i + 1)) }),
@@ -1648,38 +1568,38 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
               hold
                 ? dialField({
                     label: t("Hold (sec)"),
-                    value: editHoldSec,
+                    value: st.editHoldSec,
                     step: 5,
                     min: 0,
                     integer: true,
                     unit: "sec",
                     tone: "signal",
                     onCommit: (n) => {
-                      editHoldSec = n;
+                      st.editHoldSec = n;
                     },
                   })
                 : dialField({
                     label: t("Reps"),
-                    value: editReps,
+                    value: st.editReps,
                     step: 1,
                     min: 0,
                     integer: true,
                     unit: t("reps"),
                     tone: "signal",
                     onCommit: (n) => {
-                      editReps = n;
+                      st.editReps = n;
                     },
                   }),
               dialField({
-                label: isBodyweight(equipment) ? t("Added (kg)") : t("Weight (kg)"),
-                value: editWeight,
-                step: loadIncrementKg(equipment),
+                label: isBodyweight(st.equipment) ? t("Added (kg)") : t("Weight (kg)"),
+                value: st.editWeight,
+                step: loadIncrementKg(st.equipment),
                 min: 0,
                 integer: false,
                 unit: "kg",
                 tone: "navy",
                 onCommit: (n) => {
-                  editWeight = n;
+                  st.editWeight = n;
                 },
               }),
             ]),
@@ -1703,24 +1623,24 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         );
         return;
       }
-      const bits = isCardio(equipment)
+      const bits = isCardio(st.equipment)
         ? [formatCardioSet(s)]
         : hold
-          ? [fmtHoldSet(equipment, s)]
-          : [t("{0} reps").replace("{0}", String(s.reps)), formatLoad(equipment, s.weightKg)];
-      if (!isCardio(equipment) && s.setType !== undefined)
+          ? [fmtHoldSet(st.equipment, s)]
+          : [t("{0} reps").replace("{0}", String(s.reps)), formatLoad(st.equipment, s.weightKg)];
+      if (!isCardio(st.equipment) && s.setType !== undefined)
         bits.unshift(s.setType === "warmup" ? t("warm-up") : t("drop set"));
-      if (!isCardio(equipment) && !hold && s.rir !== undefined)
+      if (!isCardio(st.equipment) && !hold && s.rir !== undefined)
         bits.push(s.rir === 0 ? t("to failure") : t("RIR {0}").replace("{0}", String(s.rir)));
       // A hold's duration is already its primary read-out (fmtHoldSet), so only
       // the strength path appends the stopwatch time as an extra detail.
-      if (!isCardio(equipment) && !hold && s.durationSec !== undefined)
+      if (!isCardio(st.equipment) && !hold && s.durationSec !== undefined)
         bits.push(formatClock(s.durationSec));
       host.appendChild(
         h("div", { class: "live-set" }, [
           h("span", { class: "set-no", text: t("Set {0}").replace("{0}", String(i + 1)) }),
           h("span", { class: "live-set-meta", text: bits.join(" · ") }),
-          ...(isCardio(equipment)
+          ...(isCardio(st.equipment)
             ? []
             : [
                 h("button", {
@@ -1753,12 +1673,12 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     const field = h("div", { class: "field rir-field" });
     const paint = (): void => {
       const hint =
-        pendingRir === null
+        st.pendingRir === null
           ? t("Tap how many reps you had left — skip to leave intensity unweighted.")
-          : pendingRir === 0
+          : st.pendingRir === 0
             ? t("To failure — counted as maximum intensity.")
-            : (pendingRir === 1 ? t("{0} rep left in the tank.") : t("{0} reps left in the tank."))
-                .replace("{0}", String(pendingRir));
+            : (st.pendingRir === 1 ? t("{0} rep left in the tank.") : t("{0} reps left in the tank."))
+                .replace("{0}", String(st.pendingRir));
       clear(field);
       field.append(
         h("span", { class: "field-label", text: t("Reps in reserve (optional)") }),
@@ -1767,16 +1687,16 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           { class: "toggle rir-toggle", role: "group", aria: { label: t("Reps in reserve") } },
           RIR_OPTIONS.map((o) =>
             h("button", {
-              class: pendingRir === o.value ? "toggle-btn active" : "toggle-btn",
+              class: st.pendingRir === o.value ? "toggle-btn active" : "toggle-btn",
               type: "button",
               text: o.label,
               aria: {
-                pressed: String(pendingRir === o.value),
+                pressed: String(st.pendingRir === o.value),
                 label: o.value === 0 ? t("trained to failure") : t("{0} reps in reserve").replace("{0}", o.label),
               },
               on: {
                 click: () => {
-                  pendingRir = pendingRir === o.value ? null : o.value;
+                  st.pendingRir = st.pendingRir === o.value ? null : o.value;
                   snapshot();
                   paint();
                 },
@@ -1805,16 +1725,16 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         { class: "toggle rir-toggle", role: "group", aria: { label: t("Reps in reserve") } },
         RIR_OPTIONS.map((o) =>
           h("button", {
-            class: editRir === o.value ? "toggle-btn active" : "toggle-btn",
+            class: st.editRir === o.value ? "toggle-btn active" : "toggle-btn",
             type: "button",
             text: o.label,
             aria: {
-              pressed: String(editRir === o.value),
+              pressed: String(st.editRir === o.value),
               label: o.value === 0 ? t("trained to failure") : t("{0} reps in reserve").replace("{0}", o.label),
             },
             on: {
               click: () => {
-                editRir = editRir === o.value ? null : o.value;
+                st.editRir = st.editRir === o.value ? null : o.value;
                 render();
               },
             },
@@ -1844,7 +1764,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
    * a plan that happens to match last time shows once.
    */
   function setPresets(): SetPreset[] {
-    const sets = currentEx?.sets ?? [];
+    const sets = st.currentEx?.sets ?? [];
     const last = sets.length ? sets[sets.length - 1]! : null;
     const out: SetPreset[] = [];
     const add = (label: string, reps: number, weightKg: number): void => {
@@ -1853,19 +1773,19 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       if (out.some((p) => p.reps === reps && p.weightKg === kg)) return;
       out.push({ label, reps, weightKg: kg });
     };
-    const planned = currentEx ? nextSetTarget(currentEx) : null;
-    if (planned) add(t("Plan"), planned.reps, planned.loadKg ?? last?.weightKg ?? setWeight);
+    const planned = st.currentEx ? nextSetTarget(st.currentEx) : null;
+    if (planned) add(t("Plan"), planned.reps, planned.loadKg ?? last?.weightKg ?? st.setWeight);
     if (last) add(t("Last set"), last.reps, last.weightKg);
     const ghost = historyGhost(sets.length);
     if (ghost) add(t("Last time"), ghost.reps, ghost.weightKg);
     // The progression nudge only speaks for freestyle work — a plan-carrying
     // exercise defers to the prescription (same rule as the overload hint).
-    const planDriven = currentEx?.target !== undefined || currentEx?.prescription !== undefined;
+    const planDriven = st.currentEx?.target !== undefined || st.currentEx?.prescription !== undefined;
     if (!planDriven) {
       const sug = suggestOverload(
         loadSessions().filter((o) => o.id !== state.activeLog?.id),
         currentKey(),
-        equipment,
+        st.equipment,
       );
       if (sug) add(t("Next step"), sug.reps, sug.weightKg);
     }
@@ -1885,7 +1805,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     const presets = setPresets();
     if (presets.length === 0) return null;
     const isActive = (p: SetPreset): boolean =>
-      p.reps === setReps && p.weightKg === round2(setWeight);
+      p.reps === st.setReps && p.weightKg === round2(st.setWeight);
     const chips = presets.map((p) =>
       h(
         "button",
@@ -1894,7 +1814,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           type: "button",
           aria: {
             pressed: String(isActive(p)),
-            label: `${p.label} — ${fmtLoggedSet(equipment, { reps: p.reps, weightKg: p.weightKg })}`,
+            label: `${p.label} — ${fmtLoggedSet(st.equipment, { reps: p.reps, weightKg: p.weightKg })}`,
           },
           on: { click: () => onPick(p) },
         },
@@ -1902,7 +1822,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           h("span", { class: "preset-src", text: p.label }),
           h("span", {
             class: "preset-val",
-            text: fmtLoggedSet(equipment, { reps: p.reps, weightKg: p.weightKg }),
+            text: fmtLoggedSet(st.equipment, { reps: p.reps, weightKg: p.weightKg }),
           }),
         ],
       ),
@@ -1942,7 +1862,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
    * than memory — and a load on PR pace is visible *before* committing.
    */
   function renderSetPreview(): { el: HTMLElement; paint: () => void } {
-    const sets = currentEx?.sets ?? [];
+    const sets = st.currentEx?.sets ?? [];
     const last = sets.length ? sets[sets.length - 1]! : null;
     const ref = last ?? historyGhost(sets.length);
     const refLabel = last ? t("last set") : t("last time");
@@ -1957,21 +1877,21 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     const mainEl = h("p", { class: "set-preview-main" });
     const deltaEl = h("p", { class: "set-preview-delta" });
     // Fatigue-adjusted reps at whatever load is dialled in, repainted with it.
-    const exp = expectationFor(muscle, equipment, movementId);
+    const exp = expectationFor(st.muscle, st.equipment, st.movementId);
     const expectEl = h("p", { class: "set-preview-expect" });
     const signed = (n: number): string => (n > 0 ? `+${round2(n)}` : String(round2(n)));
     const paint = (): void => {
       const parts: string[] = [];
-      if (setWeight > 0) {
-        parts.push(t("{0} kg volume").replace("{0}", String(round2(setReps * setWeight))));
+      if (st.setWeight > 0) {
+        parts.push(t("{0} kg volume").replace("{0}", String(round2(st.setReps * st.setWeight))));
       }
       const e1rm = epley1RM({
-        reps: setReps,
-        weightKg: setWeight,
-        ...(pendingRir !== null ? { rir: pendingRir } : {}),
+        reps: st.setReps,
+        weightKg: st.setWeight,
+        ...(st.pendingRir !== null ? { rir: st.pendingRir } : {}),
       });
       if (e1rm > 0) parts.push(t("e1RM {0} kg").replace("{0}", String(Math.round(e1rm))));
-      if (pendingSetType !== "warmup" && bestE1rm > 0 && e1rm > bestE1rm) {
+      if (st.pendingSetType !== "warmup" && bestE1rm > 0 && e1rm > bestE1rm) {
         parts.push(`🏆 ${t("PR pace")}`);
       }
       mainEl.textContent = parts.join(" · ");
@@ -1979,8 +1899,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       let delta = "";
       let tone = "";
       if (ref) {
-        const dReps = setReps - ref.reps;
-        const dKg = round2(setWeight - ref.weightKg);
+        const dReps = st.setReps - ref.reps;
+        const dKg = round2(st.setWeight - ref.weightKg);
         if (dReps === 0 && dKg === 0) {
           delta = t("Same as {0}").replace("{0}", refLabel);
         } else {
@@ -1999,19 +1919,19 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       deltaEl.hidden = delta === "";
       deltaEl.className = `set-preview-delta${tone}`;
       let expect = "";
-      if (exp && pendingSetType !== "warmup") {
-        const r = expectedReps(exp, setWeight);
+      if (exp && st.pendingSetType !== "warmup") {
+        const r = expectedReps(exp, st.setWeight);
         expect =
           r.now === 0
             ? t("Too heavy for now — expect 0 reps")
             : r.fresh - r.now >= 1
               ? t("Expect ~{0} reps here (fresh {1})").replace("{0}", String(r.now)).replace("{1}", String(r.fresh))
               : t("Expect ~{0} reps here").replace("{0}", String(r.now));
-        expectEl.classList.toggle("is-short", r.now > 0 && setReps > r.now);
+        expectEl.classList.toggle("is-short", r.now > 0 && st.setReps > r.now);
       }
       expectEl.textContent = expect;
       expectEl.hidden = expect === "";
-      markExpectLoad?.(setWeight);
+      st.markExpectLoad?.(st.setWeight);
     };
     paint();
     return { el: h("div", { class: "set-preview" }, [mainEl, expectEl, deltaEl]), paint };
@@ -2025,25 +1945,25 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
    * a step loads the dials and pre-tags the set as a warm-up.
    */
   function renderWarmupRamp(): HTMLElement | null {
-    if (isCardio(equipment) || holdActive()) return null;
-    const sets = currentEx?.sets ?? [];
+    if (isCardio(st.equipment) || holdActive()) return null;
+    const sets = st.currentEx?.sets ?? [];
     if (sets.some((s) => s.setType !== "warmup")) return null;
-    const planned = currentEx ? nextSetTarget(currentEx) : null;
+    const planned = st.currentEx ? nextSetTarget(st.currentEx) : null;
     const others = loadSessions().filter((o) => o.id !== state.activeLog?.id);
     const baseKg =
-      planned?.loadKg ?? suggestOverload(others, currentKey(), equipment)?.weightKg ?? setWeight;
-    const ramp = warmupRamp(baseKg, equipment);
+      planned?.loadKg ?? suggestOverload(others, currentKey(), st.equipment)?.weightKg ?? st.setWeight;
+    const ramp = warmupRamp(baseKg, st.equipment);
     if (ramp.length === 0) return null;
     return h("section", { class: "card live-warmup" }, [
       h("p", {
         class: "now-eyebrow",
-        text: t("Warm-up ramp · working {0}").replace("{0}", formatLoad(equipment, baseKg)),
+        text: t("Warm-up ramp · working {0}").replace("{0}", formatLoad(st.equipment, baseKg)),
       }),
       ...ramp.map((step, i) =>
         h("div", { class: "live-warmup-row" }, [
           h("span", {
             class: "live-warmup-step",
-            text: `${Math.round(step.pct * 100)}% · ${t("{0} reps").replace("{0}", String(step.reps))} · ${formatLoad(equipment, step.weightKg)}`,
+            text: `${Math.round(step.pct * 100)}% · ${t("{0} reps").replace("{0}", String(step.reps))} · ${formatLoad(st.equipment, step.weightKg)}`,
           }),
           h("button", {
             class: "btn btn-small",
@@ -2052,9 +1972,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
             aria: { label: t("use warm-up step {0}").replace("{0}", String(i + 1)) },
             on: {
               click: () => {
-                setReps = step.reps;
-                setWeight = step.weightKg;
-                pendingSetType = "warmup";
+                st.setReps = step.reps;
+                st.setWeight = step.weightKg;
+                st.pendingSetType = "warmup";
                 snapshot();
                 render();
               },
@@ -2073,9 +1993,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     const field = h("div", { class: "field rir-field" });
     const paint = (): void => {
       const hint =
-        pendingSetType === null
+        st.pendingSetType === null
           ? t("Working set — counts toward records and weekly volume.")
-          : pendingSetType === "warmup"
+          : st.pendingSetType === "warmup"
             ? t("Warm-up — won't count toward records or weekly volume.")
             : t("Drop set — a back-off set right after a working set.");
       clear(field);
@@ -2086,13 +2006,13 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           { class: "toggle rir-toggle", role: "group", aria: { label: t("Set type") } },
           SET_TYPE_OPTIONS.map((o) =>
             h("button", {
-              class: pendingSetType === o.value ? "toggle-btn active" : "toggle-btn",
+              class: st.pendingSetType === o.value ? "toggle-btn active" : "toggle-btn",
               type: "button",
               text: o.label,
-              aria: { pressed: String(pendingSetType === o.value) },
+              aria: { pressed: String(st.pendingSetType === o.value) },
               on: {
                 click: () => {
-                  pendingSetType = pendingSetType === o.value ? null : o.value;
+                  st.pendingSetType = st.pendingSetType === o.value ? null : o.value;
                   snapshot();
                   paint();
                   onChange?.();
@@ -2109,19 +2029,19 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   }
 
   function renderExercise(): void {
-    const mv = findMovement(movementId);
-    const exName = currentEx?.name ?? mv?.name ?? t(MUSCLE_LABELS[muscle]);
-    const secondaries = currentEx?.secondaryMuscles ?? mv?.secondaryMuscles ?? [];
-    const worked = [muscle, ...secondaries].map((m) => t(MUSCLE_LABELS[m])).join(" · ");
+    const mv = findMovement(st.movementId);
+    const exName = st.currentEx?.name ?? mv?.name ?? t(MUSCLE_LABELS[st.muscle]);
+    const secondaries = st.currentEx?.secondaryMuscles ?? mv?.secondaryMuscles ?? [];
+    const worked = [st.muscle, ...secondaries].map((m) => t(MUSCLE_LABELS[m])).join(" · ");
     const head = h("section", { class: "card live-ex-head" }, [
-      ...(currentEx?.section
-        ? [h("p", { class: "live-section-eyebrow", text: currentEx.section })]
+      ...(st.currentEx?.section
+        ? [h("p", { class: "live-section-eyebrow", text: st.currentEx.section })]
         : []),
-      h("span", { class: `badge badge-${equipment}`, text: t(EQUIPMENT_LABELS[equipment]) }),
+      h("span", { class: `badge badge-${st.equipment}`, text: t(EQUIPMENT_LABELS[st.equipment]) }),
       h("h2", { class: "now-name", text: exName }),
       h("p", {
         class: "now-eyebrow",
-        text: `${worked} · ${t(EQUIPMENT_LABELS[equipment])}`,
+        text: `${worked} · ${t(EQUIPMENT_LABELS[st.equipment])}`,
       }),
     ]);
 
@@ -2132,8 +2052,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     const lastPerf = lastPerformance(priorSessions, currentKey());
     // Progression nudge for freestyle work; plan-carrying exercises defer to the
     // trainer's prescribed scheme (the benchmark below reads against it instead).
-    const planDriven = currentEx?.target !== undefined || currentEx?.prescription !== undefined;
-    const overloadHint = planDriven ? null : renderOverloadHint(priorSessions, currentKey(), equipment);
+    const planDriven = st.currentEx?.target !== undefined || st.currentEx?.prescription !== undefined;
+    const overloadHint = planDriven ? null : renderOverloadHint(priorSessions, currentKey(), st.equipment);
 
     container.append(
       h("h1", { class: "view-title", text: t("Live Session") }),
@@ -2142,20 +2062,20 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       ...(overloadHint ? [overloadHint] : []),
     );
     // What to expect on the next set given everything already done today.
-    const nextPlan = currentEx ? nextSetTarget(currentEx) : null;
-    const exp = expectationFor(muscle, equipment, movementId);
-    markExpectLoad = null;
+    const nextPlan = st.currentEx ? nextSetTarget(st.currentEx) : null;
+    const exp = expectationFor(st.muscle, st.equipment, st.movementId);
+    st.markExpectLoad = null;
     if (exp) {
       const card = renderExpectation(
         exp,
         nextPlan?.reps ?? usualReps(lastPerf?.exercise ?? null),
-        loadIncrementKg(equipment),
+        loadIncrementKg(st.equipment),
       );
       container.append(card.el);
       // While the dials are up, the chart's marker follows the dialled load.
-      if (sub === "logging") {
-        markExpectLoad = card.mark;
-        card.mark(setWeight);
+      if (st.sub === "logging") {
+        st.markExpectLoad = card.mark;
+        card.mark(st.setWeight);
       }
     }
 
@@ -2168,18 +2088,18 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     // Plan benchmark: when this exercise carries the trainer's structured
     // guideline (started from a routine), show the prescribed-vs-logged read —
     // a per-set comparison for set schemes, a rep tally for volume targets.
-    const bm = currentEx ? exerciseBenchmark(currentEx) : null;
-    if (currentEx && bm) {
-      loggedBlocks.push(renderBenchmark(currentEx, bm));
+    const bm = st.currentEx ? exerciseBenchmark(st.currentEx) : null;
+    if (st.currentEx && bm) {
+      loggedBlocks.push(renderBenchmark(st.currentEx, bm));
     } else {
       // Legacy / free-text fallback: parse the prescription to a rep total and
       // show how far the logged reps have filled it (reuses Execute's UI).
-      const pres = currentEx?.prescription;
+      const pres = st.currentEx?.prescription;
       const target = pres !== undefined ? parseTargetReps(pres) : null;
-      if (currentEx && pres !== undefined && target !== null && target > 0) {
+      if (st.currentEx && pres !== undefined && target !== null && target > 0) {
         loggedBlocks.push(
           h("p", { class: "now-target", text: pres }),
-          ...repTally(sumReps(currentEx.sets), target),
+          ...repTally(sumReps(st.currentEx.sets), target),
         );
       }
     }
@@ -2187,7 +2107,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     // Every sub-stage keeps the action button (and dials, when logging) at the
     // top of the screen, with the performed-sets read-out dropping below it.
 
-    if (sub === "idle") {
+    if (st.sub === "idle") {
       container.append(
         h("div", { class: "btn-row live-actions" }, [
           h("button", {
@@ -2210,7 +2130,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       return;
     }
 
-    if (sub === "running") {
+    if (st.sub === "running") {
       const fill = svgEl("circle", {
         class: "dial-fill",
         cx: "60",
@@ -2241,21 +2161,21 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       ]);
       container.append(actionRow, dialWrap, ...loggedBlocks);
       // Scroll so the Stop button + running timer are in view, past the header.
-      scrollTargetEl = actionRow;
-      focusAnchorEl = actionRow;
+      view.scrollTargetEl = actionRow;
+      view.focusAnchorEl = actionRow;
 
       const frame = (): void => {
-        setElapsedMs = Date.now() - setStartEpoch;
-        const secs = setElapsedMs / 1000;
+        st.setElapsedMs = Date.now() - st.setStartEpoch;
+        const secs = st.setElapsedMs / 1000;
         num.textContent = formatClock(secs);
         fill.setAttribute("stroke-dashoffset", String(DIAL_C * (1 - ((secs % 60) / 60))));
-        rafId = requestAnimationFrame(frame);
+        timers.rafId = requestAnimationFrame(frame);
       };
-      rafId = requestAnimationFrame(frame);
+      timers.rafId = requestAnimationFrame(frame);
       return;
     }
 
-    if (sub === "resting") {
+    if (st.sub === "resting") {
       const fill = svgEl("circle", {
         class: "dial-fill dial-fill-rest",
         cx: "60",
@@ -2282,33 +2202,33 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       // was accepted it owns the sound, so the in-page cue stays quiet.
       let alertSec = loadRestAlertSec();
       const armAlert = (): void => {
-        if (restAlertTimer) {
-          clearTimeout(restAlertTimer);
-          restAlertTimer = 0;
+        if (timers.restAlertTimer) {
+          clearTimeout(timers.restAlertTimer);
+          timers.restAlertTimer = 0;
         }
-        const gen = ++restArmGen;
-        const dueEpoch = restStartEpoch + alertSec * 1000;
+        const gen = ++timers.restArmGen;
+        const dueEpoch = st.restStartEpoch + alertSec * 1000;
         const remainingMs = dueEpoch - Date.now();
         dialWrap.classList.toggle("rest-over", alertSec > 0 && remainingMs <= 0);
         // Already over when this screen rendered (e.g. resumed later): no late cue.
         if (alertSec <= 0 || remainingMs <= 0) {
-          if (restNotifyArmed) {
-            restNotifyArmed = false;
+          if (timers.restNotifyArmed) {
+            timers.restNotifyArmed = false;
             cancelRestAlert();
           }
           return;
         }
         let nativeOwnsCue = false;
         if (isNativeApp()) {
-          restNotifyArmed = true;
+          timers.restNotifyArmed = true;
           void scheduleRestAlert(dueEpoch, t("Rest over"), t("Time to start your next set.")).then(
             (ok) => {
-              if (gen === restArmGen) nativeOwnsCue = ok;
+              if (gen === timers.restArmGen) nativeOwnsCue = ok;
             },
           );
         }
-        restAlertTimer = window.setTimeout(() => {
-          restAlertTimer = 0;
+        timers.restAlertTimer = window.setTimeout(() => {
+          timers.restAlertTimer = 0;
           dialWrap.classList.add("rest-over");
           // A timer suspended while the phone was locked fires on unlock —
           // far too late to be useful, so only the dial flips.
@@ -2350,7 +2270,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       };
       paintAlert();
       armAlert();
-      restOnWake = armAlert;
+      timers.restOnWake = armAlert;
 
       const summary = state.activeLog
         ? renderSessionSummary(state.activeLog, loadSessions())
@@ -2370,11 +2290,11 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       // jump to the paired movement so the alternation is the path of least
       // resistance (rest keeps running either way).
       const partnerCard = (() => {
-        const g = currentEx?.supersetGroup;
+        const g = st.currentEx?.supersetGroup;
         const s = state.activeLog;
-        if (g === undefined || !s || !currentEx) return null;
+        if (g === undefined || !s || !st.currentEx) return null;
         const group = s.exercises.filter((e) => e.supersetGroup === g);
-        const idx = group.indexOf(currentEx);
+        const idx = group.indexOf(st.currentEx);
         if (idx < 0 || group.length < 2) return null;
         const partner = group[(idx + 1) % group.length]!;
         return h("section", { class: "card live-superset" }, [
@@ -2391,7 +2311,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           ]),
         ]);
       })();
-      const pr = renderPrFlash(prFlash);
+      const pr = renderPrFlash(st.prFlash);
       container.append(
         actionRow,
         ...(partnerCard ? [partnerCard] : []),
@@ -2402,8 +2322,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         ...loggedBlocks,
       );
       // Scroll so the Start-set button + rest timer are in view, past the header.
-      scrollTargetEl = actionRow;
-      focusAnchorEl = actionRow;
+      view.scrollTargetEl = actionRow;
+      view.focusAnchorEl = actionRow;
       if (summary) container.append(summary);
       container.append(
         h("div", { class: "btn-row" }, [
@@ -2417,12 +2337,12 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       );
 
       const frame = (): void => {
-        const secs = (Date.now() - restStartEpoch) / 1000;
+        const secs = (Date.now() - st.restStartEpoch) / 1000;
         num.textContent = formatClock(secs);
         fill.setAttribute("stroke-dashoffset", String(DIAL_C * (1 - ((secs % 60) / 60))));
-        rafId = requestAnimationFrame(frame);
+        timers.rafId = requestAnimationFrame(frame);
       };
-      rafId = requestAnimationFrame(frame);
+      timers.rafId = requestAnimationFrame(frame);
       return;
     }
 
@@ -2434,44 +2354,44 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     // branch below owns both dials, so it fills this in. (Cast keeps the
     // assignment-narrowed type readable at the append below.)
     let presetsCard = null as HTMLElement | null;
-    const dials = isCardio(equipment)
+    const dials = isCardio(st.equipment)
       ? [
           dialField({
             label: t("Distance (km)"),
-            value: setDistanceKm,
+            value: st.setDistanceKm,
             step: 0.1,
             min: 0,
             integer: false,
             unit: "km",
             tone: "signal",
             onCommit: (n) => {
-              setDistanceKm = n;
+              st.setDistanceKm = n;
               snapshot();
             },
           }),
           dialField({
             label: t("Speed (km/h)"),
-            value: setSpeedKmh,
+            value: st.setSpeedKmh,
             step: 0.5,
             min: 0,
             integer: false,
             unit: "km/h",
             tone: "navy",
             onCommit: (n) => {
-              setSpeedKmh = n;
+              st.setSpeedKmh = n;
               snapshot();
             },
           }),
           dialField({
             label: t("Incline (%)"),
-            value: setInclinePct,
+            value: st.setInclinePct,
             step: 0.5,
             min: 0,
             integer: false,
             unit: "%",
             tone: "navy",
             onCommit: (n) => {
-              setInclinePct = n;
+              st.setInclinePct = n;
               snapshot();
             },
           }),
@@ -2482,27 +2402,27 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
             // any added load — no reps dial, plate calculator, or RIR.
             dialField({
               label: t("Hold (sec)"),
-              value: setHoldSec,
+              value: st.setHoldSec,
               step: 5,
               min: 0,
               integer: true,
               unit: "sec",
               tone: "signal",
               onCommit: (n) => {
-                setHoldSec = n;
+                st.setHoldSec = n;
                 snapshot();
               },
             }),
             dialField({
-              label: isBodyweight(equipment) ? t("Added (kg)") : t("Weight (kg)"),
-              value: setWeight,
-              step: loadIncrementKg(equipment),
+              label: isBodyweight(st.equipment) ? t("Added (kg)") : t("Weight (kg)"),
+              value: st.setWeight,
+              step: loadIncrementKg(st.equipment),
               min: 0,
               integer: false,
               unit: "kg",
               tone: "navy",
               onCommit: (n) => {
-                setWeight = n;
+                st.setWeight = n;
                 snapshot();
               },
             }),
@@ -2510,10 +2430,10 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         : (() => {
           // Plate calculator: for a barbell load, what to put on each side of a
           // standard 20 kg bar. Repainted in place as the weight dial turns.
-          const plateHint = equipment === "barbell" ? h("p", { class: "plate-hint" }) : null;
+          const plateHint = st.equipment === "barbell" ? h("p", { class: "plate-hint" }) : null;
           const paintPlates = (): void => {
             if (!plateHint) return;
-            const load = platesPerSide(setWeight);
+            const load = platesPerSide(st.setWeight);
             if (!load) {
               plateHint.textContent = t("Below the empty bar ({0} kg)").replace("{0}", String(BAR_KG));
             } else if (load.perSide.length === 0 && load.remainderKg === 0) {
@@ -2538,8 +2458,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           let weightDial = null as DialHandle | null;
           let paintPresets = (): void => {};
           const presets = renderSetPresets((p) => {
-            setReps = p.reps;
-            setWeight = p.weightKg;
+            st.setReps = p.reps;
+            st.setWeight = p.weightKg;
             repsDial?.set(p.reps);
             weightDial?.set(p.weightKg);
             snapshot();
@@ -2554,7 +2474,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
           return [
             dialField({
               label: t("Reps"),
-              value: setReps,
+              value: st.setReps,
               step: 1,
               min: 0,
               integer: true,
@@ -2564,7 +2484,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
                 repsDial = d;
               },
               onCommit: (n) => {
-                setReps = n;
+                st.setReps = n;
                 snapshot();
                 preview.paint();
                 paintPresets();
@@ -2574,9 +2494,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
               // One tap of the stepper is the gear's smallest real jump (2 kg on
               // dumbbells, 2.5 elsewhere) — the same increment the progression
               // engine suggests, so the dial can actually land on its numbers.
-              label: isBodyweight(equipment) ? t("Added (kg)") : t("Weight (kg)"),
-              value: setWeight,
-              step: loadIncrementKg(equipment),
+              label: isBodyweight(st.equipment) ? t("Added (kg)") : t("Weight (kg)"),
+              value: st.setWeight,
+              step: loadIncrementKg(st.equipment),
               min: 0,
               integer: false,
               unit: "kg",
@@ -2585,7 +2505,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
                 weightDial = d;
               },
               onCommit: (n) => {
-                setWeight = n;
+                st.setWeight = n;
                 snapshot();
                 paintPlates();
                 preview.paint();
@@ -2600,7 +2520,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         })();
     const setTimeEl = h("p", {
       class: "set-time live-scroll-anchor",
-      text: t("Set time {0}").replace("{0}", formatClock(setElapsedMs / 1000)),
+      text: t("Set time {0}").replace("{0}", formatClock(st.setElapsedMs / 1000)),
     });
     const warmupCard = renderWarmupRamp();
     container.append(
@@ -2624,8 +2544,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     // controls under the fold on a phone, right when they're the whole task.
     // The floating button anchors to the same row, so a scroll down through the
     // logged sets can snap straight back to the dials.
-    scrollTargetEl = setTimeEl;
-    focusAnchorEl = setTimeEl;
+    view.scrollTargetEl = setTimeEl;
+    view.focusAnchorEl = setTimeEl;
   }
 
   // ─────────────────────────────── Render ─────────────────────────────────────
@@ -2633,31 +2553,31 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   function render(): void {
     stopRaf();
     clear(container);
-    if (!state.activeLog) stage = "list";
+    if (!state.activeLog) st.stage = "list";
     snapshot();
     // Cast keeps the assignment-narrowed type at `HTMLElement | null` so the
     // renderers' assignments (in the dispatch below) are visible at the check.
-    scrollTargetEl = null as HTMLElement | null;
-    scrollTargetBlock = "start";
-    focusAnchorEl = null as HTMLElement | null;
-    focusAnchorText = t("↑ Timer");
-    focusAnchorAria = t("Back to the timer and set controls");
+    view.scrollTargetEl = null as HTMLElement | null;
+    view.scrollTargetBlock = "start";
+    view.focusAnchorEl = null as HTMLElement | null;
+    view.focusAnchorText = t("↑ Timer");
+    view.focusAnchorAria = t("Back to the timer and set controls");
     // The sticky session HUD rides above both in-session screens.
-    if (stage !== "list" && state.activeLog) container.append(renderHud(state.activeLog));
-    if (stage === "list") renderList();
-    else if (stage === "select") renderSelect();
+    if (st.stage !== "list" && state.activeLog) container.append(renderHud(state.activeLog));
+    if (st.stage === "list") renderList();
+    else if (st.stage === "select") renderSelect();
     else renderExercise();
     // During a running set / rest the renderer points scrollTargetEl at the
     // action row so the button + timer sit at the top of the viewport; every
     // other screen jumps back to the page top.
-    if (scrollTargetEl) scrollTargetEl.scrollIntoView({ block: scrollTargetBlock });
+    if (view.scrollTargetEl) view.scrollTargetEl.scrollIntoView({ block: view.scrollTargetBlock });
     else window.scrollTo(0, 0);
     // Watch the in-set action/timer row (when there is one) so the floating
     // "back to timer" button only surfaces once it has scrolled off-screen.
     fabObserver.disconnect();
-    fab.textContent = focusAnchorText;
-    fab.setAttribute("aria-label", focusAnchorAria);
-    if (focusAnchorEl) fabObserver.observe(focusAnchorEl);
+    fab.textContent = view.focusAnchorText;
+    fab.setAttribute("aria-label", view.focusAnchorAria);
+    if (view.focusAnchorEl) fabObserver.observe(view.focusAnchorEl);
     else fab.classList.remove("is-visible");
   }
 
