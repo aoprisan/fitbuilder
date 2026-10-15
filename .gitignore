@@ -8,3 +8,6 @@ npm-debug.log*
 .env
 .env.*
 !.env.example
+
+# Local mobile build outputs (scripts/build-*.sh)
+build-output/

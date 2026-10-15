@@ -22,11 +22,13 @@ no separate mobile codebase.
 | `npm run cap:sync` | Copy `dist/` into the native projects and update plugins |
 | `npm run cap:copy` | Copy `dist/` only (no dependency update — faster) |
 | `npm run cap:add:android` | Scaffold the `android/` native project (already done) |
-| `npm run cap:add:ios` | Scaffold the `ios/` native project |
+| `npm run cap:add:ios` | Scaffold the `ios/` native project (already done) |
 | `npm run android` | Build + sync + open the project in Android Studio |
 | `npm run android:run` | Build + run on a connected device / emulator |
 | `npm run ios` | Build + sync + open the project in Xcode |
 | `npm run ios:run` | Build + run on a simulator / device |
+| `npm run build:android` / `build:android:release` | CLI build → debug APK / signed AAB + APK (see below) |
+| `npm run build:ios` / `build:ios:archive` | CLI build → simulator app / signed archive + IPA (see below) |
 
 ## Typical loop
 
@@ -35,13 +37,41 @@ npm run build:mobile      # after any web change
 npm run android           # opens Android Studio to run / archive
 ```
 
-## Build a debug APK from the CLI
+## Build from the CLI
+
+`scripts/build-android.sh` and `scripts/build-ios.sh` do the whole chain (web build →
+`cap sync` → Gradle / xcodebuild), check prerequisites first, and copy the results into
+`build-output/` (git-ignored):
+
+| Script | Needs | Produces |
+| --- | --- | --- |
+| `npm run build:android` | JDK 21+, Android SDK | `build-output/gym-log-debug.apk` |
+| `npm run build:android:release` | + signing env vars (below) | `gym-log-release.aab` (Play) + `gym-log-release.apk` |
+| `npm run build:ios` | macOS + Xcode | unsigned simulator `App.app` (no Apple account needed) |
+| `npm run build:ios:archive` | + `IOS_TEAM_ID` | `GymLog.xcarchive` + `gym-log.ipa` |
+
+The Android SDK is found from `ANDROID_HOME` / `ANDROID_SDK_ROOT`, `android/local.properties`,
+or Android Studio's default install path (`~/Library/Android/sdk`, `~/Android/Sdk`).
+
+**Android release signing** is read from the environment. Never commit the keystore:
 
 ```bash
-npm run build && npm run cap:sync
-cd android && ./gradlew assembleDebug
-# → android/app/build/outputs/apk/debug/app-debug.apk
+export ANDROID_KEYSTORE=~/keys/gymlog.jks
+export ANDROID_KEYSTORE_PASSWORD=…
+export ANDROID_KEY_ALIAS=gymlog
+export ANDROID_KEY_PASSWORD=…        # optional, defaults to the store password
+npm run build:android:release
 ```
+
+Without them the release build still runs but is unsigned. Create a keystore once with
+`keytool -genkeypair -v -keystore gymlog.jks -alias gymlog -keyalg RSA -keysize 2048 -validity 10000`.
+
+**iOS archive** signs automatically with your team (`IOS_TEAM_ID=ABCDE12345`), and
+`IOS_EXPORT_METHOD` picks the IPA flavour: `development` (default, for your own
+devices), `app-store-connect` (TestFlight / App Store), or `release-testing` (ad hoc).
+
+Install the debug APK on a phone with `adb install -r build-output/gym-log-debug.apk`.
+The simulator script prints the `simctl` commands to launch its build.
 
 ## iOS
 
@@ -79,22 +109,13 @@ In a browser the old in-page beep/vibration/Web Notification cue is used instead
 - **iOS** shows the banner even while the app is open (`presentationOptions` in
   `capacitor.config.ts`). No extra entitlements or background modes are needed.
 
-## Building locally
+## No CI builds
 
-Mobile builds are done on your own machine (no CI job, so they cost no GitHub Actions
-minutes):
+Mobile builds run only on your own machine with the scripts above. There is no GitHub
+Actions job for them, so they cost no Actions minutes.
 
-- **Android debug APK:** see *Build a debug APK from the CLI* above.
-- **iOS simulator build** (macOS), the same check Xcode's Run does:
-
-  ```bash
-  npm run build && npx cap sync ios
-  cd ios/App && xcodebuild -project App.xcodeproj -scheme App -sdk iphonesimulator \
-    -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
-  ```
-
-Release builds (signed AAB/IPA) are produced locally: Android Studio →
-*Build › Generate Signed Bundle*, Xcode → *Product › Archive*.
+Prefer a GUI? Android Studio → *Build › Generate Signed Bundle* and Xcode →
+*Product › Archive* produce the same release artifacts.
 
 The `android/` and `ios/` native projects are committed to the repo per
 Capacitor's recommendation; build artifacts inside them are git-ignored.
