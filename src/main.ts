@@ -548,7 +548,11 @@ function boot(): void {
   // Trap Tab within the open dialog so focus can't wander to the page behind it.
   dialog.addEventListener("keydown", (e) => {
     if (e.key !== "Tab") return;
-    const focusables = [...dialog.querySelectorAll<HTMLElement>("button")];
+    const focusables = [
+      ...dialog.querySelectorAll<HTMLElement>(
+        "button:not([disabled]), a[href], input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])",
+      ),
+    ].filter((el) => el.offsetParent !== null || el === document.activeElement);
     if (focusables.length === 0) return;
     const first = focusables[0]!;
     const last = focusables[focusables.length - 1]!;

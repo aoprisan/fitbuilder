@@ -9,7 +9,7 @@ import {
   type MuscleScore,
   muscleScores,
 } from "../bodyMap";
-import { h } from "../dom";
+import { clear, h } from "../dom";
 import { readEffort } from "../effort";
 import {
   canShareFiles,
@@ -82,6 +82,7 @@ registerTranslations({
   "No volume this week": "Niciun volum săptămâna aceasta",
   "Fresh — not trained recently": "Odihnit — neantrenat recent",
   Recovered: "Recuperat",
+  "All muscles": "Toți mușchii",
   "≈ {0} kg est. 1RM": "≈ {0} kg 1RM estimat",
   "{0} hard set this week": "{0} serie grea săptămâna aceasta",
   "{0} hard sets this week": "{0} serii grele săptămâna aceasta",
@@ -266,7 +267,18 @@ export function mountBody(root: HTMLElement, nav: Nav): Cleanup {
   );
 
   const stage = h("div", { class: "bodymap-stage" });
-  const readout = h("p", { class: "bodymap-readout", text: t("Tap a muscle to see its reading.") });
+  const readout = h("p", {
+    class: "bodymap-readout",
+    aria: { live: "polite" },
+    text: t("Tap a muscle to see its reading."),
+  });
+  // Every muscle's reading as plain text — the figure itself is pointer-only,
+  // so this is the keyboard / screen-reader path to the same numbers.
+  const allList = h("ul", { class: "bodymap-all-list" });
+  const allReadings = h("details", { class: "bodymap-all" }, [
+    h("summary", { text: t("All muscles") }),
+    allList,
+  ]);
 
   // — legend: a gradient bar with low/high ends and a description —
   const legendBar = h("div", { class: "bodymap-legend-bar" });
@@ -287,6 +299,7 @@ export function mountBody(root: HTMLElement, nav: Nav): Cleanup {
     stage,
     readout,
     legend,
+    allReadings,
   ]);
 
   container.append(
@@ -324,6 +337,17 @@ export function mountBody(root: HTMLElement, nav: Nav): Cleanup {
     legendBar.style.background = metricGradientCss(metric);
     legendDesc.textContent = t(lg.desc);
     readout.textContent = t("Tap a muscle to see its reading.");
+    clear(allList);
+    for (const [muscle, sc] of scores) {
+      const swatch = h("span", { class: "bodymap-all-swatch", aria: { hidden: "true" } });
+      swatch.style.background = metricColor(metric, sc.value);
+      allList.append(
+        h("li", {}, [
+          swatch,
+          h("span", { text: `${t(MUSCLE_LABELS[muscle])} — ${scoreDetail(sc)}` }),
+        ]),
+      );
+    }
   }
 
   function setMetric(m: BodyMetric): void {

@@ -289,11 +289,6 @@ export function movementLoadReferenceKg(
   return mv?.referenceLoadKg ?? MUSCLE_REFERENCE_LOAD_KG[muscle];
 }
 
-/** Every catalog movement, deduped by id, in muscle-group then catalog order. */
-export function allMovements(): readonly Movement[] {
-  return [...REGISTRY.values()];
-}
-
 /** Lowercased, diacritic-stripped, whitespace-collapsed form for loose name matching. */
 function normalizeName(name: string): string {
   return name

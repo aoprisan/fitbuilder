@@ -74,13 +74,6 @@ export function logBodyweight(kg: number, date: string = todayKey()): void {
   writeAll(entries);
 }
 
-/** Forget the entry for a day. */
-export function deleteBodyweight(date: string): void {
-  const entries = loadBodyweights();
-  const kept = entries.filter((e) => e.date !== date);
-  if (kept.length !== entries.length) writeAll(kept);
-}
-
 /** The most recent entry, or null when none is logged. */
 export function latestBodyweight(): BodyweightEntry | null {
   const entries = loadBodyweights();

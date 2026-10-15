@@ -17,14 +17,3 @@ export function loadTrainer(): string {
     return "";
   }
 }
-
-/** Persist the trainer name; an empty/blank value clears it. */
-export function saveTrainer(name: string): void {
-  const trimmed = name.trim().slice(0, MAX_LEN);
-  try {
-    if (trimmed) localStorage.setItem(KEY, trimmed);
-    else localStorage.removeItem(KEY);
-  } catch {
-    // Best effort — a missing byline is harmless.
-  }
-}

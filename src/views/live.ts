@@ -5,8 +5,8 @@ import {
   nextSetTarget,
   type SetComparison,
 } from "../benchmark";
-import { clear, h } from "../dom";
-import { parseTargetReps } from "../execute";
+import { clear, h, scrollBehavior } from "../dom";
+import { parseTargetReps } from "../prescription";
 import { exportSessionPdf, exportSessionPng, shareSession } from "../exporters";
 import { filterField, matchesFilter } from "./filter";
 import { newLoggedExercise, newTrainingSession } from "../log";
@@ -1095,7 +1095,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     class: "live-fab",
     type: "button",
     on: {
-      click: () => focusAnchorEl?.scrollIntoView({ block: "start", behavior: "smooth" }),
+      click: () => focusAnchorEl?.scrollIntoView({ block: "start", behavior: scrollBehavior() }),
     },
   });
   root.appendChild(fab);

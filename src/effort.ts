@@ -240,15 +240,6 @@ function medianSessionMeasure(
   return values.length % 2 === 1 ? values[mid]! : (values[mid - 1]! + values[mid]!) / 2;
 }
 
-/**
- * Median effort of the user's prior sessions, used to calibrate the gauge.
- * The active session is excluded so it never anchors against itself. Returns 0
- * when there's no usable history.
- */
-export function typicalEffort(history: TrainingSession[], excludeId?: string): number {
-  return medianSessionMeasure(history, excludeId, sessionEffort);
-}
-
 export type EffortTier = "warmup" | "light" | "moderate" | "solid" | "hard" | "brutal";
 
 // Tiers keyed off the gauge ratio (current effort ÷ a full session's worth).
@@ -457,48 +448,5 @@ export function readHydration(effort: EffortReading): HydrationReading {
     liters: Math.round(ml / 100) / 10,
     glasses: Math.round(ml / ML_PER_GLASS),
     note: HYDRATION_NOTES[effort.tier],
-  };
-}
-
-export interface LifetimeEffort {
-  /** Sessions that have at least one logged set. */
-  sessions: number;
-  /** Effort points pooled across every session. */
-  points: number;
-  /** Per-muscle work pooled across every session, busiest first. */
-  muscles: MuscleWork[];
-  /** Total recommended fluid across every session, ml. */
-  hydrationMl: number;
-  /** Total recovery protein across every session, g. */
-  proteinG: number;
-  /** Rough total calories burned across every session, kcal. */
-  caloriesKcal: number;
-}
-
-/**
- * The session-summary stats (effort, per-muscle work, hydration, protein) rolled
- * up over every logged session. Hydration and protein are summed per session so
- * the totals reflect what each individual session called for, then pooled.
- */
-export function lifetimeEffort(sessions: TrainingSession[], bodyweightKg?: number): LifetimeEffort {
-  const logged = sessions.filter((s) => s.exercises.some((ex) => ex.sets.length > 0));
-  let points = 0;
-  let hydrationMl = 0;
-  let proteinG = 0;
-  let caloriesKcal = 0;
-  for (const session of logged) {
-    const effort = readEffort(session, sessions);
-    points += effort.points;
-    hydrationMl += readHydration(effort).ml;
-    proteinG += estimateProteinG(effort, muscleBreakdown(session).length, bodyweightKg);
-    caloriesKcal += estimateCalories(effort, bodyweightKg);
-  }
-  return {
-    sessions: logged.length,
-    points: Math.round(points * 10) / 10,
-    muscles: accumulateMuscleWork(logged),
-    hydrationMl,
-    proteinG,
-    caloriesKcal,
   };
 }

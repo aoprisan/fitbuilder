@@ -28,13 +28,13 @@
   --teal: #2f6b66;      /* deep teal — machine stamp */
   --plum: #5b3552;      /* muted plum — machine stamp */
   --olive: #5f6322;     /* olive — machine stamp */
-  --clay: #7d5236;      /* clay brown — machine stamp */
+  --clay: #7d5236;
 
   /* ── Stable on-fill tokens (deliberately do NOT flip in dark mode) ──────
      In light mode each equals its pre-theme value, so light is unchanged. */
   --on-press: #efe7d4;  /* light text on a saturated press fill */
   --on-light: #1b1610;  /* dark text on a light fill (e.g. the mustard chip) */
-  --brick-fill: #6e1f1a;/* oxblood used as a chip background (stays dark for legible cream text) */
+  --brick-fill: #6e1f1a;
 
   /* ── Type ────────────────────────────────────────────────────────────── */
   --font-display: "Alfa Slab One", Rockwell, Georgia, serif;
@@ -64,7 +64,7 @@
     --ink-soft: rgba(236, 227, 205, 0.66);
     --ink-faint: rgba(236, 227, 205, 0.4);
     --ink-ghost: rgba(236, 227, 205, 0.17);
-    --brick: #d3705f; /* oxblood lifts to terracotta so it reads on night stock */
+    --brick: #d3705f;
   }
 }
 
@@ -546,8 +546,7 @@ textarea {
 }
 
 /* Diagonal hatching rule used across the manual. */
-.app-header::after,
-.hatch {
+.app-header::after {
   content: "";
   display: block;
   height: 12px;
@@ -615,147 +614,6 @@ textarea {
 
 .nav-btn.active .nav-icon {
   color: var(--signal);
-}
-
-/* ───────────────── ROUTINES SUB-NAV · ledger index tabs ───────────────── */
-/* Card-file divider tabs that section the Routines view: Edit / Import /
-   Library / Brand. Inactive tabs sit recessed; the active one pulls forward
-   with a hard block-shadow and a signal-red marker stripe, like a tab tugged
-   out of a physical ledger. */
-.ledger-tabs {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  gap: 5px;
-  align-items: end;
-  margin: 20px 0 0;
-}
-
-.ledger-tab {
-  font-family: var(--font-stamp);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  padding: 9px 4px 8px;
-  background: var(--paper-ash);
-  color: var(--ink-faint);
-  border: 2px solid var(--ink-ghost);
-  border-bottom: none;
-  cursor: pointer;
-  position: relative;
-  transform: translateY(3px);
-  transition: transform 150ms var(--ease), background 140ms ease, color 140ms ease;
-}
-
-.ledger-tab__no {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  color: var(--ink-faint);
-}
-
-.ledger-tab__label {
-  font-size: 10px;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  line-height: 1;
-}
-
-.ledger-tab:hover {
-  background: var(--paper-deep);
-  color: var(--ink-soft);
-}
-
-.ledger-tab.active {
-  background: var(--paper);
-  color: var(--ink);
-  border-color: var(--ink);
-  border-top: 4px solid var(--signal);
-  box-shadow: 3px 3px 0 0 var(--ink);
-  transform: translateY(0);
-}
-
-.ledger-tab.active .ledger-tab__no {
-  color: var(--signal);
-}
-
-/* Oxblood count stamp on the Library tab — struck slightly askew. */
-.ledger-tab__badge {
-  position: absolute;
-  top: -8px;
-  right: -7px;
-  font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 1.35;
-  padding: 0 4px;
-  background: var(--brick-fill);
-  color: var(--on-press);
-  border: 1.5px solid var(--ink);
-  box-shadow: 1.5px 1.5px 0 0 var(--ink);
-  transform: rotate(3deg);
-}
-
-.ledger-tab__badge[hidden] {
-  display: none;
-}
-
-/* The active panel hangs off the tab strip; a baseline rule ties them together. */
-.ledger-panel {
-  border-top: var(--rule);
-  margin-top: -2px;
-  padding-top: 18px;
-  animation: panel-in 220ms var(--ease) both;
-}
-
-.ledger-panel[hidden] {
-  display: none;
-}
-
-@keyframes panel-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ledger-panel {
-    animation: none;
-  }
-}
-
-/* Compact import control folded into the Edit panel — a ruled inset, lighter
-   than a full card, marked with an oxblood tick so it reads as a side door
-   into the sheet rather than the main build flow. */
-.import-strip {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-  margin: 14px 0 4px;
-  padding: 11px 14px;
-  background: var(--paper-deep);
-  border: 1.5px dashed var(--ink-faint);
-  border-left: 4px solid var(--brick);
-}
-
-.import-strip__label {
-  font-family: var(--font-stamp);
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink);
-}
-
-.import-strip__hint {
-  flex-basis: 100%;
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--ink-soft);
 }
 
 /* ─────────────────────────── VIEW SHELL ─────────────────────────── */
@@ -922,10 +780,6 @@ textarea {
   color: var(--brick);
   opacity: 0.7;
   margin-bottom: 9px;
-}
-
-.logo-preview .empty::before {
-  display: none;
 }
 
 /* ─────────────────────────── BUTTONS ─────────────────────────── */
@@ -1152,150 +1006,10 @@ textarea {
   line-height: 1.5;
 }
 
-.num-input {
-  text-align: center;
-  font-family: var(--font-display);
-  font-size: 18px;
-  letter-spacing: 0.01em;
-}
-
-.field-select {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 15px;
-  padding: 11px 12px;
-  background: var(--paper);
-  color: var(--ink);
-  border: 2.5px solid var(--ink);
-  box-shadow: 4px 4px 0 0 var(--ink);
-  cursor: pointer;
-  width: 100%;
-  border-radius: 0;
-  -webkit-appearance: none;
-  appearance: none;
-}
-
-.stepper-row {
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
-}
-
-.stepper-row .num-input {
-  flex: 1;
-  min-width: 0;
-}
-
 .plan-name-input {
   font-family: var(--font-display);
   font-size: clamp(20px, 5vw, 26px);
   text-transform: uppercase;
-}
-
-/* Mesocycle length — a narrow numeric field under the sheet name. */
-.meso-input {
-  width: 110px;
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-}
-
-.file-input {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--ink-soft);
-  background: var(--paper);
-  border: 2px dashed var(--ink-faint);
-  padding: 10px;
-  width: 100%;
-}
-
-.file-input::file-selector-button {
-  font-family: var(--font-stamp);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  background: var(--ink);
-  color: var(--paper);
-  border: none;
-  padding: 7px 11px;
-  margin-right: 11px;
-  cursor: pointer;
-}
-
-.paste-area {
-  font-family: var(--font-mono);
-  font-size: 13px;
-}
-
-/* ─────────────────────────── LOOKBACK SLIDER ─────────────────────────── */
-
-.lookback-field {
-  margin: 4px 0 10px;
-}
-
-.lookback-value {
-  font-family: var(--font-display);
-  font-size: 15px;
-  color: var(--signal);
-}
-
-.lookback-slider {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100%;
-  height: 22px;
-  margin: 0;
-  background: transparent;
-  cursor: pointer;
-}
-
-.lookback-slider::-webkit-slider-runnable-track {
-  box-sizing: border-box;
-  height: 10px;
-  background: var(--paper-ash);
-  border: 2.5px solid var(--ink);
-}
-
-.lookback-slider::-moz-range-track {
-  box-sizing: border-box;
-  height: 10px;
-  background: var(--paper-ash);
-  border: 2.5px solid var(--ink);
-}
-
-.lookback-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  box-sizing: border-box;
-  width: 22px;
-  height: 22px;
-  margin-top: -6px;
-  border-radius: 0;
-  background: var(--signal);
-  border: 2.5px solid var(--ink);
-  box-shadow: 2px 2px 0 0 var(--ink);
-}
-
-.lookback-slider::-moz-range-thumb {
-  box-sizing: border-box;
-  width: 22px;
-  height: 22px;
-  border-radius: 0;
-  background: var(--signal);
-  border: 2.5px solid var(--ink);
-  box-shadow: 2px 2px 0 0 var(--ink);
-}
-
-.lookback-slider:focus {
-  outline: none;
-}
-
-.lookback-slider:focus::-webkit-slider-thumb {
-  box-shadow: 2px 2px 0 0 var(--ink), 0 0 0 3px var(--paper), 0 0 0 5px var(--signal);
-}
-
-.lookback-slider:focus::-moz-range-thumb {
-  box-shadow: 2px 2px 0 0 var(--ink), 0 0 0 3px var(--paper), 0 0 0 5px var(--signal);
 }
 
 /* ─────────────────────────── EQUIPMENT TOGGLE ─────────────────────────── */
@@ -1673,14 +1387,6 @@ textarea {
 
 /* ─────────────────────────── HOME ─────────────────────────── */
 
-.hero {
-  padding: 6px 0 4px;
-}
-
-.current-plan .plan-name {
-  margin-top: 4px;
-}
-
 .steps {
   list-style: none;
   counter-reset: step;
@@ -1718,24 +1424,7 @@ textarea {
   transform: rotate(-3deg);
 }
 
-/* Build provenance — a faint press date struck under the update controls. */
-.build-stamp {
-  margin: 12px 0 0;
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 10px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-
 /* ─────────────────────────── BUILDER ─────────────────────────── */
-
-.builder-head {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
 
 .exercises {
   display: flex;
@@ -1750,51 +1439,11 @@ textarea {
   margin-bottom: 4px;
 }
 
-.ex-index,
-.rex-index,
-.routine-no {
-  font-family: var(--font-display);
-  font-size: 15px;
-  color: var(--paper);
-  background: var(--ink);
-  min-width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  transform: rotate(-2deg);
-}
-
-.routine-no {
-  background: var(--signal);
-  padding: 0 8px;
-  letter-spacing: 0.02em;
-}
-
-.ex-name {
-  flex: 1;
-  min-width: 0;
-  font-family: var(--font-display);
-  font-size: 17px;
-  text-transform: uppercase;
-}
-
 .sets {
   display: flex;
   flex-direction: column;
   gap: 10px;
   margin-bottom: 14px;
-}
-
-.set-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 10px;
-  padding: 12px;
-  background: var(--paper);
-  border: 2px solid var(--ink);
-  border-left: 6px solid var(--ink); /* ruled ledger margin */
 }
 
 .set-no {
@@ -1807,28 +1456,10 @@ textarea {
   color: var(--brick);
 }
 
-.set-row .field {
-  flex: 1 1 120px;
-}
-
-.set-row .icon-btn {
-  flex: 0 0 auto;
-  align-self: stretch;
-}
-
 .data {
   display: flex;
   flex-direction: column;
   gap: 14px;
-}
-
-.import-grid {
-  display: grid;
-  gap: 16px;
-}
-
-.builder-footer {
-  margin-top: 4px;
 }
 
 /* ─────────────────────────── SAVED LISTS ─────────────────────────── */
@@ -1852,10 +1483,6 @@ textarea {
 
 /* ─────────────────────────── TRAINING LOG ─────────────────────────── */
 
-.log-topbar {
-  margin-bottom: 4px;
-}
-
 .session-date {
   font-family: var(--font-mono);
   font-weight: 700;
@@ -1866,36 +1493,7 @@ textarea {
   margin: 6px 0 2px;
 }
 
-.log-footer {
-  margin-top: 18px;
-}
-
 /* ─────────────────────────── SESSION ─────────────────────────── */
-
-.session-plan-name {
-  font-family: var(--font-display);
-  font-size: clamp(20px, 5.5vw, 28px);
-  text-transform: uppercase;
-  line-height: 0.96;
-  color: var(--brick);
-}
-
-.session-trainer {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 10px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-
-.session-now,
-.exec-now {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  border-left: 8px solid var(--signal);
-}
 
 .now-eyebrow {
   font-family: var(--font-mono);
@@ -1936,13 +1534,6 @@ textarea {
   letter-spacing: -0.01em;
   margin: 4px 0;
   color: var(--ink);
-}
-
-.now-set {
-  font-family: var(--font-stamp);
-  font-size: 12px;
-  letter-spacing: 0.04em;
-  color: var(--ink-soft);
 }
 
 .now-target {
@@ -2049,19 +1640,6 @@ textarea {
   align-items: center;
   text-align: center;
   gap: 8px;
-}
-
-.set-row-dial {
-  align-items: flex-start;
-}
-
-.set-row-dial .field.dial-field {
-  flex: 1 1 132px;
-}
-
-.set-row-dial .icon-btn {
-  flex: 1 1 100%;
-  align-self: auto;
 }
 
 .dial-knob {
@@ -2488,187 +2066,13 @@ textarea {
 
 /* ───────────────────────────── ONE-REP MAX ───────────────────────────── */
 
-/* Home card: log a tested max for any lift, struck in the records hue. */
-.onerm-log {
-  border-left: 8px solid var(--brick);
-}
-
-.onerm-log-select {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 13px;
-  padding: 11px 12px;
-  background: var(--paper);
-  color: var(--ink);
-  border: 2.5px solid var(--ink);
-  box-shadow: 4px 4px 0 0 var(--ink);
-  cursor: pointer;
-  width: 100%;
-}
-
-.onerm-log-input {
-  font-variant-numeric: tabular-nums;
-}
-
-.onerm-log-list {
-  margin-top: 14px;
-}
-
-.onerm-log-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 0;
-  border-top: var(--rule);
-}
-
-.onerm-log-name {
-  flex: 1 1 auto;
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 12px;
-  color: var(--ink);
-}
-
-.onerm-log-kg {
-  font-family: var(--font-display);
-  font-size: 18px;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink);
-}
-
-/* Stats headline: best logged vs estimated 1RM, tied to the Strength chart hue. */
-.onerm-headline {
-  border-left: 8px solid var(--pine);
-}
-
-.onerm-headline .onerm-grid {
-  margin-top: 12px;
-}
-
-.onerm-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  align-items: end;
-  margin-top: 10px;
-}
-
-.onerm-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.onerm-calc {
-  font-family: var(--font-display);
-  font-size: clamp(28px, 9vw, 40px);
-  line-height: 0.9;
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
-}
-
-.onerm-note {
-  margin: 10px 0 0;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.02em;
-  color: var(--ink-soft);
-}
-
-/* Stats "typical session" card — the per-exercise "where am I usually at" read. */
-.typical-session {
-  border-left: 8px solid var(--navy);
-}
-
-/* Stats "reps at a weight" block — the card plus its two rep charts, stacked
-   with the same rhythm as the view's own children. */
-.reps-at-load {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.reps-at-load-card {
-  border-left: 8px solid var(--mustard);
-}
-
-.load-filter {
-  margin-top: 12px;
-}
-
-.load-cell-note {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.4;
-  color: var(--ink-soft);
-}
-
-.typical-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-  align-items: end;
-  margin-top: 12px;
-}
-
-.typical-range {
-  margin: 12px 0 0;
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 12px;
-  letter-spacing: 0.04em;
-  color: var(--ink-soft);
-}
-
-.typical-last {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 2px dashed var(--ink-faint);
-}
-
-.typical-last-summary {
-  font-family: var(--font-display);
-  font-size: clamp(18px, 5vw, 24px);
-  line-height: 1;
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
-}
-
+/* Per-set "reps × kg" line under a past session (Exercise detail). */
 .typical-last-sets {
   font-family: var(--font-mono);
   font-size: 12px;
   letter-spacing: 0.04em;
   color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
-}
-
-/* Stats "target session" card — the hypertrophy progression suggestion, tied to
-   the Hypertrophy chart hue. */
-.target-session {
-  border-left: 8px solid var(--mustard);
-}
-
-.target-rir {
-  margin: 12px 0 0;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 11px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-
-.target-rationale {
-  margin: 8px 0 0;
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 12px;
-  letter-spacing: 0.04em;
-  color: var(--ink);
 }
 
 /* ─────────────────────── EFFORT GAUGE + HYDRATION ─────────────────────── */
@@ -2810,150 +2214,7 @@ textarea {
   text-align: right;
 }
 
-/* All-time effort roll-up in the Stats view: per-muscle effort with a share bar. */
-.muscle-effort {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.muscle-effort + .muscle-effort {
-  margin-top: 8px;
-}
-
-.muscle-bar {
-  height: 8px;
-  background: var(--paper-deep);
-  border: 2px solid var(--ink);
-  overflow: hidden;
-}
-
-.muscle-bar-fill {
-  height: 100%;
-  width: 0;
-  background: var(--effort);
-  transition: width 0.4s var(--ease);
-}
-
-.muscle-detail {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 11px;
-  letter-spacing: 0.02em;
-  color: var(--ink-soft);
-  font-variant-numeric: tabular-nums;
-}
-
-/* Recovery view: a red→green readiness ring plus per-muscle recovery bars. The
-   ring reuses the rest-timer dial shell (.dial-wrap/.dial/.dial-track); the fill
-   stroke colour is set inline per recovery fraction. */
-.recovery-ring {
-  width: min(58vw, 200px);
-}
-
-.recovery-ring--sm {
-  width: 92px;
-  margin: 0;
-  flex: 0 0 auto;
-}
-
-.recovery-ring-fill {
-  fill: none;
-  stroke-width: 13;
-  stroke-linecap: butt;
-  transform: rotate(-90deg);
-  transform-origin: center;
-  transition: stroke-dashoffset 320ms var(--ease), stroke 320ms var(--ease);
-}
-
-.recovery-ring-pct {
-  font-family: var(--font-stamp);
-  font-weight: 800;
-  font-size: 34px;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-
-.recovery-ring--sm .recovery-ring-pct {
-  font-size: 22px;
-}
-
-.recovery-ring-status {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 10px;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  margin-top: 5px;
-}
-
-.recovery-ring--sm .recovery-ring-status {
-  font-size: 8px;
-  letter-spacing: 0.16em;
-  margin-top: 3px;
-}
-
-.recovery-total {
-  text-align: center;
-}
-
-.recovery-total-note {
-  margin-top: 10px;
-}
-
 /* Two readiness rings side by side: per-muscle average and systemic/CNS load. */
-.recovery-rings {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 22px;
-  margin-top: 4px;
-}
-
-.recovery-ring-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.recovery-ring--dual {
-  width: min(38vw, 148px);
-  margin: 0;
-}
-
-.recovery-ring--dual .recovery-ring-pct {
-  font-size: 26px;
-}
-
-.recovery-ring--dual .recovery-ring-status {
-  font-size: 9px;
-  letter-spacing: 0.2em;
-}
-
-.recovery-ring-caption {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 10px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-
-.recovery-home-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 16px;
-  margin: 6px 0 14px;
-}
-
-.recovery-home-meta {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-}
 
 .protein-row {
   display: flex;
@@ -3044,79 +2305,6 @@ textarea {
   display: none;
 }
 
-/* Completion banner */
-.session-done {
-  text-align: center;
-  border-left: 8px solid var(--pine);
-}
-
-.done-title {
-  font-family: var(--font-display);
-  font-size: clamp(30px, 8vw, 44px);
-  text-transform: uppercase;
-  line-height: 0.88;
-  color: var(--pine);
-}
-
-.done-sub {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  color: var(--ink-soft);
-  margin: 10px 0 0;
-}
-
-.done-elapsed {
-  font-family: var(--font-stamp);
-  font-size: 14px;
-  letter-spacing: 0.04em;
-  color: var(--ink);
-  margin: 8px 0 0;
-}
-
-/* Meta strip */
-.session-meta {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  border: 2.5px solid var(--ink);
-  background: var(--paper-deep);
-  box-shadow: 4px 4px 0 0 var(--ink);
-}
-
-.exec-meta {
-  grid-template-columns: 1fr 1fr 1fr;
-}
-
-.meta-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 12px 14px;
-  border-left: 1.5px solid var(--ink-ghost);
-}
-
-.meta-item:first-child {
-  border-left: none;
-}
-
-.meta-label {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 9px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--brick);
-}
-
-.meta-value {
-  font-family: var(--font-display);
-  font-size: 22px;
-  line-height: 1;
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
-}
-
 /* Progress bar — inked rule that fills signal-red with a hatch. */
 .progress {
   height: 16px;
@@ -3137,44 +2325,7 @@ textarea {
   transition: width 280ms var(--ease);
 }
 
-.session-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.session-controls .btn-jumbo {
-  flex: 1 1 100%;
-}
-
-.session-controls .btn:not(.btn-jumbo) {
-  flex: 1 1 0;
-}
-
 /* ─────────────────────────── STATS ─────────────────────────── */
-
-.stat-filter .stat-filter-select {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 13px;
-  padding: 11px 12px;
-  background: var(--paper);
-  color: var(--ink);
-  border: 2.5px solid var(--ink);
-  box-shadow: 4px 4px 0 0 var(--ink);
-  cursor: pointer;
-  width: 100%;
-}
-
-.stat-range {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 10px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--brick);
-  margin: 0;
-}
 
 .stat-chart {
   display: flex;
@@ -3326,18 +2477,6 @@ textarea {
 }
 
 /* ─────────────────────────── EXECUTE ─────────────────────────── */
-
-.screen-logo {
-  display: flex;
-  justify-content: center;
-  padding: 4px 0;
-}
-
-.screen-logo-img {
-  max-height: 56px;
-  max-width: 70%;
-  object-fit: contain;
-}
 
 .now-tally {
   display: flex;
@@ -3504,343 +2643,6 @@ textarea {
   background: var(--navy);
 }
 
-.now-sets {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 11.5px;
-  letter-spacing: 0.04em;
-  color: var(--ink-soft);
-  margin: 2px 0 0;
-}
-
-/* Rep logger */
-.rep-logger {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 14px;
-  padding-top: 16px;
-  border-top: 2px dashed var(--ink-faint);
-}
-
-.rep-logger-label {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 10px;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: var(--brick);
-}
-
-.rep-stepper {
-  display: flex;
-  align-items: stretch;
-  gap: 10px;
-}
-
-.step-btn {
-  font-family: var(--font-display);
-  font-size: 24px;
-  line-height: 1;
-  width: 56px;
-  flex-shrink: 0;
-  background: var(--paper);
-  color: var(--ink);
-  border: 2.5px solid var(--ink);
-  cursor: pointer;
-  box-shadow: 3px 3px 0 0 var(--ink);
-  transition: transform 80ms ease, box-shadow 80ms ease, background 130ms ease,
-    color 130ms ease;
-}
-
-.step-btn:hover {
-  background: var(--ink);
-  color: var(--paper);
-  transform: translate(-2px, -2px);
-  box-shadow: 5px 5px 0 0 var(--ink);
-}
-
-.step-btn:active {
-  transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0 0 var(--ink);
-}
-
-.rep-input {
-  flex: 1;
-  min-width: 0;
-  text-align: center;
-  font-family: var(--font-display);
-  font-size: 30px;
-  -moz-appearance: textfield;
-  appearance: textfield;
-}
-
-.rep-input::-webkit-outer-spin-button,
-.rep-input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.rep-actions {
-  display: flex;
-  gap: 10px;
-}
-
-.rep-log {
-  flex: 2;
-}
-
-.rep-undo {
-  flex: 1;
-}
-
-.rep-manual {
-  width: 100%;
-  margin-top: 14px;
-}
-
-.rep-chips {
-  display: flex;
-  gap: 8px;
-}
-
-.rep-chip {
-  font-family: var(--font-stamp);
-  font-size: 13px;
-  flex: 1;
-  padding: 11px 6px 9px;
-  background: var(--paper);
-  color: var(--ink);
-  border: 2.5px solid var(--ink);
-  cursor: pointer;
-  transition: background 130ms ease, color 130ms ease;
-}
-
-.rep-chip:hover {
-  background: var(--mustard);
-}
-
-/* "Counts as" identity picker — what an Execute row credits when saved. */
-.exec-identity {
-  margin: 10px 0 4px;
-}
-
-.exec-id-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.exec-id-label {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-
-.exec-id-change {
-  flex-shrink: 0;
-}
-
-/* Optional weight/RIR (or hold/RIR) inputs, revealed by the toggle. */
-.exec-opt-toggle {
-  width: 100%;
-  margin-top: 12px;
-}
-
-.exec-optional {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 12px;
-  padding-top: 14px;
-  border-top: 2px dashed var(--ink-faint);
-}
-
-/* Save-this-run card — converts the run into a logged session. */
-.exec-save {
-  text-align: center;
-}
-
-.exec-save-title {
-  margin: 0 0 4px;
-  font-family: var(--font-display);
-  font-size: 20px;
-  color: var(--ink);
-}
-
-.exec-save-preview {
-  margin: 10px 0 14px;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 12px;
-  letter-spacing: 0.04em;
-  color: var(--brick);
-}
-
-.exec-save .btn-primary {
-  width: 100%;
-}
-
-/* Checklist */
-.exec-checklist {
-  display: flex;
-  flex-direction: column;
-  border: 2.5px solid var(--ink);
-  background: var(--paper-deep);
-  box-shadow: 5px 5px 0 0 var(--ink);
-}
-
-.exec-routine-head {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 11px 13px 9px;
-  background: var(--ink);
-  color: var(--paper);
-}
-
-.exec-routine-head .routine-no {
-  transform: none;
-  background: var(--signal);
-  color: var(--on-press);
-}
-
-.exec-routine-title {
-  font-family: var(--font-stamp);
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  flex: 1;
-  min-width: 0;
-}
-
-.exec-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-
-.exec-tag {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 8.5px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  padding: 3px 6px;
-  color: var(--mustard);
-  border: 1px solid var(--mustard);
-}
-
-.exec-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  text-align: left;
-  padding: 13px;
-  background: transparent;
-  border: none;
-  border-top: 1.5px solid var(--ink-ghost);
-  cursor: pointer;
-  transition: background 130ms ease;
-}
-
-.exec-item:hover {
-  background: var(--paper-ash);
-}
-
-.exec-item.current {
-  background: var(--paper);
-  box-shadow: inset 4px 0 0 0 var(--signal);
-}
-
-.exec-check {
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-  border: 2.5px solid var(--ink);
-  background: var(--paper);
-  position: relative;
-}
-
-.exec-item.done .exec-check {
-  background: var(--pine);
-  border-color: var(--pine);
-}
-
-.exec-item.done .exec-check::after {
-  content: "";
-  position: absolute;
-  left: 6px;
-  top: 2px;
-  width: 6px;
-  height: 11px;
-  border: solid var(--paper);
-  border-width: 0 2.5px 2.5px 0;
-  transform: rotate(42deg);
-}
-
-.exec-body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.exec-name {
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 13px;
-  color: var(--ink);
-  line-height: 1.2;
-}
-
-.exec-item.done .exec-name {
-  color: var(--ink-faint);
-  text-decoration: line-through;
-  text-decoration-color: var(--pine);
-}
-
-.exec-pres {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.02em;
-  color: var(--brick);
-}
-
-.exec-mini {
-  display: block;
-  height: 5px;
-  background: var(--paper-edge);
-  border: 1px solid var(--ink-ghost);
-  overflow: hidden;
-  margin-top: 2px;
-}
-
-.exec-mini-fill {
-  height: 100%;
-  width: 0%;
-  background: var(--signal);
-  transition: width 220ms var(--ease);
-}
-
-.exec-count {
-  font-family: var(--font-display);
-  font-size: 15px;
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
-}
-
-.exec-item.done .exec-count {
-  color: var(--pine);
-}
-
 /* ─────────────────────────── ROUTINE SHEET ─────────────────────────── */
 
 .routines {
@@ -3849,209 +2651,22 @@ textarea {
   gap: 16px;
 }
 
-.routine-card {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.routine-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.routine-title-input {
-  flex: 1;
-  min-width: 0;
-  font-family: var(--font-display);
-  font-size: 18px;
-  text-transform: uppercase;
-}
-
-.routine-cols {
-  display: none;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  padding: 0 2px;
-}
-
-.rex-col-label {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 9px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--brick);
-}
-
-.routine-ex-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
 /* ── Structured-session authoring — kind stamp + catalog picker + sections ──── */
-.routine-kind {
-  margin-top: 4px;
-}
 
 /* Read-only stamp of the routine's fixed kind (chosen at creation). */
-.routine-kind-chip {
-  align-self: flex-start;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 10px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  padding: 3px 8px;
-  color: var(--on-press);
-  background: var(--brick-fill);
-  border: 1px solid var(--brick);
-}
 
 /* Static exercise name for a catalog-picked (structured) row — not an input. */
-.rex-name-static {
-  flex: 1 1 auto;
-  font-family: var(--font-stamp);
-  font-weight: 700;
-  font-size: 14px;
-  letter-spacing: 0.02em;
-}
 
 /* The catalog movement picker (chip toggles) under a structured-session row. */
-.rex-picker {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-left: 30px;
-}
-
-.routine-sections {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.routine-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px;
-  border-left: 3px solid var(--brick);
-  background: var(--paper-deep);
-}
-
-.section-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.section-no {
-  flex: 0 0 auto;
-  min-width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 11px;
-  background: var(--brick-fill);
-  color: var(--on-press);
-}
-
-.section-title-input {
-  flex: 1 1 auto;
-  font-family: var(--font-stamp);
-  font-weight: 700;
-  font-size: 13px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.section-add {
-  display: flex;
-}
 
 /* Structured-session phase header inside the checklist runner. */
-.exec-section-head {
-  margin: 6px 0 2px;
-  padding-left: 2px;
-}
-
-.exec-section-title {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 10px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--brick);
-}
-
-.routine-ex {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
 
 /* Grab handle + lifted-card state for drag-to-reorder (see views/sheet.ts).
    touch-action: none keeps a touch drag from scrolling the page instead. */
-.rex-drag {
-  cursor: grab;
-  touch-action: none;
-  font-size: 16px;
-  color: var(--ink-soft);
-}
-
-.rex-drag:disabled {
-  visibility: hidden;
-}
-
-.routine-ex.is-dragging {
-  position: relative;
-  z-index: 5;
-  background: var(--paper);
-  outline: 2px solid var(--ink);
-  box-shadow: 6px 6px 0 0 var(--ink);
-  opacity: 0.95;
-}
-
-.routine-ex.is-dragging .rex-drag {
-  cursor: grabbing;
-}
 
 /* Superset link toggle + the linked row's bracket. A linked row is chained to
    the row above it (performed back-to-back); the signal-red spine and stamp
    make the pair read as one block. */
-.rex-link {
-  font-size: 14px;
-  color: var(--ink-soft);
-}
-
-.rex-link.active {
-  background: var(--signal);
-  color: var(--on-press);
-  border-color: var(--ink);
-}
-
-.routine-ex.is-superset {
-  border-left: 3px solid var(--signal);
-  padding-left: 10px;
-  position: relative;
-}
-
-.routine-ex.is-superset::before {
-  content: "SUPERSET ↑";
-  display: block;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 9px;
-  letter-spacing: 0.14em;
-  color: var(--signal);
-  margin-bottom: 2px;
-}
 
 /* Live: the between-sets superset partner card + planned-pairing note. */
 .live-superset {
@@ -4073,288 +2688,6 @@ textarea {
   padding: 2px 5px 1px;
   border: 1.5px solid var(--signal);
   color: var(--signal);
-}
-
-.routine-ex-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-/* Optional per-set target editor under an exercise row. */
-.rex-structured {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 0 2px 6px 30px;
-}
-
-.rex-sets-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-
-.rex-quickfill,
-.rex-set-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.rex-set-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-/* Compound selector so this beats the global `input[type=number] { width:100% }`
-   (which is more specific than a lone class) — otherwise set/quick-fill inputs
-   stretch full-width and overflow the routine card. */
-.rex-structured .rex-set-input {
-  width: 4.5em;
-  flex: 0 0 auto;
-  text-align: center;
-}
-
-.rex-set-no {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  min-width: 1.4em;
-  color: var(--ink-soft);
-}
-
-.rex-set-x {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--ink-soft);
-}
-
-.rex-set-remove {
-  flex: 0 0 auto;
-  padding: 5px 8px;
-  margin-left: auto;
-}
-
-/* Per-set scheme list wrapper. */
-.rex-sets {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-/* Total-rep volume editor row. */
-.rex-volume {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.rex-volume-hint,
-.rex-note-hint {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--ink-soft);
-}
-
-/* Carried import note + its clear button. */
-.rex-note {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.rex-note__text {
-  flex: 1 1 auto;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--ink-soft);
-}
-
-.rex-note__clear {
-  flex: 0 0 auto;
-}
-
-/* Train ▸ "Run a routine" list — each routine is a stacked, left-aligned row. */
-.train-plan-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.train-plan-item {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.train-plan-head {
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
-}
-
-.train-plan-row {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
-  text-align: left;
-}
-
-.train-plan-delete {
-  flex: 0 0 auto;
-  align-self: stretch;
-}
-
-.train-plan-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 700;
-}
-
-.train-plan-kind {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 9px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--navy);
-  border: 1.5px solid var(--navy);
-  padding: 1px 5px;
-}
-
-.train-plan-meta {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--ink-soft);
-}
-
-/* The explicit how-to-run chooser revealed under a routine row. */
-.train-mode {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  border: 2px dashed var(--ink-faint);
-  background: var(--paper-deep);
-}
-
-.train-mode-label {
-  margin: 0;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 10px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-
-.train-mode-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  text-align: left;
-  height: auto;
-  padding: 10px 12px;
-}
-
-.train-mode-name {
-  font-weight: 700;
-}
-
-.train-mode-desc {
-  font-family: var(--font-mono);
-  font-weight: 500;
-  font-size: 10px;
-  letter-spacing: 0;
-  text-transform: none;
-  opacity: 0.85;
-  white-space: normal;
-}
-
-.rex-index {
-  font-size: 12px;
-  min-width: 26px;
-  height: 26px;
-  background: var(--brick-fill);
-  color: var(--on-press);
-}
-
-.rex-name {
-  flex: 1 1 0;
-  font-weight: 600;
-}
-
-.rex-pres {
-  flex: 1 1 100%;
-}
-
-.rex-remove {
-  flex: 0 0 auto;
-  padding: 6px 9px;
-}
-
-.routine-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-top: 12px;
-  border-top: 2px dashed var(--ink-faint);
-}
-
-/* Save sits first as the primary action; Export ▾ reveals the share/export
-   cluster below it so the row stays one line on mobile. */
-.routine-export {
-  padding: 10px 0 2px 12px;
-  border-left: 2px dashed var(--ink-faint);
-}
-
-/* Run / Start live are preview actions here — set off from Save/Export above. */
-.routine-run {
-  padding-top: 10px;
-  border-top: 2px dotted var(--ink-faint);
-}
-
-/* Branding card */
-.logo-card .export-hint {
-  margin: 0;
-}
-
-.export-hint {
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  line-height: 1.5;
-  color: var(--ink-soft);
-}
-
-.logo-preview {
-  border: 2px dashed var(--ink-faint);
-  background: var(--paper);
-  padding: 14px;
-  display: grid;
-  place-items: center;
-  min-height: 64px;
-}
-
-.logo-preview .empty {
-  border: none;
-  padding: 0;
-}
-
-.logo-preview-img {
-  max-height: 72px;
-  max-width: 100%;
-  object-fit: contain;
 }
 
 /* ─────────────────────────── STATUS ─────────────────────────── */
@@ -4405,14 +2738,6 @@ textarea:focus-visible {
 
 /* Wider than phone: two-up data rows + ledger column headers. */
 @media (min-width: 560px) {
-  .import-grid {
-    grid-template-columns: 1fr 1fr;
-    align-items: start;
-  }
-
-  .routine-cols {
-    display: grid;
-  }
 
   .lede {
     font-size: 14.5px;
@@ -4441,19 +2766,6 @@ textarea:focus-visible {
   .nav-btn {
     min-height: 52px;
     padding: 8px 2px 6px;
-  }
-
-  /* Routine rows: name + ✕ on line 1, prescription full width below. */
-  .rex-name {
-    order: 1;
-  }
-
-  .rex-remove {
-    order: 2;
-  }
-
-  .rex-pres {
-    order: 3;
   }
 }
 
@@ -4616,39 +2928,8 @@ textarea:focus-visible {
     gap: 24px;
   }
 
-  /* HOME · ledger spread — hero at full width, then cards flow as a 2-up grid.
-     A trainer's two cards still sit side-by-side; a student's five fill rows
-     left-to-right with the last orphan spanning both columns. */
-  .view-home {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 22px 26px;
-    align-items: start;
-  }
-
-  .view-home > .view-title,
-  .view-home > .hero {
-    grid-column: 1 / -1;
-  }
-
-  /* Last card stretches across when it's the lone orphan on its row. */
-  .view-home > .card:last-child:nth-child(odd) {
-    grid-column: 1 / -1;
-  }
-
-  /* STATS · let the chart card breathe wider; the others stay full width
-     too since the chart benefits most from the extra horizontal room. */
-  .view-stats {
-    max-width: 920px;
-  }
-
   /* SHEET / EXECUTE · author + run views stay readable at a single
      comfortable measure rather than stretching to the full page width. */
-  .view-sheet,
-  .view-execute,
-  .view-claude-start,
-  .view-recovery,
-  .view-weekly,
   .view-body {
     max-width: 880px;
   }
@@ -4668,10 +2949,6 @@ textarea:focus-visible {
 
   #app {
     grid-template-columns: 300px minmax(0, 1fr);
-  }
-
-  .view-home {
-    gap: 26px 32px;
   }
 }
 
@@ -4693,133 +2970,6 @@ textarea:focus-visible {
     animation: none;
     opacity: 1;
   }
-}
-
-/* ──────────────────────── QR SHARE OVERLAY ──────────────────────── */
-/* A routine's import link shown as a scannable / printable QR. The card uses
-   theme tokens, but the QR canvas itself is drawn in the fixed ledger palette
-   (dark modules on a light ground) so it scans in any UI theme. */
-
-.qr-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 400;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(27, 22, 16, 0.62);
-}
-
-.qr-overlay__card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  max-width: min(92vw, 420px);
-  padding: 20px;
-  background: var(--paper-deep);
-  border: var(--rule);
-  box-shadow: 6px 6px 0 0 var(--ink);
-}
-
-.qr-overlay__title {
-  margin: 0;
-  font-weight: 700;
-  text-align: center;
-  color: var(--ink);
-}
-
-.qr-overlay__canvas {
-  width: 100%;
-  max-width: 320px;
-  height: auto;
-  image-rendering: pixelated; /* keep module edges crisp */
-  background: var(--paper);
-}
-
-.qr-overlay__hint {
-  margin: 0;
-  font-size: 0.85rem;
-  text-align: center;
-  color: var(--ink-soft);
-}
-
-.qr-overlay__actions {
-  justify-content: center;
-}
-
-/* Routine-steps overlay (views/savedRoutines.ts) — a wider, left-aligned card
-   whose list scrolls when a routine has many steps. Reuses the .qr-overlay base. */
-.steps-overlay__card {
-  align-items: stretch;
-  width: min(94vw, 460px);
-}
-
-.steps-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  width: 100%;
-  max-height: 60vh;
-  overflow-y: auto;
-  text-align: left;
-}
-
-.steps-routine {
-  margin: 10px 0 2px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-
-.steps-routine:first-child {
-  margin-top: 0;
-}
-
-.steps-section {
-  margin: 6px 0 2px;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-
-.steps-row {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  padding: 6px 0;
-  border-bottom: 1px dashed var(--ink-faint);
-}
-
-.steps-no {
-  flex: 0 0 auto;
-  min-width: 1.4em;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  color: var(--ink-soft);
-}
-
-.steps-body {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.steps-name {
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.steps-pres {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--ink-soft);
 }
 
 /* ─────────────────────────── BODY MAP ───────────────────────────
@@ -4946,110 +3096,48 @@ textarea:focus-visible {
   text-align: center;
 }
 
-/* =============================================================================
-   Session calendar — month grid of logged training days (Stats view).
-   ========================================================================== */
-
-.cal-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+/* Every muscle's reading as a list — the keyboard / screen-reader path to the
+   numbers the pointer-only 3D figure shows on tap. */
+.bodymap-all {
+  width: 100%;
+  max-width: 320px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink);
 }
 
-.cal-title {
-  font-family: var(--font-mono);
+.bodymap-all > summary {
+  cursor: pointer;
   font-weight: 700;
-  font-size: 13px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-}
-
-.cal-meta,
-.cal-hint {
-  margin: 4px 0 0;
-  font-family: var(--font-mono);
-  font-weight: 600;
   font-size: 11px;
-  letter-spacing: 0.02em;
   color: var(--ink-soft);
+  text-align: center;
+  padding: 6px 0;
 }
 
-.cal-grid {
-  margin-top: 10px;
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
+.bodymap-all-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
   gap: 4px;
 }
 
-.cal-weekday {
-  text-align: center;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-
-.cal-day {
-  position: relative;
+.bodymap-all-list > li {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 2px;
-  aspect-ratio: 1;
-  border: 1px solid transparent;
-  background: none;
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 12px;
-  color: var(--ink-soft);
-  cursor: default;
+  gap: 8px;
+  line-height: 1.35;
 }
 
-.cal-day.has-sessions {
-  color: var(--ink);
-  border-color: var(--ink);
-  cursor: pointer;
-}
-
-.cal-day.is-today .cal-day-num {
-  text-decoration: underline;
-}
-
-.cal-day.is-selected {
-  background: var(--ink);
-  color: var(--paper);
-}
-
-.cal-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--signal);
-}
-
-.cal-session {
-  margin-top: 10px;
-  padding-top: 8px;
-  border-top: 1px dashed var(--ink-soft);
-}
-
-.cal-session-name {
-  margin: 0;
-  font-weight: 700;
-}
-
-.cal-session-meta,
-.cal-session-muscles {
-  margin: 2px 0 0;
-  font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 11px;
-  letter-spacing: 0.02em;
-  color: var(--ink-soft);
+.bodymap-all-swatch {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--ink);
 }
 
 /* ─────────────── READINESS HOME · HISTORY · EXERCISE DETAIL ─────────────── */
@@ -5265,20 +3353,6 @@ textarea:focus-visible {
 .live-hud-end:hover {
   background: var(--paper);
   color: var(--ink);
-}
-
-.muscle-toggle-btn {
-  display: inline-flex;
-  align-items: center;
-}
-
-.muscle-dot {
-  display: inline-block;
-  width: 9px;
-  height: 9px;
-  border: 1.5px solid var(--ink);
-  margin-right: 6px;
-  flex: none;
 }
 
 /* ───────────────────── RADIAL PICKER (concentric rings) ─────────────────────

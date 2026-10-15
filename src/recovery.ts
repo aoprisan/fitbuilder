@@ -185,13 +185,6 @@ export function muscleRecovery(
   );
 }
 
-/** Overall body readiness: the average recovery across all muscle groups (0..1). */
-export function overallRecovery(recoveries: readonly MuscleRecovery[]): number {
-  if (recoveries.length === 0) return 1;
-  const sum = recoveries.reduce((acc, r) => acc + r.recovered, 0);
-  return sum / recoveries.length;
-}
-
 // Theme press inks as RGB: signal red (0.0) → ochre (0.5) → field green (1.0).
 const RED: readonly [number, number, number] = [0xd6, 0x42, 0x2b];
 const AMBER: readonly [number, number, number] = [0xc9, 0x96, 0x2a];
@@ -212,15 +205,6 @@ export function overallStatus(recovered: number): string {
   if (recovered >= 0.6) return "Ready";
   if (recovered >= 0.35) return "Recovering";
   return "Rest up";
-}
-
-/** One-line read on systemic load, with an estimate of hours back to rested. */
-export function systemicNote(readiness: number, hoursRemaining: number): string {
-  const eta = hoursRemaining > 0 ? ` ~${hoursRemaining}h to fully recover.` : "";
-  if (readiness >= 0.85) return "Systemic load is low — fully fresh for hard work.";
-  if (readiness >= 0.6) return "Systemic load is moderate — you can train hard." + eta;
-  if (readiness >= 0.35) return "Systemic load is building — keep total volume in check." + eta;
-  return "Systemic load is high — favour light work or a rest day." + eta;
 }
 
 /* =============================================================================
