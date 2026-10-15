@@ -92,7 +92,7 @@ app because it runs on `localhost`).
 | Content rating (IARC questionnaire) | Category *All Other App Types*. Answer **No** to violence, sexuality, language, controlled substances, gambling, user interaction/communication, sharing location, and digital purchases. Expected result: Everyone / PEGI 3. |
 | Target audience | 18 and over (simplest; avoids the Families policy). 13+ is also fine for a fitness log. |
 | News app | No. |
-| Data safety | **No data collected, no data shared.** All training data stays on the device; the app has no backend and no analytics in the Android build. Exports and shares only happen when the user starts them, through the system share sheet, which Play doesn't count as collection. See the fonts note below. |
+| Data safety | **No data collected, no data shared.** All training data stays on the device; the app has no backend and no analytics in the Android build. Exports and shares only happen when the user starts them, through the system share sheet, which Play doesn't count as collection. See the network note below. |
 | Health apps declaration | Health & fitness → activity/fitness tracking. No medical claims, no connection to Health Connect. |
 | Government app / financial features | No / none. |
 | Advertising ID | No (the app doesn't use it). |
@@ -102,11 +102,10 @@ in system settings (the app opens that screen once). Only `USE_EXACT_ALARM` need
 Play's exact-alarm declaration, and the app doesn't request it. If the console
 asks anyway, the use case is a user-set rest timer.
 
-**Fonts note:** the web bundle loads its typefaces from Google Fonts when online,
-which sends the device's IP address to Google, as any web request does. The
-privacy policy discloses it, and this is not normally reported as collection in
-Data safety. To remove it entirely, self-host the fonts (e.g. `@fontsource/*`
-packages) so the app makes no network requests at all.
+**Network:** the app makes no network requests of its own. Its typefaces are
+bundled (`src/fonts.ts`, from `@fontsource/*`), analytics is off in the native
+build, and the only online step is opening Claude when the user taps Analyze.
+That is why Data safety can honestly answer "no data collected".
 
 ## Store listing
 

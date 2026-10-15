@@ -61,3 +61,4 @@ Dependency-free PNG/PDF/share output in the "Training Ledger" visual language. `
 - `vite.config.ts` uses `base: "./"` (relative paths, for GitHub Pages / any sub-path) and defines `__BUILD_TIME__`.
 - **Capacitor plugin objects are Proxies that answer every property, `then` included** — never resolve a promise (or `return` from an `async` function) with a plugin itself, or it's treated as a thenable and rejects with `"X.then()" is not implemented`. Box it (`notify.ts` returns `{ ln: LocalNotifications }`).
 - Three.js is lazy-loaded only by the body map (`body3d.ts`); keep it out of the initial chunk.
+- **Fonts are bundled, not fetched** (`src/fonts.ts`, `@fontsource/*` per-weight CSS): the app makes no third-party requests, which the Play Data safety answers and privacy policy rely on. Add a new face/weight there, never as a Google Fonts `<link>`.

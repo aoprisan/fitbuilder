@@ -124,17 +124,12 @@
           disables or delays that alert.
         </li>
         <li>
-          <strong>Internet</strong> — used only to load the app's typefaces (see below). The app works
-          fully offline.
+          <strong>Internet</strong> — declared by the app framework. The app itself makes no network
+          requests: its typefaces and everything else ship inside the app, and it works fully
+          offline. The only time anything opens online is when you choose to — for example, opening
+          Claude from "Analyze with Claude".
         </li>
       </ul>
-
-      <h2>Typefaces</h2>
-      <p>
-        The app's fonts are loaded from Google Fonts. As with any web request, Google receives
-        standard technical information such as your IP address; no training data or identifiers from
-        the app are included. See Google's privacy policy for how it handles these requests.
-      </p>
 
       <h2>Anonymous usage analytics</h2>
       <p>

@@ -189,8 +189,30 @@ async function waitForServer(url, tries = 60) {
   throw new Error(`preview server did not start at ${url}`);
 }
 
-const FONTS =
-  '<link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Bungee&family=IBM+Plex+Mono:wght@500;700&display=swap" rel="stylesheet">';
+// The bundled @fontsource faces, inlined as data URLs (latin + latin-ext only,
+// which covers the Romanian captions), so the store graphics use exactly the
+// app's fonts and the script needs no network for them.
+function fontFaces(pkg, weights) {
+  return weights
+    .map((w) => {
+      const dir = join(ROOT, "node_modules/@fontsource", pkg);
+      const css = readFileSync(join(dir, `${w}.css`), "utf8");
+      return css
+        .split("@font-face")
+        .filter((block) => /-latin(-ext)?-\d+-normal\.woff2/.test(block))
+        .map((block) =>
+          "@font-face" +
+          block.replace(/src:[^;]+;/, (src) => {
+            const file = /url\(\.\/files\/([^)]+\.woff2)\)/.exec(src)?.[1];
+            const data = readFileSync(join(dir, "files", file)).toString("base64");
+            return `src: url(data:font/woff2;base64,${data}) format('woff2');`;
+          }),
+        )
+        .join("\n");
+    })
+    .join("\n");
+}
+const FONTS = `<style>${fontFaces("alfa-slab-one", [400])}${fontFaces("bungee", [400])}${fontFaces("ibm-plex-mono", [500, 700])}</style>`;
 
 async function renderHtml(browser, html, width, height, out) {
   const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
