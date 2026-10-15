@@ -35,9 +35,10 @@ import {
   sessionSetCount,
   sessionVolume,
 } from "../util";
+import { saveTemplate, templateFromSession } from "../templateStore";
 import { seedExercise } from "./exercise";
 import { renderSessionSummary } from "./sessionSummary";
-import { showUndo } from "./snackbar";
+import { showNotice, showUndo } from "./snackbar";
 
 registerTranslations({
   History: "Istoric",
@@ -112,6 +113,15 @@ registerTranslations({
   sessions: "sesiuni",
   "Download JSON": "Descarcă JSON",
   "Download XML": "Descarcă XML",
+  // — Templates —
+  "Save as template": "Salvează ca șablon",
+  "save {0} as a reusable template": "salvează {0} ca șablon reutilizabil",
+  "Template name": "Numele șablonului",
+  Save: "Salvează",
+  Cancel: "Anulează",
+  'Saved template "{0}" — start it from Train.': "S-a salvat șablonul „{0}” — pornește-l din Antrenament.",
+  "Couldn't save the template — storage is full.":
+    "Șablonul nu a putut fi salvat — spațiul de stocare este plin.",
 });
 
 /** Analysis scope: the open session, the last N logged, or everything. */
@@ -263,6 +273,60 @@ export function mountHistory(root: HTMLElement, nav: Nav): Cleanup {
     nav.go("live");
   }
 
+  /**
+   * "Save as template" — a button that reveals an inline name field (seeded
+   * with the session's name) and saves the session's exercises and working
+   * sets as a reusable template on the Train tab.
+   */
+  function saveTemplateControls(s: TrainingSession): { button: HTMLElement; form: HTMLElement } {
+    const label = s.name || t("this session");
+    const input = h("input", {
+      class: "plan-name-input",
+      type: "text",
+      value: s.name,
+      placeholder: t("Template name"),
+      aria: { label: t("Template name") },
+    });
+    const form = h("div", { class: "template-save", hidden: true });
+    const close = (): void => {
+      form.hidden = true;
+    };
+    const commit = (): void => {
+      const tpl = templateFromSession(s, input.value);
+      if (!saveTemplate(tpl)) {
+        showNotice(t("Couldn't save the template — storage is full."));
+        return;
+      }
+      close();
+      showNotice(t('Saved template "{0}" — start it from Train.').replace("{0}", tpl.name));
+    };
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") commit();
+      else if (e.key === "Escape") close();
+    });
+    form.append(
+      input,
+      h("button", { class: "btn btn-small btn-accent", type: "button", text: t("Save"), on: { click: commit } }),
+      h("button", { class: "btn btn-small", type: "button", text: t("Cancel"), on: { click: close } }),
+    );
+    const button = h("button", {
+      class: "btn btn-small",
+      type: "button",
+      text: t("Save as template"),
+      aria: { label: t("save {0} as a reusable template").replace("{0}", label) },
+      on: {
+        click: () => {
+          form.hidden = !form.hidden;
+          if (!form.hidden) {
+            input.focus();
+            input.select();
+          }
+        },
+      },
+    });
+    return { button, form };
+  }
+
   /** Unique logged movements in a session, as chips that open Exercise detail. */
   function exerciseChips(s: TrainingSession): HTMLElement | null {
     const seen = new Set<ExerciseKey>();
@@ -325,6 +389,7 @@ export function mountHistory(root: HTMLElement, nav: Nav): Cleanup {
     );
     const summary = renderSessionSummary(s, sessions);
     const chips = exerciseChips(s);
+    const { button: templateBtn, form: templateForm } = saveTemplateControls(s);
 
     return h("section", { class: "card saved-item" }, [
       h("div", { class: "saved-info" }, [
@@ -375,7 +440,9 @@ export function mountHistory(root: HTMLElement, nav: Nav): Cleanup {
             },
           },
         }),
+        ...(sets > 0 ? [templateBtn] : []),
       ]),
+      templateForm,
       ...(sets > 0
         ? [
             h("details", { class: "session-summary-toggle" }, [

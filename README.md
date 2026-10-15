@@ -1,36 +1,40 @@
 # Gym Log — Training Ledger
 
-A fast, **offline-first, no-account** workout app with a vintage "training
-ledger" look. Two sides in one app:
+A fast, **offline-first, no-account** strength-training log with a vintage
+"training ledger" look. It opens on a map of your body showing what's fatigued
+and what's recovered; one tap starts a session, and everything else (history,
+per-exercise stats, an analysis by Claude) hangs off the sessions you log.
 
-- **Trainers** author shareable, branded routine sheets and hand them to clients
-  as a PNG/PDF, a QR code, or a one-tap share link — no login required for the
-  student.
-- **Lifters** log sessions set-by-set with a rotary dial, rest timer, and
-  proximity-to-failure tracking, then see stats, weekly volume, and per-muscle
-  recovery — and can draft a starting plan with an AI assistant.
-
-Everything runs in the browser (or as an installable app). Your data stays on
-your device.
+Everything runs in the browser, as an installable PWA, or as a native
+Android / iOS app. Your data stays on your device.
 
 **▶ Try it: https://aoprisan.github.io/fitbuilder/** — install it from your
 browser's "Add to Home Screen" for an app-like, offline experience.
 
 ## Highlights
 
-- **Two modes, one app** — a Trainer surface (authoring + sharing) and a Student
-  surface (logging + analytics), switched from the header.
-- **Offline-first PWA** — installable, works with no connection; pure
-  `localStorage`, no backend, no sign-up.
-- **Share without a server** — export routines and session recaps as PNG/PDF,
-  generate a printable QR code, or send a self-contained share link.
-- **Live logging** — stopwatch, rest timer, rotary kg/reps dial, RIR (reps in
-  reserve) chips, and resume-after-reload.
-- **Analytics that matter** — progress charts per exercise, weekly sets per
-  muscle, and a recovery board with a systemic-fatigue gauge.
-- **Build a plan with Claude** — a copy/paste handoff (not an API): it drafts a
-  prompt, you paste the reply back, and it imports as a routine.
-- **Import** existing routines from `.xlsx` / `.xls` spreadsheets and text PDFs.
+- **Readiness body map** — a rotatable 3D figure coloured per muscle by
+  fatigue, strength, hypertrophy or efficiency, with a systemic readiness gauge
+  and recovery clocks for every muscle still recovering.
+- **Live logging** — a ring picker for the exercise, a stopwatch per set, a
+  rotary kg / reps dial with one-tap picks (plan, last set, last time,
+  progression), RIR (reps in reserve) chips, warm-up ramp, plate calculator,
+  PR flash, rest timer with a lock-screen alert, and resume after a reload.
+- **Templates** — save any logged session as a named template ("Push A") from
+  History and start it from the Train tab in one tap. The working sets you
+  saved become the plan, so each set is benchmarked against it.
+- **History & stats** — session cards (resume, repeat, save as template,
+  export), and per-exercise detail with an estimated 1RM, its trend, and the
+  reps you can expect at the loads you train.
+- **Analyze with Claude** — a share / copy handoff (not an API call): it builds
+  a Markdown report of one session or the last N and hands it to Claude, or to
+  any AI as a copied prompt.
+- **Exports & backup** — PNG / PDF session recaps and body maps, JSON / XML
+  archives, and a one-file backup / restore of everything on the device
+  (Settings).
+- **Reminders** — optional "fully recovered" and "time to train" notifications
+  that a paired watch can mirror.
+- **English / Romanian**, four themes, and a short first-run guide.
 
 ## Run locally
 
@@ -64,8 +68,8 @@ device — see the [Privacy Policy](./public/privacy.html) and
 
 Hosted builds can optionally enable **privacy-friendly, cookieless** analytics
 (Plausible-compatible) to measure anonymous, aggregate usage. It is **disabled
-unless configured**, sends no personal or training data, strips share-link
-contents, and honours Do-Not-Track. To enable it, set the build-time variables
+unless configured**, sends no personal or training data, drops the URL's
+query and hash, and honours Do-Not-Track. To enable it, set the build-time variables
 documented in [`.env.example`](./.env.example):
 
 ```bash

@@ -118,7 +118,7 @@ function coerceTarget(value: unknown): ExerciseTarget | undefined {
   return undefined;
 }
 
-function coerceExercise(value: unknown): LoggedExercise {
+export function coerceExercise(value: unknown): LoggedExercise {
   const rec = isRecord(value) ? value : {};
   const rawSets = rec["sets"];
   const sets = Array.isArray(rawSets) ? rawSets.map(coerceSet) : [];

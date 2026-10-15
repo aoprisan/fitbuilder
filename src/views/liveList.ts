@@ -6,8 +6,28 @@ import { muscleRecovery } from "../recovery";
 import { WEEKLY_PRODUCTIVE_MIN, weeklyMuscleVolume } from "../stats";
 import { setActiveLog } from "../state";
 import { MUSCLE_LABELS } from "../types";
-import { t } from "../i18n";
+import { registerTranslations, t } from "../i18n";
+import {
+  deleteTemplate,
+  loadTemplates,
+  saveTemplate,
+  sessionFromTemplate,
+  type WorkoutTemplate,
+} from "../templateStore";
 import type { LiveCtx } from "./liveState";
+import { showUndo } from "./snackbar";
+
+registerTranslations({
+  Templates: "Șabloane",
+  "Save a session as a template from History to start it here in one tap.":
+    "Salvează o sesiune ca șablon din Istoric ca s-o pornești de aici dintr-o atingere.",
+  "▶ {0}": "▶ {0}",
+  "start {0}": "pornește {0}",
+  "delete template {0}": "șterge șablonul {0}",
+  "{0} exercises": "{0} exerciții",
+  "1 exercise": "1 exercițiu",
+  'Deleted template "{0}".': "S-a șters șablonul „{0}”.",
+});
 
 /* =============================================================================
    The Train tab with no session open: Start, a one-tap repeat of the last
@@ -38,6 +58,7 @@ export function renderList(ctx: LiveCtx): void {
         on: { click: ctx.startSession },
       }),
     ]),
+    ...renderTemplates(ctx),
     ...(count > 0 ? renderTrainBrief(ctx) : []),
     ...(count > 0
       ? [
@@ -56,6 +77,75 @@ export function renderList(ctx: LiveCtx): void {
         ]
       : []),
   );
+}
+
+/** Start the session a template describes and land on its exercise list. */
+function startFromTemplate(ctx: LiveCtx, tpl: WorkoutTemplate): void {
+  setActiveLog(saveSession(sessionFromTemplate(tpl)));
+  clearProgress();
+  ctx.st.currentEx = null;
+  ctx.st.sub = "idle";
+  ctx.st.stage = "select";
+  ctx.render();
+}
+
+/**
+ * Saved workout templates, one tap each. Shown only once at least one exists;
+ * with sessions logged but no templates yet, a one-line hint says where they
+ * come from.
+ */
+function renderTemplates(ctx: LiveCtx): HTMLElement[] {
+  const templates = loadTemplates();
+  if (templates.length === 0) {
+    return loadSessions().length > 0
+      ? [
+          h("p", {
+            class: "plan-meta plan-note",
+            text: t("Save a session as a template from History to start it here in one tap."),
+          }),
+        ]
+      : [];
+  }
+  const rows = templates.map((tpl) =>
+    h("div", { class: "template-row" }, [
+      h("button", {
+        class: "btn template-start",
+        type: "button",
+        text: t("▶ {0}").replace("{0}", tpl.name),
+        aria: { label: t("start {0}").replace("{0}", tpl.name) },
+        on: { click: () => startFromTemplate(ctx, tpl) },
+      }),
+      h("span", {
+        class: "plan-meta",
+        text:
+          tpl.exercises.length === 1
+            ? t("1 exercise")
+            : t("{0} exercises").replace("{0}", String(tpl.exercises.length)),
+      }),
+      h("button", {
+        class: "btn btn-tiny danger",
+        type: "button",
+        text: "✕",
+        aria: { label: t("delete template {0}").replace("{0}", tpl.name) },
+        on: {
+          click: () => {
+            deleteTemplate(tpl.id);
+            ctx.render();
+            showUndo(t('Deleted template "{0}".').replace("{0}", tpl.name), () => {
+              saveTemplate(tpl);
+              ctx.render();
+            });
+          },
+        },
+      }),
+    ]),
+  );
+  return [
+    h("section", { class: "card templates-card" }, [
+      h("p", { class: "eyebrow", text: t("Templates") }),
+      ...rows,
+    ]),
+  ];
 }
 
 /**

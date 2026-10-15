@@ -1835,6 +1835,49 @@ textarea {
   color: var(--ink);
 }
 
+/* Train tab: saved workout templates, one start button per row. */
+.templates-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.templates-card .eyebrow {
+  margin: 0;
+}
+
+.template-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.template-row .template-start {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.template-row .plan-meta {
+  margin: 0;
+  white-space: nowrap;
+}
+
+/* History card: inline "save as template" name form. */
+.template-save {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.template-save input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .live-select .field + .field {
   margin-top: 14px;
 }
@@ -3816,4 +3859,39 @@ textarea:focus-visible {
 .notify-toggle .mode-toggle-btn {
   padding: 7px 9px 5px;
   letter-spacing: 0.08em;
+}
+
+/* ─────────────────────────── FIRST-RUN WELCOME ─────────────────────────── */
+
+.welcome-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.welcome-card .eyebrow {
+  margin: 0;
+}
+
+.welcome-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.welcome-steps {
+  margin: 0;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  line-height: 1.5;
+}
+
+.welcome-bw {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
