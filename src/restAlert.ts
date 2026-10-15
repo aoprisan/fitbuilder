@@ -2,10 +2,15 @@
  * Rest alert — an optional target for the between-sets rest clock. The clock
  * itself counts up freely; when a target is set, crossing it fires a short
  * audio/vibration cue (and a system notification when the page is hidden) so
- * the phone can sit face-down between sets. Best effort by design: browsers
- * may suspend timers on a locked phone, and every cue degrades silently when
- * its API is unavailable.
+ * the phone can sit face-down between sets.
+ *
+ * In the native (Capacitor) app the cue is a scheduled OS notification
+ * (`notify.ts`), so it fires on time with the phone locked. In a browser it is
+ * best effort: timers may be suspended on a locked phone, and every cue
+ * degrades silently when its API is unavailable.
  */
+
+import { isNativeApp, requestNotifyPermission } from "./notify";
 
 const KEY = "gymlog.restAlert";
 
@@ -69,24 +74,31 @@ export function cueRestOver(title: string, body: string): void {
   } catch {
     // Vibration unsupported — fine.
   }
+  if (!document.hidden || typeof Notification === "undefined") return;
   try {
-    if (document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
-      new Notification(title, { body });
-    }
+    if (Notification.permission !== "granted") return;
+    new Notification(title, { body });
   } catch {
-    // Notification constructor can throw on some platforms (e.g. Android web
-    // wants a ServiceWorkerRegistration) — the audible cue already fired.
+    // Android Chrome refuses the constructor and wants a service-worker
+    // notification instead; the audible cue already fired either way.
+    void navigator.serviceWorker?.getRegistration().then((reg) => reg?.showNotification(title, { body }));
   }
 }
 
 /**
  * Ask for notification permission the first time an alert target is chosen —
- * called from the chip tap so the request rides a user gesture.
+ * called from the chip tap so the request rides a user gesture. In the native
+ * app this is the OS prompt (plus Android's exact-alarm setting); resolves
+ * once the user has answered so the caller can re-arm the alert.
  */
-export function ensureNotifyPermission(): void {
+export async function ensureNotifyPermission(): Promise<void> {
+  if (isNativeApp()) {
+    await requestNotifyPermission();
+    return;
+  }
   try {
     if (typeof Notification !== "undefined" && Notification.permission === "default") {
-      void Notification.requestPermission();
+      await Notification.requestPermission();
     }
   } catch {
     // Unsupported — the in-page cues still work.

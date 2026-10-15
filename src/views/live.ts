@@ -36,6 +36,7 @@ import {
   REST_ALERT_OPTIONS,
   saveRestAlertSec,
 } from "../restAlert";
+import { cancelRestAlert, isNativeApp, scheduleRestAlert } from "../notify";
 import { detectPrs, priorSetsFor, type PrHit } from "../records";
 import { muscleRecovery, type MuscleRecovery, recoveryColor } from "../recovery";
 import { radialSelector, type RadialItem, type RadialRing } from "./radial";
@@ -757,6 +758,21 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   let restStartEpoch = 0;
   // Pending rest-alert cue (setTimeout id); armed on the resting screen, 0 otherwise.
   let restAlertTimer = 0;
+  // Whether a native rest-over notification may be pending (Capacitor app),
+  // so leaving the resting screen knows to cancel it.
+  let restNotifyArmed = false;
+  // Bumped on every (re-)arm so a slow native schedule result can't speak for
+  // an alert that has since been replaced.
+  let restArmGen = 0;
+  // Re-checks the rest alert when the page becomes visible again (set by the
+  // resting screen, null elsewhere). A phone that slept froze the JS timer
+  // along with the clock it counts on, so the pending timeout can fire long
+  // after unlock — this flips the dial the moment the screen is back.
+  let restOnWake: (() => void) | null = null;
+  const onVisibility = (): void => {
+    if (!document.hidden) restOnWake?.();
+  };
+  document.addEventListener("visibilitychange", onVisibility);
 
   // After a render, bring this element to the top of the viewport instead of
   // jumping to page top. Used during a running set / rest so the action button
@@ -805,6 +821,12 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       clearTimeout(restAlertTimer);
       restAlertTimer = 0;
     }
+    if (restNotifyArmed) {
+      restNotifyArmed = false;
+      cancelRestAlert();
+    }
+    restArmGen++;
+    restOnWake = null;
     // The session HUD's wall-clock tick; re-armed by the next renderHud().
     if (hudTimer) {
       clearInterval(hudTimer);
@@ -2370,20 +2392,43 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       // Rest alert — optional target for the rest clock. Crossing it flips the
       // dial hot and fires the audio/vibration/notification cue. The cue rides a
       // wall-clock timeout (not the rAF loop, which pauses in background tabs).
+      // In the native app the OS also gets a scheduled notification for the
+      // same instant — that is what fires with the phone locked, and when it
+      // was accepted it owns the sound, so the in-page cue stays quiet.
       let alertSec = loadRestAlertSec();
       const armAlert = (): void => {
         if (restAlertTimer) {
           clearTimeout(restAlertTimer);
           restAlertTimer = 0;
         }
-        const remainingMs = restStartEpoch + alertSec * 1000 - Date.now();
+        const gen = ++restArmGen;
+        const dueEpoch = restStartEpoch + alertSec * 1000;
+        const remainingMs = dueEpoch - Date.now();
         dialWrap.classList.toggle("rest-over", alertSec > 0 && remainingMs <= 0);
         // Already over when this screen rendered (e.g. resumed later): no late cue.
-        if (alertSec <= 0 || remainingMs <= 0) return;
+        if (alertSec <= 0 || remainingMs <= 0) {
+          if (restNotifyArmed) {
+            restNotifyArmed = false;
+            cancelRestAlert();
+          }
+          return;
+        }
+        let nativeOwnsCue = false;
+        if (isNativeApp()) {
+          restNotifyArmed = true;
+          void scheduleRestAlert(dueEpoch, t("Rest over"), t("Time to start your next set.")).then(
+            (ok) => {
+              if (gen === restArmGen) nativeOwnsCue = ok;
+            },
+          );
+        }
         restAlertTimer = window.setTimeout(() => {
           restAlertTimer = 0;
           dialWrap.classList.add("rest-over");
-          cueRestOver(t("Rest over"), t("Time to start your next set."));
+          // A timer suspended while the phone was locked fires on unlock —
+          // far too late to be useful, so only the dial flips.
+          const late = Date.now() - dueEpoch > 5000;
+          if (!nativeOwnsCue && !late) cueRestOver(t("Rest over"), t("Time to start your next set."));
         }, remainingMs);
       };
       const alertField = h("div", { class: "field rest-alert-field" });
@@ -2404,8 +2449,12 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
                   click: () => {
                     alertSec = sec;
                     saveRestAlertSec(sec);
-                    if (sec > 0) ensureNotifyPermission();
                     armAlert();
+                    // Re-arm once the permission prompt is answered, so a
+                    // just-granted native notification takes over the cue.
+                    if (sec > 0) void ensureNotifyPermission().then(() => {
+                      if (alertSec === sec && dialWrap.isConnected) armAlert();
+                    });
                     paintAlert();
                   },
                 },
@@ -2416,6 +2465,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
       };
       paintAlert();
       armAlert();
+      restOnWake = armAlert;
 
       const summary = state.activeLog
         ? renderSessionSummary(state.activeLog, loadSessions())
@@ -2730,6 +2780,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
   render();
   return () => {
     stopRaf();
+    document.removeEventListener("visibilitychange", onVisibility);
     fabObserver.disconnect();
     fab.remove();
   };

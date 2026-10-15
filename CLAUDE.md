@@ -12,7 +12,7 @@ npm run preview    # serve the production build locally
 ```
 
 - **No test runner and no linter/formatter are configured.** The only correctness gate is `npm run typecheck` (or `npm run build`, which runs it first). Run it after changes.
-- **Mobile (Capacitor):** `npm run build:mobile` (build + `cap sync`), then `npm run android` / `npm run ios`. See `MOBILE.md`. The `android/` native project is committed; `dist/` is copied into it by `cap sync`.
+- **Mobile (Capacitor):** `npm run build:mobile` (build + `cap sync`), then `npm run android` / `npm run ios` to open the IDE, or build from the CLI with `npm run build:android[:release]` / `npm run build:ios[:archive]` (`scripts/build-*.sh`, outputs in git-ignored `build-output/`). See `MOBILE.md`. The `android/` and `ios/` (Swift Package Manager, no CocoaPods) native projects are committed; `dist/` is copied into them by `cap sync`. Native builds are local only — don't add a CI job for them (the owner has limited Actions minutes).
 - **TypeScript is strict**, with `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noUnusedLocals/Parameters`, `isolatedModules`, and `verbatimModuleSyntax`. Use `import type { ... }` for type-only imports, and expect array/index access to be `T | undefined`.
 
 ## Architecture
@@ -41,6 +41,7 @@ One domain: **`TrainingSession`** (logged exercises → `WorkSet`s of reps/kg/du
 - **Resume** (`liveProgress.ts`, key `gymlog.liveProgress`): snapshots the in-flight live flow (which session, stage/sub, pending set values, running timers) so a reload / phone-lock resumes mid-set. Body's CTA and History's Resume respect it (`loadProgress`/`clearProgress`).
 - **Derived analytics over logged history:** `effort.ts` (effort points, hydration/protein/calorie heuristics, RIR-weighted `stimulusProximity`/`fatigueProximity`), `recovery.ts` (per-muscle recovery clocks from `RECOVERY_HOURS` + demand scaling, plus the systemic gauge), `stats.ts` (progress series, `epley1RM`/`bestOneRm`/`repCapacity`, weekly volume landmarks), `records.ts` (PR detection), `overload.ts` + `warmup.ts` (progression nudges and ramp), `bodyMap.ts` (the four per-muscle map metrics). Each is UI-free and consumed by the views.
 - `src/state.ts` holds the one in-memory `AppState`: `activeLog` (the open live session). Everything else is read from storage at mount time.
+- **Rest alert / notifications:** `restAlert.ts` (target choice + in-page beep/vibration/Web Notification) and `notify.ts` (native only: schedules the rest-over as a `@capacitor/local-notifications` OS notification so it fires with the phone locked; lazy-imported, no-ops in a browser). `views/live.ts` arms it on the resting screen and cancels it from `stopRaf()`.
 - Other localStorage keys: `gymlog.oneRm` (user-tested maxes), `gymlog.bodyweight` (set in Settings; feeds protein/calorie estimates), rest-alert and theme/language prefs. `backup.ts` bundles/restores every raw `gymlog.*` entry — it's schema-agnostic on purpose.
 
 ### Claude handoff (no API, no backend)
@@ -58,4 +59,5 @@ Dependency-free PNG/PDF/share output in the "Training Ledger" visual language. `
 - **Naming is inconsistent and that's expected:** the repo dir is `fitbuilder`, the package is `gym-log-exercise-builder`, the UI brand is "GYM LOG". Match whatever the surrounding code/file uses; don't "unify" them.
 - Much UI text is bilingual **English/Romanian** — new user-facing strings need a Romanian translation registered next to them. Sample legacy fixtures in the repo root (`RUTINE FLUX 2026.xlsx`, `rutine.pdf`) are leftovers from the deleted import pipeline; they're harmless.
 - `vite.config.ts` uses `base: "./"` (relative paths, for GitHub Pages / any sub-path) and defines `__BUILD_TIME__`.
+- **Capacitor plugin objects are Proxies that answer every property, `then` included** — never resolve a promise (or `return` from an `async` function) with a plugin itself, or it's treated as a thenable and rejects with `"X.then()" is not implemented`. Box it (`notify.ts` returns `{ ln: LocalNotifications }`).
 - Three.js is lazy-loaded only by the body map (`body3d.ts`); keep it out of the initial chunk.
