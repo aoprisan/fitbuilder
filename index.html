@@ -4,13 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
-    <meta name="theme-color" content="#efe7d4" />
+    <meta name="theme-color" content="#0f1115" />
     <!-- Pin the saved (or OS-preferred) theme before first paint to avoid a
          flash of the wrong stock. Mirrors src/theme.ts — keep the two in sync. -->
     <script>
       (function () {
         try {
           var colors = {
+            sport: "#0f1115",
+            "sport-light": "#f3f4f6",
             light: "#efe7d4",
             dark: "#14110b",
             blueprint: "#15315c",
@@ -21,8 +23,8 @@
             stored && colors[stored]
               ? stored
               : matchMedia("(prefers-color-scheme: dark)").matches
-                ? "dark"
-                : "light";
+                ? "sport"
+                : "sport-light";
           document.documentElement.setAttribute("data-theme", theme);
           var meta = document.querySelector('meta[name="theme-color"]');
           if (meta) meta.setAttribute("content", colors[theme]);

@@ -10,6 +10,8 @@
  *
  * Default theme: Alfa Slab One (display), Bungee (stamp), IBM Plex Mono (body).
  * The alternate themes add Oswald / Saira Stencil One / Anton (see styles.css).
+ * The Sport themes (the default) use Inter for text and Barlow Condensed for
+ * display; `sportFonts.css` pins their bold cuts as weight-free aliases.
  */
 import "@fontsource/alfa-slab-one/400.css";
 import "@fontsource/bungee/400.css";
@@ -22,3 +24,8 @@ import "@fontsource/oswald/600.css";
 import "@fontsource/oswald/700.css";
 import "@fontsource/saira-stencil-one/400.css";
 import "@fontsource/anton/400.css";
+import "@fontsource/inter/400.css";
+import "@fontsource/inter/500.css";
+import "@fontsource/inter/600.css";
+import "@fontsource/inter/700.css";
+import "./sportFonts.css";
