@@ -4,6 +4,9 @@
    Fat wood-type slab headlines, rubber-stamp accents, hard block shadows,
    ruled-ledger rows and tally marks. Sibling to the "pullups" timer — same
    print shop, different press.
+
+   The default skin is now SPORT (the last section of this file), a modern
+   sports-app restyle of the same markup; the ledger lives on as themes.
    ========================================================================== */
 
 :root {
@@ -42,7 +45,35 @@
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
   --app-max: 660px;
-  --rule: 2.5px solid var(--ink);
+  --rule: var(--bw-3) solid var(--edge);
+
+  /* ── Print mechanics as tokens ───────────────────────────────────────────
+     Every rule below paints its ink borders, hard block shadows, dashed
+     separators and small type through these, so a theme can swap the whole
+     "letterpress" construction (not just the colours) — the Sport skin at the
+     bottom of this file does. The ledger values here are the original ones. */
+  --edge: var(--ink);          /* structural ink line */
+  --sep: var(--ink-faint);     /* dashed in-card separator colour */
+  --dash: dashed;
+  --bw-1: 1.5px;
+  --bw-2: 2px;
+  --bw-3: 2.5px;
+  --block-1: 1px 1px 0 0 var(--ink);
+  --block-2: 2px 2px 0 0 var(--ink);
+  --block-3: 3px 3px 0 0 var(--ink);
+  --block-4: 4px 4px 0 0 var(--ink);
+  --block-5: 5px 5px 0 0 var(--ink);
+  --block-6: 6px 6px 0 0 var(--ink);
+  --block-7: 7px 7px 0 0 var(--ink);
+  --block-8: 8px 8px 0 0 var(--ink);
+  --block-10: 10px 10px 0 0 var(--ink);
+  --fs-8: 8px;
+  --fs-8_5: 8.5px;
+  --fs-9: 9px;
+  --fs-9_5: 9.5px;
+  --fs-10: 10px;
+  --fs-10_5: 10.5px;
+  --fs-11: 11px;
   --ease: cubic-bezier(0.16, 0.84, 0.36, 1);
 
   color-scheme: light;
@@ -243,22 +274,22 @@ textarea {
 .mode-toggle {
   display: inline-flex;
   align-self: flex-start;
-  border: 2px solid var(--ink);
+  border: var(--bw-2) solid var(--edge);
   background: var(--paper-deep);
-  box-shadow: 3px 3px 0 0 var(--ink);
+  box-shadow: var(--block-3);
 }
 
 .mode-toggle-btn {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.16em;
   text-transform: uppercase;
   padding: 7px 14px 5px;
   background: transparent;
   color: var(--ink-soft);
   border: none;
-  border-left: 2px solid var(--ink);
+  border-left: var(--bw-2) solid var(--edge);
   cursor: pointer;
   transition: background 120ms ease, color 120ms ease;
 }
@@ -277,8 +308,8 @@ textarea {
   color: var(--paper);
 }
 
-/* The theme toggle carries four options — too wide for one row in the desktop
-   sidebar (264px) — so it stacks 2×2. Internal dividers are redrawn per cell
+/* The theme toggle carries six options — too wide for one row in the desktop
+   sidebar (264px) — so it stacks two per row. Internal dividers are redrawn per cell
    since the segmented border-left logic above assumes a single row. */
 .theme-toggle {
   display: grid;
@@ -289,14 +320,12 @@ textarea {
   border: none;
 }
 
-.theme-toggle .mode-toggle-btn:nth-child(2),
-.theme-toggle .mode-toggle-btn:nth-child(4) {
-  border-left: 2px solid var(--ink);
+.theme-toggle .mode-toggle-btn:nth-child(even) {
+  border-left: var(--bw-2) solid var(--edge);
 }
 
-.theme-toggle .mode-toggle-btn:nth-child(3),
-.theme-toggle .mode-toggle-btn:nth-child(4) {
-  border-top: 2px solid var(--ink);
+.theme-toggle .mode-toggle-btn:nth-child(n + 3) {
+  border-top: var(--bw-2) solid var(--edge);
 }
 
 /* Brand + settings gear share the top line, so the gear costs no extra height. */
@@ -316,9 +345,9 @@ textarea {
   width: 44px;
   height: 44px;
   margin-top: 4px;
-  border: 2px solid var(--ink);
+  border: var(--bw-2) solid var(--edge);
   background: var(--paper-deep);
-  box-shadow: 3px 3px 0 0 var(--ink);
+  box-shadow: var(--block-3);
   color: var(--ink);
   cursor: pointer;
   transition: transform 120ms var(--ease), background 120ms ease, color 120ms ease,
@@ -332,7 +361,7 @@ textarea {
 
 .settings-btn:active {
   transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0 0 var(--ink);
+  box-shadow: var(--block-1);
 }
 
 .settings-btn[aria-expanded="true"] {
@@ -378,7 +407,7 @@ textarea {
   width: min(380px, 100%);
   background: var(--paper);
   border: var(--rule);
-  box-shadow: 8px 8px 0 0 var(--ink);
+  box-shadow: var(--block-8);
   padding: 20px 22px 24px;
   transform: translateY(10px) scale(0.985);
   transition: transform 200ms var(--ease);
@@ -417,8 +446,8 @@ textarea {
   line-height: 1;
   color: var(--ink);
   background: var(--paper-deep);
-  border: 2px solid var(--ink);
-  box-shadow: 2px 2px 0 0 var(--ink);
+  border: var(--bw-2) solid var(--edge);
+  box-shadow: var(--block-2);
   cursor: pointer;
   transition: background 120ms ease, color 120ms ease;
 }
@@ -436,7 +465,7 @@ textarea {
   display: block;
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--brick);
@@ -446,7 +475,7 @@ textarea {
 .settings-disclaimer {
   margin: 0 0 10px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-11);
   line-height: 1.5;
   color: var(--ink-soft);
 }
@@ -463,7 +492,7 @@ textarea {
 .settings-link {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--brick);
@@ -526,7 +555,7 @@ textarea {
   white-space: nowrap;
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 9.5px;
+  font-size: var(--fs-9_5);
   letter-spacing: 0.2em;
   color: var(--brick);
   margin-top: 11px;
@@ -567,7 +596,7 @@ textarea {
   grid-auto-columns: 1fr;
   border: var(--rule);
   background: var(--paper-deep);
-  box-shadow: 4px 4px 0 0 var(--ink);
+  box-shadow: var(--block-4);
 }
 
 .nav-btn {
@@ -597,7 +626,7 @@ textarea {
 }
 
 .nav-label {
-  font-size: 8.5px;
+  font-size: var(--fs-8_5);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -687,7 +716,7 @@ textarea {
 .eyebrow {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.32em;
   text-transform: uppercase;
   color: var(--brick);
@@ -716,7 +745,7 @@ textarea {
 .card {
   background: var(--paper-deep);
   border: var(--rule);
-  box-shadow: 5px 5px 0 0 var(--ink);
+  box-shadow: var(--block-5);
   padding: 18px;
   position: relative;
 }
@@ -753,7 +782,7 @@ textarea {
 .plan-meta {
   font-family: var(--font-mono);
   font-weight: 600;
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink-soft);
@@ -778,14 +807,14 @@ textarea {
   color: var(--ink-soft);
   text-align: center;
   padding: 24px 16px;
-  border: 2px dashed var(--ink-faint);
+  border: var(--bw-2) var(--dash) var(--sep);
 }
 
 /* Stamped registration marks above the message — "nothing on file". */
 .empty::before {
   content: "✶  ✶  ✶";
   display: block;
-  font-size: 9px;
+  font-size: var(--fs-9);
   letter-spacing: 0.3em;
   color: var(--brick);
   opacity: 0.7;
@@ -809,7 +838,7 @@ textarea {
   background: var(--paper);
   color: var(--ink);
   border: var(--rule);
-  box-shadow: 4px 4px 0 0 var(--ink);
+  box-shadow: var(--block-4);
   cursor: pointer;
   touch-action: manipulation;
   transition: transform 90ms ease, box-shadow 90ms ease, background 150ms ease,
@@ -821,24 +850,24 @@ textarea {
 .btn:hover {
   background: var(--paper-ash);
   transform: translate(-2px, -2px);
-  box-shadow: 6px 6px 0 0 var(--ink);
+  box-shadow: var(--block-6);
 }
 
 .btn:active {
   transform: translate(3px, 3px);
-  box-shadow: 1px 1px 0 0 var(--ink);
+  box-shadow: var(--block-1);
 }
 
 .btn:disabled {
   opacity: 0.42;
   cursor: not-allowed;
-  box-shadow: 2px 2px 0 0 var(--ink);
+  box-shadow: var(--block-2);
 }
 
 .btn:disabled:hover,
 .btn:disabled:active {
   transform: none;
-  box-shadow: 2px 2px 0 0 var(--ink);
+  box-shadow: var(--block-2);
 }
 
 .btn-primary {
@@ -860,40 +889,40 @@ textarea {
 }
 
 .btn-small {
-  font-size: 11px;
+  font-size: var(--fs-11);
   padding: 9px 12px 7px;
-  box-shadow: 3px 3px 0 0 var(--ink);
+  box-shadow: var(--block-3);
 }
 
 .btn-small:active {
-  box-shadow: 1px 1px 0 0 var(--ink);
+  box-shadow: var(--block-1);
 }
 
 .btn-tiny {
-  font-size: 10px;
+  font-size: var(--fs-10);
   padding: 6px 9px 5px;
-  box-shadow: 2px 2px 0 0 var(--ink);
+  box-shadow: var(--block-2);
 }
 
 .btn-tiny:active {
-  box-shadow: 1px 1px 0 0 var(--ink);
+  box-shadow: var(--block-1);
 }
 
 .btn-jumbo {
   font-size: clamp(18px, 5vw, 24px);
   letter-spacing: 0.06em;
   padding: 22px 20px 19px;
-  box-shadow: 7px 7px 0 0 var(--ink);
+  box-shadow: var(--block-7);
   width: 100%;
 }
 
 .btn-jumbo:hover {
   transform: translate(-2px, -2px);
-  box-shadow: 10px 10px 0 0 var(--ink);
+  box-shadow: var(--block-10);
 }
 
 .btn-jumbo:active {
-  box-shadow: 3px 3px 0 0 var(--ink);
+  box-shadow: var(--block-3);
   transform: translate(4px, 4px);
 }
 
@@ -913,14 +942,14 @@ textarea {
 .icon-btn {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   padding: 7px 10px;
   background: var(--paper);
   color: var(--ink);
-  border: 2px solid var(--ink);
-  box-shadow: 2px 2px 0 0 var(--ink);
+  border: var(--bw-2) solid var(--edge);
+  box-shadow: var(--block-2);
   cursor: pointer;
   transition: transform 80ms ease, box-shadow 80ms ease, background 140ms ease,
     color 140ms ease;
@@ -928,7 +957,7 @@ textarea {
 
 .icon-btn:hover {
   transform: translate(-1px, -1px);
-  box-shadow: 3px 3px 0 0 var(--ink);
+  box-shadow: var(--block-3);
 }
 
 .icon-btn:active {
@@ -943,7 +972,7 @@ textarea {
 
 .icon-btn:disabled:hover {
   transform: none;
-  box-shadow: 2px 2px 0 0 var(--ink);
+  box-shadow: var(--block-2);
 }
 
 /* Steppers (+ / −) flanking number inputs. */
@@ -955,7 +984,7 @@ textarea {
   flex-shrink: 0;
   background: var(--paper);
   color: var(--ink);
-  border: 2.5px solid var(--ink);
+  border: var(--bw-3) solid var(--edge);
   cursor: pointer;
   transition: background 130ms ease, color 130ms ease;
 }
@@ -976,7 +1005,7 @@ textarea {
 .field-label {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.24em;
   text-transform: uppercase;
   color: var(--brick);
@@ -990,7 +1019,7 @@ textarea {
   font-size: 16px;
   color: var(--ink);
   background: var(--paper);
-  border: 2.5px solid var(--ink);
+  border: var(--bw-3) solid var(--edge);
   padding: 11px 12px;
   width: 100%;
   border-radius: 0;
@@ -1027,7 +1056,7 @@ textarea {
 .toggle {
   display: flex;
   flex-wrap: wrap;
-  border: 2.5px solid var(--ink);
+  border: var(--bw-3) solid var(--edge);
   background: var(--paper);
   margin: 14px 0;
 }
@@ -1035,7 +1064,7 @@ textarea {
 .toggle-btn {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   flex: 1 1 33%;
@@ -1075,7 +1104,7 @@ textarea {
   margin: 0;
   font-family: var(--font-mono);
   font-weight: 600;
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.02em;
   color: var(--ink-soft);
 }
@@ -1182,7 +1211,7 @@ textarea {
 }
 
 .preset-src {
-  font-size: 9px;
+  font-size: var(--fs-9);
   letter-spacing: 0.1em;
 }
 
@@ -1216,7 +1245,7 @@ textarea {
 
 .set-preview-delta {
   font-weight: 600;
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--ink-soft);
 }
 
@@ -1261,7 +1290,7 @@ textarea {
   font-size: 16px;
   color: var(--ink);
   background: var(--paper);
-  border: 2.5px solid var(--ink);
+  border: var(--bw-3) solid var(--edge);
   padding: 9px 12px;
   width: 100%;
   margin: 0 0 12px;
@@ -1277,7 +1306,7 @@ textarea {
   padding: 8px 10px;
   background: var(--paper);
   color: var(--ink);
-  border: 2.5px solid var(--ink);
+  border: var(--bw-3) solid var(--edge);
 }
 
 /* Pre-training "muscle not recovered" caution on the live select screen. */
@@ -1312,7 +1341,7 @@ textarea {
 
 .recovery-warn-note {
   margin: 8px 0 0;
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--ink-soft);
 }
 
@@ -1336,7 +1365,7 @@ textarea {
 .muscle-share-name {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--ink-soft);
@@ -1345,7 +1374,7 @@ textarea {
 .muscle-share-bar {
   height: 10px;
   background: var(--paper-deep);
-  border: 2px solid var(--ink);
+  border: var(--bw-2) solid var(--edge);
   overflow: hidden;
 }
 
@@ -1371,7 +1400,7 @@ textarea {
 .badge {
   display: inline-block;
   font-family: var(--font-stamp);
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   padding: 5px 9px 3px;
@@ -1460,7 +1489,7 @@ textarea {
   flex: 1 1 100%;
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--brick);
@@ -1496,7 +1525,7 @@ textarea {
 .session-date {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--brick);
@@ -1508,7 +1537,7 @@ textarea {
 .now-eyebrow {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.3em;
   text-transform: uppercase;
   color: var(--brick);
@@ -1520,7 +1549,7 @@ textarea {
   margin: 0 0 2px;
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.3em;
   text-transform: uppercase;
   color: var(--navy);
@@ -1530,7 +1559,7 @@ textarea {
   margin: 8px 0 2px;
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--brick);
@@ -1637,7 +1666,7 @@ textarea {
 .dial-label {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.3em;
   text-transform: uppercase;
   color: var(--brick);
@@ -1797,7 +1826,7 @@ textarea {
 .dial-input-unit {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 9px;
+  font-size: var(--fs-9);
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--brick);
@@ -1921,8 +1950,8 @@ textarea {
   padding: 12px 16px 10px;
   color: var(--on-press);
   background: var(--signal);
-  border: 2px solid var(--ink);
-  box-shadow: 4px 4px 0 0 var(--ink);
+  border: var(--bw-2) solid var(--edge);
+  box-shadow: var(--block-4);
   cursor: pointer;
   opacity: 0;
   visibility: hidden;
@@ -1940,7 +1969,7 @@ textarea {
 }
 
 .live-fab:active {
-  box-shadow: 2px 2px 0 0 var(--ink);
+  box-shadow: var(--block-2);
   transform: translate(2px, 2px);
 }
 
@@ -1967,7 +1996,7 @@ textarea {
   padding: 11px 14px;
   background: var(--ink);
   color: var(--paper);
-  border: 2px solid var(--ink);
+  border: var(--bw-2) solid var(--edge);
   box-shadow: 4px 4px 0 0 rgba(0, 0, 0, 0.35);
   opacity: 0;
   visibility: hidden;
@@ -2014,7 +2043,7 @@ textarea {
 .live-done-list {
   margin-top: 18px;
   padding-top: 14px;
-  border-top: 2px dashed var(--ink-faint);
+  border-top: var(--bw-2) var(--dash) var(--sep);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -2032,7 +2061,7 @@ textarea {
 }
 
 .live-done-muscle {
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ink-faint);
@@ -2063,7 +2092,7 @@ textarea {
   gap: 12px;
   padding: 10px 12px;
   background: var(--paper);
-  border: 2px solid var(--ink);
+  border: var(--bw-2) solid var(--edge);
   border-left: 6px solid var(--ink);
 }
 
@@ -2170,7 +2199,7 @@ textarea {
 .effort-eyebrow {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.3em;
   text-transform: uppercase;
   color: var(--ink-soft);
@@ -2188,7 +2217,7 @@ textarea {
   margin-top: 10px;
   height: 16px;
   background: var(--paper-deep);
-  border: 2.5px solid var(--ink);
+  border: var(--bw-3) solid var(--edge);
   overflow: hidden;
 }
 
@@ -2215,13 +2244,13 @@ textarea {
   gap: 12px;
   margin-top: 14px;
   padding-top: 12px;
-  border-top: 2px dashed var(--ink-faint);
+  border-top: var(--bw-2) var(--dash) var(--sep);
 }
 
 .hydration-label {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.3em;
   text-transform: uppercase;
   color: var(--navy);
@@ -2246,7 +2275,7 @@ textarea {
 .summary-muscles {
   margin-top: 14px;
   padding-top: 12px;
-  border-top: 2px dashed var(--ink-faint);
+  border-top: var(--bw-2) var(--dash) var(--sep);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -2255,7 +2284,7 @@ textarea {
 .summary-label {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.3em;
   text-transform: uppercase;
   color: var(--ink-soft);
@@ -2295,13 +2324,13 @@ textarea {
   gap: 12px;
   margin-top: 14px;
   padding-top: 12px;
-  border-top: 2px dashed var(--ink-faint);
+  border-top: var(--bw-2) var(--dash) var(--sep);
 }
 
 .protein-label {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.3em;
   text-transform: uppercase;
   color: var(--pine);
@@ -2321,13 +2350,13 @@ textarea {
   gap: 12px;
   margin-top: 14px;
   padding-top: 12px;
-  border-top: 2px dashed var(--ink-faint);
+  border-top: var(--bw-2) var(--dash) var(--sep);
 }
 
 .calories-label {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.3em;
   text-transform: uppercase;
   color: var(--signal);
@@ -2346,12 +2375,12 @@ textarea {
   list-style: none;
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--brick);
   padding: 6px 0;
-  border-top: 2px dashed var(--ink-faint);
+  border-top: var(--bw-2) var(--dash) var(--sep);
 }
 
 .session-summary-toggle > summary::-webkit-details-marker {
@@ -2381,7 +2410,7 @@ textarea {
 .progress {
   height: 16px;
   background: var(--paper);
-  border: 2.5px solid var(--ink);
+  border: var(--bw-3) solid var(--edge);
   overflow: hidden;
 }
 
@@ -2429,7 +2458,7 @@ textarea {
 
 .stat-chart-hint {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-11);
   line-height: 1.4;
   color: var(--ink-soft);
 }
@@ -2455,7 +2484,7 @@ textarea {
 .stat-chart-delta {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   white-space: nowrap;
@@ -2477,7 +2506,7 @@ textarea {
   display: block;
   width: 100%;
   height: auto;
-  border: 2px solid var(--ink);
+  border: var(--bw-2) solid var(--edge);
   background: var(--paper);
 }
 
@@ -2495,7 +2524,7 @@ textarea {
 .stat-chart-peak {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 9px;
+  font-size: var(--fs-9);
   fill: var(--ink-faint);
 }
 
@@ -2511,7 +2540,7 @@ textarea {
 .stat-chart-ref-label {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 9px;
+  font-size: var(--fs-9);
   fill: var(--ink-soft);
 }
 
@@ -2542,7 +2571,7 @@ textarea {
   justify-content: space-between;
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 9.5px;
+  font-size: var(--fs-9_5);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ink-faint);
@@ -2593,7 +2622,7 @@ textarea {
 .tally-unit {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--ink-soft);
@@ -2612,7 +2641,7 @@ textarea {
 .bench-sets {
   margin-top: 12px;
   padding-top: 10px;
-  border-top: 2px dashed var(--ink-faint);
+  border-top: var(--bw-2) var(--dash) var(--sep);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -2657,7 +2686,7 @@ textarea {
   margin-left: auto;
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.04em;
   text-align: right;
   color: var(--mustard);
@@ -2684,7 +2713,7 @@ textarea {
 .summary-adherence {
   margin-top: 14px;
   padding-top: 12px;
-  border-top: 2px dashed var(--ink-faint);
+  border-top: var(--bw-2) var(--dash) var(--sep);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -2755,7 +2784,7 @@ textarea {
   flex: none;
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 9px;
+  font-size: var(--fs-9);
   letter-spacing: 0.1em;
   padding: 2px 5px 1px;
   border: 1.5px solid var(--signal);
@@ -2777,7 +2806,7 @@ textarea {
 
 .status:not(:empty) {
   padding: 10px 12px;
-  border: 2px solid var(--ink);
+  border: var(--bw-2) solid var(--edge);
   border-left-width: 6px;
 }
 
@@ -2913,7 +2942,7 @@ textarea:focus-visible {
   }
 
   .brand::after {
-    font-size: 9px;
+    font-size: var(--fs-9);
     letter-spacing: 0.22em;
     margin-top: 13px;
   }
@@ -2926,14 +2955,14 @@ textarea:focus-visible {
   .mode-toggle-btn {
     flex: 1;
     padding: 10px 12px 8px;
-    font-size: 10.5px;
+    font-size: var(--fs-10_5);
   }
 
   /* Nav rail — vertical, icons left, label right, ledger-row separators. */
   .nav {
     grid-auto-flow: row;
     grid-auto-columns: auto;
-    box-shadow: 5px 5px 0 0 var(--ink);
+    box-shadow: var(--block-5);
   }
 
   .nav-btn {
@@ -3069,7 +3098,7 @@ textarea:focus-visible {
   min-width: 0;
   padding-left: 4px;
   padding-right: 4px;
-  font-size: 9.5px;
+  font-size: var(--fs-9_5);
   letter-spacing: 0.06em;
 }
 
@@ -3084,9 +3113,9 @@ textarea:focus-visible {
   align-items: center;
   justify-content: center;
   min-height: 200px;
-  border: 2px solid var(--ink);
+  border: var(--bw-2) solid var(--edge);
   background: var(--paper-deep);
-  box-shadow: 4px 4px 0 0 var(--ink);
+  box-shadow: var(--block-4);
 }
 
 .bodymap-canvas {
@@ -3128,7 +3157,7 @@ textarea:focus-visible {
 
 .bodysvg-label {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--fs-9);
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -3163,12 +3192,12 @@ textarea:focus-visible {
 .bodymap-legend-bar {
   flex: 1 1 auto;
   height: 12px;
-  border: 2px solid var(--ink);
+  border: var(--bw-2) solid var(--edge);
 }
 
 .bodymap-legend-end {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--fs-9);
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -3196,7 +3225,7 @@ textarea:focus-visible {
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--ink-soft);
   text-align: center;
   padding: 6px 0;
@@ -3222,7 +3251,7 @@ textarea:focus-visible {
   flex: 0 0 auto;
   width: 12px;
   height: 12px;
-  border: 2px solid var(--ink);
+  border: var(--bw-2) solid var(--edge);
 }
 
 /* ─────────────── READINESS HOME · HISTORY · EXERCISE DETAIL ─────────────── */
@@ -3249,8 +3278,8 @@ textarea:focus-visible {
   font-family: var(--font-stamp);
   font-size: 15px;
   color: var(--on-press);
-  border: 2.5px solid var(--ink);
-  box-shadow: 4px 4px 0 0 var(--ink);
+  border: var(--bw-3) solid var(--edge);
+  box-shadow: var(--block-4);
   padding: 8px 10px 6px;
   flex: none;
 }
@@ -3295,7 +3324,7 @@ textarea:focus-visible {
 .exercise-index-count {
   font-family: var(--font-mono);
   font-weight: 600;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ink-soft);
@@ -3347,7 +3376,7 @@ textarea:focus-visible {
 
 .past-session {
   padding: 10px 0;
-  border-top: 1.5px dashed var(--ink-faint);
+  border-top: var(--bw-1) var(--dash) var(--sep);
 }
 
 .past-session:first-child {
@@ -3380,7 +3409,7 @@ textarea:focus-visible {
   background: var(--ink);
   color: var(--paper);
   border: var(--rule);
-  box-shadow: 4px 4px 0 0 var(--ink);
+  box-shadow: var(--block-4);
   padding: 9px 12px;
 }
 
@@ -3414,7 +3443,7 @@ textarea:focus-visible {
 .live-hud-sets {
   font-family: var(--font-mono);
   font-weight: 600;
-  font-size: 9px;
+  font-size: var(--fs-9);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   opacity: 0.65;
@@ -3425,7 +3454,7 @@ textarea:focus-visible {
 .live-hud-end {
   flex: none;
   font-family: var(--font-stamp);
-  font-size: 10px;
+  font-size: var(--fs-10);
   text-transform: uppercase;
   background: transparent;
   color: var(--paper);
@@ -3554,7 +3583,7 @@ textarea:focus-visible {
   width: 30.7%;
   aspect-ratio: 1;
   border-radius: 50%;
-  border: 2.5px solid var(--ink);
+  border: var(--bw-3) solid var(--edge);
   background: var(--brick-fill);
   color: var(--on-press);
   display: flex;
@@ -3565,7 +3594,7 @@ textarea:focus-visible {
   padding: 6px;
   cursor: pointer;
   text-align: center;
-  box-shadow: 2px 2px 0 0 var(--ink);
+  box-shadow: var(--block-2);
   transition: transform 120ms var(--ease);
 }
 
@@ -3590,7 +3619,7 @@ textarea:focus-visible {
 .radial-hub-sub {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 8px;
+  font-size: var(--fs-8);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   opacity: 0.75;
@@ -3607,7 +3636,7 @@ textarea:focus-visible {
 .radial-hub-action {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 9px;
+  font-size: var(--fs-9);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   border-top: 1.5px solid currentcolor;
@@ -3628,7 +3657,7 @@ textarea:focus-visible {
   margin-top: 10px;
   font-family: var(--font-mono);
   font-weight: 600;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink-soft);
@@ -3644,7 +3673,7 @@ textarea:focus-visible {
   width: 10px;
   height: 10px;
   flex: none;
-  border: 1.5px solid var(--ink);
+  border: var(--bw-1) solid var(--edge);
   background: var(--paper);
 }
 
@@ -3699,7 +3728,7 @@ textarea:focus-visible {
   flex: none;
   width: 10px;
   height: 10px;
-  border: 1.5px solid var(--ink);
+  border: var(--bw-1) solid var(--edge);
 }
 
 /* Strength bar: fresh capacity as a tank — what's left now in slate, each
@@ -3715,7 +3744,7 @@ textarea:focus-visible {
   flex: 1 1 auto;
   display: flex;
   height: 16px;
-  border: 2px solid var(--ink);
+  border: var(--bw-2) solid var(--edge);
   background: var(--paper-deep);
   overflow: hidden;
 }
@@ -3761,7 +3790,7 @@ textarea:focus-visible {
 
 .expect-tick {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--fs-9);
   fill: var(--ink-soft);
 }
 
@@ -3805,7 +3834,7 @@ textarea:focus-visible {
 .expect-mark-text {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 10px;
+  font-size: var(--fs-10);
   fill: var(--ink);
   /* Paper halo so the readout stays legible over the curves. */
   paint-order: stroke;
@@ -3819,7 +3848,7 @@ textarea:focus-visible {
   display: flex;
   gap: 14px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--ink-soft);
 }
 
@@ -3840,7 +3869,7 @@ textarea:focus-visible {
 }
 
 .live-expect-basis {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--ink-soft);
 }
 
@@ -3894,4 +3923,479 @@ textarea:focus-visible {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+/* =============================================================================
+   SPORT — the default skin
+   A modern training-app look over the same markup: a clean sans (Inter) for
+   everything you read, a condensed bold (Barlow Condensed) for headlines and
+   numbers, rounded surfaces with hairline edges instead of ink rules and block
+   shadows, sentence case instead of spaced capitals, and one hot accent. Dark
+   (`sport`) and light (`sport-light`) stocks share every rule below via
+   `[data-theme^="sport"]`; the ledger skins above are untouched.
+
+   Kept last in the file on purpose: most overrides tie the ledger rules on
+   specificity and win on source order.
+   ========================================================================== */
+
+:root[data-theme="sport"] {
+  color-scheme: dark;
+  --paper: #0f1115;      /* app background */
+  --paper-deep: #181b21; /* cards */
+  --paper-ash: #22262e;  /* raised / hover */
+  --paper-edge: #2c313b;
+  --ink: #f3f5f8;
+  --ink-soft: rgba(243, 245, 248, 0.68);
+  --ink-faint: rgba(243, 245, 248, 0.4);
+  --ink-ghost: rgba(243, 245, 248, 0.12);
+  --edge: rgba(255, 255, 255, 0.09);
+  --sep: rgba(255, 255, 255, 0.08);
+  --brick: #ff8a5c;      /* labels / eyebrows */
+  --signal: #ff5a1f;     /* the accent — primary actions, active state */
+  --mustard: #ffc53d;
+  --pine: #34d399;
+  --navy: #60a5fa;
+  --rust: #fb923c;
+  --teal: #2dd4bf;
+  --plum: #c084fc;
+  --olive: #a3e635;
+  --clay: #e0a370;
+  --on-press: #0f1115;   /* bright fills carry dark text */
+  --on-light: #0f1115;
+  --brick-fill: #ff6b4a;
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+:root[data-theme="sport-light"] {
+  color-scheme: light;
+  --paper: #f3f4f6;
+  --paper-deep: #ffffff;
+  --paper-ash: #eceef2;
+  --paper-edge: #e2e5ea;
+  --ink: #12151a;
+  --ink-soft: rgba(18, 21, 26, 0.66);
+  --ink-faint: rgba(18, 21, 26, 0.4);
+  --ink-ghost: rgba(18, 21, 26, 0.1);
+  --edge: rgba(18, 21, 26, 0.1);
+  --sep: rgba(18, 21, 26, 0.08);
+  --brick: #d9420f;
+  --signal: #f04a12;
+  --mustard: #f2a900;
+  --pine: #0f9f6e;
+  --navy: #2563eb;
+  --rust: #ea580c;
+  --teal: #0d9488;
+  --plum: #9333ea;
+  --olive: #65a30d;
+  --clay: #b7793f;
+  --on-press: #ffffff;
+  --on-light: #12151a;
+  --brick-fill: #d9420f;
+  --shadow-card: 0 1px 2px rgba(18, 21, 26, 0.06), 0 4px 16px rgba(18, 21, 26, 0.06);
+  --shadow-pop: 0 12px 32px rgba(18, 21, 26, 0.18);
+}
+
+:root[data-theme^="sport"] {
+  --font-display: "Sport Display", "Barlow Condensed", "Inter", system-ui, sans-serif;
+  --font-stamp: "Sport Stamp", "Inter", system-ui, sans-serif;
+  --font-mono: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --dash: solid;
+  --bw-1: 1px;
+  --bw-2: 1px;
+  --bw-3: 1px;
+  --block-1: none;
+  --block-2: none;
+  --block-3: none;
+  --block-4: none;
+  --block-5: none;
+  --block-6: none;
+  --block-7: none;
+  --block-8: none;
+  --block-10: none;
+  /* Inter sets tighter than the spaced mono, so the small sizes step up. */
+  --fs-8: 10px;
+  --fs-8_5: 11px;
+  --fs-9: 11px;
+  --fs-9_5: 11.5px;
+  --fs-10: 12px;
+  --fs-10_5: 12.5px;
+  --fs-11: 13px;
+  --radius: 14px;
+  --radius-sm: 10px;
+  --pill: 999px;
+}
+
+/* ── Type: sentence case, natural tracking ─────────────────────────────── */
+:root[data-theme^="sport"] body {
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:root[data-theme^="sport"] *,
+:root[data-theme^="sport"] *::before,
+:root[data-theme^="sport"] *::after {
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+/* Headlines stay caps — condensed bold caps is the sports-poster voice, and at
+   these sizes it reads instantly. */
+:root[data-theme^="sport"] .brand,
+:root[data-theme^="sport"] .view-title,
+:root[data-theme^="sport"] .display,
+:root[data-theme^="sport"] .now-name,
+:root[data-theme^="sport"] .plan-name {
+  text-transform: uppercase;
+  letter-spacing: 0.005em;
+}
+
+/* Small overline labels: caps with a little air, the only spaced text left. */
+:root[data-theme^="sport"] .eyebrow,
+:root[data-theme^="sport"] .now-eyebrow,
+:root[data-theme^="sport"] .live-section-eyebrow,
+:root[data-theme^="sport"] .effort-eyebrow,
+:root[data-theme^="sport"] .field-label,
+:root[data-theme^="sport"] .summary-label,
+:root[data-theme^="sport"] .settings-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+:root[data-theme^="sport"] .plan-meta {
+  font-weight: 500;
+}
+
+/* ── Stock: no grain, ruling, registration marks or hatching ───────────── */
+:root[data-theme^="sport"] body {
+  background-image: none;
+}
+
+:root[data-theme^="sport"] .grain,
+:root[data-theme^="sport"] .card::before,
+:root[data-theme^="sport"] .empty::before,
+:root[data-theme^="sport"] .app-header::after,
+:root[data-theme^="sport"] .brand::after {
+  display: none;
+}
+
+:root[data-theme^="sport"] .brand {
+  font-size: clamp(26px, 7vw, 34px);
+  line-height: 1;
+}
+
+:root[data-theme^="sport"] .brand:hover {
+  color: var(--signal);
+  transform: none;
+}
+
+:root[data-theme^="sport"] .view-title {
+  font-size: clamp(30px, 8vw, 40px);
+  line-height: 1;
+  padding-bottom: 0;
+}
+
+:root[data-theme^="sport"] .view-title::after {
+  display: none;
+}
+
+/* ── Surfaces ──────────────────────────────────────────────────────────── */
+:root[data-theme^="sport"] .card {
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+}
+
+:root[data-theme^="sport"] .bodymap-stage {
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--paper-ash);
+  border-color: transparent;
+}
+
+:root[data-theme^="sport"] .empty {
+  border-radius: var(--radius);
+  border-style: dashed;
+}
+
+:root[data-theme^="sport"] .settings-dialog {
+  border-radius: 20px;
+  box-shadow: var(--shadow-pop);
+}
+
+:root[data-theme^="sport"] .snackbar {
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-pop);
+}
+
+:root[data-theme^="sport"] .badge,
+:root[data-theme^="sport"] .ss-chip {
+  border-radius: var(--pill);
+  transform: none;
+}
+
+:root[data-theme^="sport"] .steps li::before {
+  border-radius: 50%;
+  transform: none;
+}
+
+/* ── Buttons: rounded, flat, a gentle press instead of the stamp slam ──── */
+:root[data-theme^="sport"] .btn,
+:root[data-theme^="sport"] .icon-btn,
+:root[data-theme^="sport"] .stepper,
+:root[data-theme^="sport"] .live-fab,
+:root[data-theme^="sport"] .live-hud-end,
+:root[data-theme^="sport"] .snackbar-undo,
+:root[data-theme^="sport"] .readiness-pct {
+  border-radius: var(--radius-sm);
+}
+
+:root[data-theme^="sport"] .btn {
+  font-weight: 600;
+  padding: 12px 18px;
+  background: var(--paper-ash);
+  border-color: transparent;
+}
+
+:root[data-theme^="sport"] .btn-small {
+  padding: 9px 14px;
+}
+
+:root[data-theme^="sport"] .btn-tiny {
+  padding: 6px 10px;
+}
+
+:root[data-theme^="sport"] .btn-jumbo {
+  padding: 20px;
+  border-radius: var(--radius);
+  font-size: clamp(18px, 5vw, 22px);
+}
+
+:root[data-theme^="sport"] .btn:hover,
+:root[data-theme^="sport"] .btn-jumbo:hover,
+:root[data-theme^="sport"] .icon-btn:hover,
+:root[data-theme^="sport"] .settings-btn:active {
+  transform: none;
+  background: var(--paper-edge);
+}
+
+:root[data-theme^="sport"] .btn:active,
+:root[data-theme^="sport"] .btn-jumbo:active,
+:root[data-theme^="sport"] .icon-btn:active {
+  transform: scale(0.98);
+}
+
+:root[data-theme^="sport"] .btn:disabled:hover,
+:root[data-theme^="sport"] .btn:disabled:active {
+  background: var(--paper-ash);
+  transform: none;
+}
+
+:root[data-theme^="sport"] .btn-primary,
+:root[data-theme^="sport"] .btn-accent {
+  background: var(--signal);
+  color: var(--on-press);
+}
+
+:root[data-theme^="sport"] .btn-primary:hover,
+:root[data-theme^="sport"] .btn-accent:hover {
+  background: var(--signal);
+  filter: brightness(1.08);
+}
+
+:root[data-theme^="sport"] .btn.danger,
+:root[data-theme^="sport"] .icon-btn.danger {
+  background: transparent;
+  border-color: var(--brick);
+}
+
+:root[data-theme^="sport"] .btn.danger:hover,
+:root[data-theme^="sport"] .icon-btn.danger:hover {
+  background: var(--brick-fill);
+  color: var(--on-press);
+}
+
+:root[data-theme^="sport"] .icon-btn {
+  font-weight: 600;
+  background: var(--paper-ash);
+  border-color: transparent;
+}
+
+:root[data-theme^="sport"] .settings-close {
+  border-radius: 50%;
+  border-color: transparent;
+  background: var(--paper-ash);
+}
+
+:root[data-theme^="sport"] .settings-btn {
+  border-radius: 50%;
+  border-color: transparent;
+  background: var(--paper-deep);
+  margin-top: 0;
+}
+
+:root[data-theme^="sport"] .settings-btn:hover,
+:root[data-theme^="sport"] .settings-btn[aria-expanded="true"] {
+  background: var(--paper-ash);
+  color: var(--ink);
+}
+
+/* ── Segmented controls: a track with a raised pill for the active option ─ */
+:root[data-theme^="sport"] .mode-toggle,
+:root[data-theme^="sport"] .toggle {
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--paper-ash);
+  padding: 3px;
+  gap: 3px;
+}
+
+:root[data-theme^="sport"] .mode-toggle-btn,
+:root[data-theme^="sport"] .toggle-btn,
+:root[data-theme^="sport"] .theme-toggle .mode-toggle-btn {
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 8px 12px;
+}
+
+:root[data-theme^="sport"] .mode-toggle-btn.active,
+:root[data-theme^="sport"] .toggle-btn.active {
+  background: var(--signal);
+  color: var(--on-press);
+}
+
+:root[data-theme^="sport"] .theme-toggle {
+  gap: 3px;
+}
+
+/* The wrapping chip rows (fatigue, set type): 3 per row, RIR's five on one. */
+:root[data-theme^="sport"] .toggle-btn {
+  flex: 1 1 calc(33.333% - 3px);
+}
+
+:root[data-theme^="sport"] .rir-toggle .toggle-btn {
+  flex: 1 1 calc(20% - 3px);
+  padding-inline: 4px;
+}
+
+/* ── Fields ────────────────────────────────────────────────────────────── */
+:root[data-theme^="sport"] input,
+:root[data-theme^="sport"] select,
+:root[data-theme^="sport"] textarea,
+:root[data-theme^="sport"] .filter-input {
+  border-radius: var(--radius-sm);
+  background: var(--paper-deep);
+}
+
+/* ── Navigation ────────────────────────────────────────────────────────── */
+:root[data-theme^="sport"] .nav {
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--paper-deep);
+}
+
+:root[data-theme^="sport"] .nav-btn {
+  border-left: none;
+}
+
+:root[data-theme^="sport"] .nav-label {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+:root[data-theme^="sport"] .nav-btn.active {
+  background: transparent;
+  color: var(--signal);
+}
+
+:root[data-theme^="sport"] .nav-btn.active .nav-icon {
+  color: var(--signal);
+}
+
+@media (max-width: 559px) {
+  :root[data-theme^="sport"] .nav {
+    border-radius: 0;
+    box-shadow: none;
+    border-top: 1px solid var(--edge);
+    background: color-mix(in srgb, var(--paper-deep) 92%, transparent);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+  }
+}
+
+/* ── Live logger ───────────────────────────────────────────────────────── */
+:root[data-theme^="sport"] .live-hud {
+  background: var(--paper-deep);
+  color: var(--ink);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+}
+
+:root[data-theme^="sport"] .live-hud-end {
+  color: var(--ink);
+  border: none;
+  background: var(--paper-ash);
+}
+
+:root[data-theme^="sport"] .live-hud-end:hover {
+  background: var(--signal);
+  color: var(--on-press);
+}
+
+:root[data-theme^="sport"] .stepper {
+  background: var(--paper-ash);
+  border-color: transparent;
+  font-family: var(--font-stamp);
+}
+
+:root[data-theme^="sport"] .stepper:hover {
+  background: var(--paper-edge);
+  color: var(--ink);
+}
+
+:root[data-theme^="sport"] .dial-input-num {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  font-family: var(--font-display);
+  font-size: clamp(38px, 12vw, 52px);
+}
+
+/* Just the thumb on the ring — no needle crossing the big number. */
+:root[data-theme^="sport"] .dial-needle {
+  display: none;
+}
+
+:root[data-theme^="sport"] .radial-seg-face {
+  stroke: var(--paper);
+  stroke-width: 2.4;
+}
+
+:root[data-theme^="sport"] .radial-seg-tint {
+  stroke: none;
+}
+
+:root[data-theme^="sport"] .radial-seg.is-active .radial-seg-face {
+  fill: var(--signal);
+}
+
+:root[data-theme^="sport"] .radial-seg.is-active .radial-seg-label {
+  fill: var(--on-press);
+}
+
+:root[data-theme^="sport"] .radial-hub {
+  border: none;
+  background: var(--signal);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme^="sport"] .radial-hub.is-previewing {
+  background: var(--ink);
+  color: var(--paper);
 }

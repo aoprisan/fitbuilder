@@ -24,6 +24,10 @@ import { syncReminders } from "./reminders";
 // Chrome strings — the tab bar and the Settings sheet (device maintenance,
 // backup, bodyweight and the about block).
 registerTranslations({
+  "Sport dark": "Sport noapte",
+  "Sport light": "Sport zi",
+  "Ledger light": "Registru zi",
+  "Ledger dark": "Registru noapte",
   Body: "Corp",
   Train: "Antrenament",
   History: "Istoric",
@@ -291,12 +295,15 @@ function boot(): void {
     }),
   );
 
-  // Theme toggle (Light / Dark / Blueprint / Riso): same segmented stamp.
+  // Theme toggle (Sport dark/light, Ledger light/dark, Blueprint, Riso): same
+  // segmented stamp, stacked two per row.
   // Flipping the pinned theme is instant — every surface paints from CSS custom
   // properties — so unlike language this needs no nav re-render or view remount.
   const THEME_LABEL: Record<Theme, string> = {
-    light: "Light",
-    dark: "Dark",
+    sport: "Sport dark",
+    "sport-light": "Sport light",
+    light: "Ledger light",
+    dark: "Ledger dark",
     blueprint: "Blueprint",
     riso: "Riso",
   };

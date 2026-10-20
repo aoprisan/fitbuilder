@@ -1,12 +1,14 @@
 /* =============================================================================
-   Theme — the stock the app is printed on. Two ledger skins (light / dark) plus
-   two alternates (blueprint, riso). The colour ramps themselves live in
+   Theme — the stock the app is printed on. The default Sport skin (dark /
+   light: clean sans type, rounded surfaces, one accent), the two ledger skins
+   it replaced as default (light / dark), and two alternates (blueprint, riso). The colour ramps themselves live in
    styles.css (the `:root[data-theme="…"]` blocks); this module only decides
    which one is pinned and keeps the browser chrome (status-bar `theme-color`)
    in step.
 
    Stored in localStorage like the other global settings (mode, language). On
-   first run, with nothing stored, we follow the OS preference. Once the user
+   first run, with nothing stored, we follow the OS preference between the two
+   Sport skins. Once the user
    picks a theme it's pinned for good. Switching is instant — every surface is
    painted from CSS custom properties, so flipping `data-theme` on <html>
    recolours the whole app with no remount. (Canvas PNG/PDF exports are
@@ -16,15 +18,18 @@
    a tiny inline copy of `apply()` in <head>; keep the two in sync.
    ========================================================================== */
 
-/** All pinnable themes. `light`/`dark` are the ledger stock; `blueprint` and
- *  `riso` are alternate skins (see the `:root[data-theme="…"]` blocks). */
-export const THEMES = ["light", "dark", "blueprint", "riso"] as const;
+/** All pinnable themes. `sport`/`sport-light` are the default skin; `light`/
+ *  `dark` are the ledger stock; `blueprint` and `riso` are alternate skins (see
+ *  the `:root[data-theme="…"]` blocks). */
+export const THEMES = ["sport", "sport-light", "light", "dark", "blueprint", "riso"] as const;
 export type Theme = (typeof THEMES)[number];
 
 const KEY = "gymlog.theme";
 
 /** Status-bar / address-bar colour per theme (mirrors --paper in styles.css). */
 const THEME_COLOR: Record<Theme, string> = {
+  sport: "#0f1115",
+  "sport-light": "#f3f4f6",
   light: "#efe7d4",
   dark: "#14110b",
   blueprint: "#15315c",
@@ -34,9 +39,9 @@ const THEME_COLOR: Record<Theme, string> = {
 /** The OS-level preference, used as the default until the user pins a theme. */
 function systemTheme(): Theme {
   try {
-    return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    return matchMedia("(prefers-color-scheme: dark)").matches ? "sport" : "sport-light";
   } catch {
-    return "light";
+    return "sport";
   }
 }
 
