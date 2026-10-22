@@ -212,7 +212,7 @@ function fontFaces(pkg, weights) {
     })
     .join("\n");
 }
-const FONTS = `<style>${fontFaces("alfa-slab-one", [400])}${fontFaces("bungee", [400])}${fontFaces("ibm-plex-mono", [500, 700])}</style>`;
+const FONTS = `<style>${fontFaces("barlow-condensed", [700])}${fontFaces("inter", [500, 700])}</style>`;
 
 async function renderHtml(browser, html, width, height, out) {
   const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
@@ -233,16 +233,15 @@ function iconSvg(fullBleed) {
 
 function featureHtml(copy) {
   return `<!doctype html><html><head><meta charset="utf-8">${FONTS}<style>
-    body{margin:0;width:1024px;height:500px;background:#efe7d4;color:#1b1610;overflow:hidden;
-      background-image:repeating-linear-gradient(90deg,transparent 0 38px,rgba(27,22,16,.035) 38px 39px)}
-    .wrap{position:absolute;inset:48px 56px;border:4px solid #1b1610;box-shadow:12px 12px 0 #1b1610;
-      background:#efe7d4;display:flex;align-items:center;gap:44px;padding:0 48px}
-    .icon{width:230px;height:230px;flex:none}
-    .icon svg{width:100%;height:100%}
-    h1{margin:0;font:400 104px/0.9 "Alfa Slab One",serif;letter-spacing:.01em}
-    .kicker{margin:14px 0 18px;font:400 26px/1 Bungee,sans-serif;color:#6e1f1a;letter-spacing:.04em}
-    .tag{margin:0;font:700 24px/1.25 "IBM Plex Mono",monospace}
-    .sub{margin:8px 0 0;font:500 18px/1.2 "IBM Plex Mono",monospace;color:rgba(27,22,16,.64);letter-spacing:.04em;text-transform:uppercase}
+    body{margin:0;width:1024px;height:500px;color:#f3f5f8;overflow:hidden;font-family:Inter,sans-serif;
+      background:radial-gradient(circle at 18% 50%,rgba(255,90,31,.22),transparent 46%),#0f1115}
+    .wrap{position:absolute;inset:0;display:flex;align-items:center;gap:56px;padding:0 84px}
+    .icon{width:230px;height:230px;flex:none;border-radius:44px;overflow:hidden;box-shadow:0 18px 48px rgba(0,0,0,.55)}
+    .icon svg{width:100%;height:100%;display:block}
+    h1{margin:0;font:700 128px/0.86 "Barlow Condensed",sans-serif;letter-spacing:.01em;text-transform:uppercase}
+    .kicker{margin:14px 0 20px;font:700 22px/1 Inter,sans-serif;color:#ff5a1f;letter-spacing:.18em;text-transform:uppercase}
+    .tag{margin:0;font:700 28px/1.25 Inter,sans-serif}
+    .sub{margin:10px 0 0;font:500 18px/1.2 Inter,sans-serif;color:rgba(243,245,248,.6);letter-spacing:.08em;text-transform:uppercase}
   </style></head><body><div class="wrap"><div class="icon">${iconSvg(false)}</div><div>
     <h1>GYM LOG</h1><p class="kicker">TRAINING LEDGER</p>
     <p class="tag">${copy.tagline}</p><p class="sub">${copy.sub}</p>
@@ -251,12 +250,13 @@ function featureHtml(copy) {
 
 function frameHtml(png, title, sub) {
   return `<!doctype html><html><head><meta charset="utf-8">${FONTS}<style>
-    body{margin:0;width:1080px;height:1920px;background:#1b1610;color:#efe7d4;overflow:hidden;font-family:"IBM Plex Mono",monospace}
-    .cap{position:absolute;top:96px;left:0;right:0;text-align:center;padding:0 60px}
-    h1{margin:0;font:400 76px/1.02 "Alfa Slab One",serif;letter-spacing:.005em}
-    p{margin:22px 0 0;font:700 34px/1.25 "IBM Plex Mono",monospace;color:#d6925f}
-    .shot{position:absolute;left:110px;top:380px;width:860px;border:6px solid #efe7d4;
-      box-shadow:18px 18px 0 #d6422b;background:#efe7d4;line-height:0}
+    body{margin:0;width:1080px;height:1920px;color:#f3f5f8;overflow:hidden;font-family:Inter,sans-serif;
+      background:radial-gradient(ellipse at 50% 62%,rgba(255,90,31,.28),transparent 58%),#0f1115}
+    .cap{position:absolute;top:110px;left:0;right:0;text-align:center;padding:0 60px}
+    h1{margin:0;font:700 104px/0.95 "Barlow Condensed",sans-serif;letter-spacing:.005em;text-transform:uppercase}
+    p{margin:24px 0 0;font:500 36px/1.25 Inter,sans-serif;color:#ff8a5c}
+    .shot{position:absolute;left:110px;top:400px;width:860px;border-radius:44px;overflow:hidden;
+      border:3px solid rgba(255,255,255,.12);box-shadow:0 30px 80px rgba(0,0,0,.6);background:#0f1115;line-height:0}
     .shot img{width:100%;display:block}
   </style></head><body>
     <div class="cap"><h1>${title}</h1><p>${sub}</p></div>
@@ -277,7 +277,7 @@ async function capture(browser, lang, state, drive) {
       localStorage.clear();
       for (const [k, v] of Object.entries(s)) localStorage.setItem(k, JSON.stringify(v));
       localStorage.setItem("gymlog.lang", l);
-      localStorage.setItem("gymlog.theme", "light");
+      localStorage.setItem("gymlog.theme", "sport");
     },
     [state, lang],
   );
