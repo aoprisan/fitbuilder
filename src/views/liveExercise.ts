@@ -2,7 +2,7 @@ import { exerciseBenchmark, nextSetTarget } from "../benchmark";
 import { clear, h } from "../dom";
 import { parseTargetReps } from "../prescription";
 import { loadSessions } from "../logStorage";
-import { findMovement } from "../movements";
+import { displayExerciseName, findMovement } from "../movements";
 import { loadIncrementKg, suggestOverload } from "../overload";
 import { platesPerSide, BAR_KG } from "../plates";
 import {
@@ -204,10 +204,10 @@ export function renderRirField(ctx: LiveCtx): HTMLElement {
           h("button", {
             class: st.pendingRir === o.value ? "toggle-btn active" : "toggle-btn",
             type: "button",
-            text: o.label,
+            text: t(o.label),
             aria: {
               pressed: String(st.pendingRir === o.value),
-              label: o.value === 0 ? t("trained to failure") : t("{0} reps in reserve").replace("{0}", o.label),
+              label: o.value === 0 ? t("trained to failure") : t("{0} reps in reserve").replace("{0}", t(o.label)),
             },
             on: {
               click: () => {
@@ -243,10 +243,10 @@ export function renderEditRirField(ctx: LiveCtx): HTMLElement {
         h("button", {
           class: st.editRir === o.value ? "toggle-btn active" : "toggle-btn",
           type: "button",
-          text: o.label,
+          text: t(o.label),
           aria: {
             pressed: String(st.editRir === o.value),
-            label: o.value === 0 ? t("trained to failure") : t("{0} reps in reserve").replace("{0}", o.label),
+            label: o.value === 0 ? t("trained to failure") : t("{0} reps in reserve").replace("{0}", t(o.label)),
           },
           on: {
             click: () => {
@@ -529,7 +529,7 @@ export function renderSetTypeField(ctx: LiveCtx, onChange?: () => void): HTMLEle
           h("button", {
             class: st.pendingSetType === o.value ? "toggle-btn active" : "toggle-btn",
             type: "button",
-            text: o.label,
+            text: t(o.label),
             aria: { pressed: String(st.pendingSetType === o.value) },
             on: {
               click: () => {
@@ -552,7 +552,7 @@ export function renderSetTypeField(ctx: LiveCtx, onChange?: () => void): HTMLEle
 export function renderExercise(ctx: LiveCtx): void {
   const { st } = ctx;
   const mv = findMovement(st.movementId);
-  const exName = st.currentEx?.name ?? mv?.name ?? t(MUSCLE_LABELS[st.muscle]);
+  const exName = st.currentEx ? displayExerciseName(st.currentEx) : mv ? t(mv.name) : t(MUSCLE_LABELS[st.muscle]);
   const secondaries = st.currentEx?.secondaryMuscles ?? mv?.secondaryMuscles ?? [];
   const worked = [st.muscle, ...secondaries].map((m) => t(MUSCLE_LABELS[m])).join(" · ");
   const head = h("section", { class: "card live-ex-head" }, [
@@ -794,15 +794,16 @@ export function renderExercise(ctx: LiveCtx): void {
       const idx = group.indexOf(st.currentEx);
       if (idx < 0 || group.length < 2) return null;
       const partner = group[(idx + 1) % group.length]!;
+      const partnerName = displayExerciseName(partner);
       return h("section", { class: "card live-superset" }, [
         h("p", { class: "now-eyebrow", text: t("Superset — up next") }),
-        h("p", { class: "now-target", text: partner.name }),
+        h("p", { class: "now-target", text: partnerName }),
         h("div", { class: "btn-row" }, [
           h("button", {
             class: "btn btn-small btn-accent",
             type: "button",
-            text: t("Go to {0} →").replace("{0}", partner.name),
-            aria: { label: t("switch to superset partner {0}").replace("{0}", partner.name) },
+            text: t("Go to {0} →").replace("{0}", partnerName),
+            aria: { label: t("switch to superset partner {0}").replace("{0}", partnerName) },
             on: { click: () => ctx.resumeExercise(partner) },
           }),
         ]),

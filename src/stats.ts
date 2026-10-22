@@ -1,4 +1,5 @@
 import { CARDIO_LEG_CREDIT, cardioLegDose, stimulusProximity } from "./effort";
+import { dateLocale, t } from "./i18n";
 import { effectiveLoadKg, hypertrophyFactor, strengthFactor } from "./loadProfile";
 import { compoundMovements, findMovement, type Movement, SECONDARY_MUSCLE_SHARE } from "./movements";
 import {
@@ -101,14 +102,14 @@ export function isCardioExerciseKey(key: ExerciseKey): boolean {
   return movement !== undefined && isCardio(movement.equipment);
 }
 
-/** Human-readable label for an exercise key, e.g. "Chest · Incline Bench Press". */
+/** Human-readable label for an exercise key, e.g. "Chest · Incline Bench Press", in the app language. */
 export function exerciseKeyLabel(key: ExerciseKey): string {
   if (key.includes("::")) {
     const [muscle, equipment] = key.split("::") as [MuscleGroup, Equipment];
-    return `${MUSCLE_LABELS[muscle]} · ${EQUIPMENT_LABELS[equipment]}`;
+    return `${t(MUSCLE_LABELS[muscle])} · ${t(EQUIPMENT_LABELS[equipment])}`;
   }
   const movement = findMovement(key);
-  return movement ? `${MUSCLE_LABELS[movement.primaryMuscle]} · ${movement.name}` : key;
+  return movement ? `${t(MUSCLE_LABELS[movement.primaryMuscle])} · ${t(movement.name)}` : key;
 }
 
 /**
@@ -263,7 +264,7 @@ export function bestOneRm(
 function shortDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  return d.toLocaleDateString(dateLocale(), { day: "numeric", month: "short" });
 }
 
 /** Build the chronological progress series for the given scope. */

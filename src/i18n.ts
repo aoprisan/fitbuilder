@@ -55,6 +55,15 @@ export function onLangChange(fn: Listener): () => void {
 }
 
 /**
+ * Locale for date/time formatting. English keeps the device locale (so its
+ * clock and date order are respected); Romanian pins "ro-RO" so dates match
+ * the app language even on a phone set to English.
+ */
+export function dateLocale(): string | undefined {
+  return current === "ro" ? "ro-RO" : undefined;
+}
+
+/**
  * Translate an English source string to the current language. English is a
  * pass-through; Romanian falls back to the English key when no entry exists.
  */
@@ -84,6 +93,8 @@ const RO: Record<string, string> = {
   Core: "Abdomen",
   Forearms: "Antebrațe",
   Calves: "Gambe",
+  "Lower Back": "Zona Lombară",
+  Cardio: "Cardio",
 
   // — Equipment labels (types.ts EQUIPMENT_LABELS) —
   Cable: "Cablu",

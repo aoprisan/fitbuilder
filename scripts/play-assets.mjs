@@ -46,6 +46,8 @@ async function loadPlaywright() {
 const LOCALES = {
   "en-US": {
     lang: "en",
+    bench: "Bench Press", // History chip label for the exercise-detail shot
+    days: { push: "Push day", pull: "Pull day", legs: "Legs day" }, // seeded session names
     tagline: "Recovery-aware lifting log",
     sub: "Offline · No account · No ads",
     shots: [
@@ -58,12 +60,14 @@ const LOCALES = {
   },
   ro: {
     lang: "ro",
+    bench: "Împins la Bancă",
+    days: { push: "Zi de împins", pull: "Zi de tras", legs: "Zi de picioare" },
     tagline: "Jurnal de forță cu recuperare",
     sub: "Offline · Fără cont · Fără reclame",
     shots: [
       ["Vezi ce s-a refăcut", "înainte să alegi ce antrenezi"],
-      ["Știi ce să aștepți", "după seturile deja făcute"],
-      ["Notezi fiecare set", "cu un singur deget"],
+      ["Știi ce să aștepți", "după seriile deja făcute"],
+      ["Notezi fiecare serie", "cu un singur deget"],
       ["Fiecare sesiune, recitită", "efort, hidratare și proteine"],
       ["Vezi cum crește forța", "1RM estimat pe exercițiu"],
     ],
@@ -109,7 +113,7 @@ function exercise(key, sets, reps, kg, rirs) {
   };
 }
 
-function seed(now) {
+function seed(now, dayNames) {
   const sessions = [];
   const order = ["push", "pull", "legs"];
   let n = 1;
@@ -126,7 +130,7 @@ function seed(now) {
       schema: "gymlog.training-session",
       version: 1,
       id: uuid(n++),
-      name: day[0].toUpperCase() + day.slice(1) + " day",
+      name: dayNames[day],
       startedAt: start.toISOString(),
       endedAt: new Date(start.getTime() + 62 * 60000).toISOString(),
       startFatigue: 2,
@@ -141,7 +145,7 @@ function seed(now) {
     schema: "gymlog.training-session",
     version: 1,
     id: uuid(999),
-    name: "Push day",
+    name: dayNames.push,
     startedAt: today.toISOString(),
     startFatigue: 2,
     source: "live",
@@ -310,11 +314,12 @@ try {
   const browser = await chromium.launch(
     process.env.PLAYWRIGHT_CHROMIUM ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM } : {},
   );
-  const { sessions, active } = seed(Date.now());
-  const history = { "gymlog.sessions": sessions.filter((s) => s !== active) };
-  const live = (sub) => ({ "gymlog.sessions": sessions, "gymlog.liveProgress": progressFor(active, sub) });
+  const now = Date.now();
 
   for (const [locale, copy] of Object.entries(LOCALES)) {
+    const { sessions, active } = seed(now, copy.days);
+    const history = { "gymlog.sessions": sessions.filter((s) => s !== active) };
+    const live = (sub) => ({ "gymlog.sessions": sessions, "gymlog.liveProgress": progressFor(active, sub) });
     const dir = join(META, locale, "images");
     const shotsDir = join(dir, "phoneScreenshots");
     // Start clean so renamed or dropped screens don't linger and get uploaded.
@@ -346,7 +351,7 @@ try {
       // 5 · Exercise detail for bench.
       ["5_exercise", history, async (p) => {
         await navTo(p, 2);
-        await p.locator(".history-ex-chip", { hasText: "Bench Press" }).first().click();
+        await p.locator(".history-ex-chip").getByText(copy.bench, { exact: true }).first().click();
         await sleep(400);
         await scrollTo(p, ".exercise-title");
       }],

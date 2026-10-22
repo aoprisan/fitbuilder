@@ -15,7 +15,7 @@ import { registerTranslations, t } from "./i18n";
 registerTranslations({
   // Android notification channel, shown in the system's app-notification settings.
   "Rest timer": "Cronometru de pauză",
-  "Rest-over alert between sets": "Alertă de final de pauză între seturi",
+  "Rest-over alert between sets": "Alertă de final de pauză între serii",
   Reminders: "Mementouri",
   "Recovery-ready and time-to-train reminders": "Mementouri de recuperare și de antrenament",
 });
