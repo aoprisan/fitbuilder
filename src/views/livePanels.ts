@@ -174,19 +174,21 @@ export function renderBenchmark(ex: LoggedExercise, bm: ExerciseBenchmark): HTML
   return h("section", { class: "card live-bench" }, children);
 }
 
-/** Reps-in-reserve chips shown when logging a set. "4+" stores 4 (fresh — minimal stimulus). */
+/** Reps-in-reserve chips shown when logging a set. "4+" stores 4 (fresh — minimal stimulus).
+ *  Labels are English keys; render them through t() (this runs before the
+ *  views register their translations). */
 export const RIR_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
-  { value: 0, label: t("Failure") },
+  { value: 0, label: "Failure" },
   { value: 1, label: "1" },
   { value: 2, label: "2" },
   { value: 3, label: "3" },
-  { value: 4, label: t("4+") },
+  { value: 4, label: "4+" },
 ];
 
-/** Warm-up / drop-set chips shown when logging a set; untagged = working set. */
+/** Warm-up / drop-set chips shown when logging a set; untagged = working set. Labels go through t(). */
 export const SET_TYPE_OPTIONS: ReadonlyArray<{ value: SetType; label: string }> = [
-  { value: "warmup", label: t("Warm-up") },
-  { value: "dropset", label: t("Drop set") },
+  { value: "warmup", label: "Warm-up" },
+  { value: "dropset", label: "Drop set" },
 ];
 
 // A target muscle below this readiness (0..1, from prior sessions) is flagged

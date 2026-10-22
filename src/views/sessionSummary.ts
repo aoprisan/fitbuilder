@@ -2,13 +2,15 @@ import { type SessionAdherence, sessionAdherence } from "../benchmark";
 import { latestBodyweight } from "../bodyweightStore";
 import { h } from "../dom";
 import {
+  type EffortReading,
+  type EffortTier,
   estimateCalories,
   estimateProteinG,
   muscleBreakdown,
   readEffort,
   readHydration,
 } from "../effort";
-import { registerTranslations, t } from "../i18n";
+import { getLang, registerTranslations, t } from "../i18n";
 import { MUSCLE_LABELS, type TrainingSession } from "../types";
 import { formatClock, sessionSetCount } from "../util";
 
@@ -27,7 +29,30 @@ registerTranslations({
   "Adherence to plan": "Aderență la plan",
   "{0}% to plan": "{0}% din plan",
   reps: "repetări",
+  // Hydration notes (effort.ts HYDRATION_NOTES).
+  "Take a few sips to start.": "Bea câteva înghițituri ca să începi.",
+  "Sip water between sets.": "Bea apă între serii.",
+  "Keep your bottle handy.": "Ține sticla la îndemână.",
+  "Drink steadily to keep up.": "Bea constant ca să ții pasul.",
+  "Hydrate well — you're working hard.": "Hidratează-te bine — muncești din greu.",
+  "Drink up — you're sweating hard.": "Bea apă — transpiri puternic.",
 });
+
+// Effort tier names, by tier rather than through t(): "Light" is already the
+// light-theme key in the shared table.
+const EFFORT_TIER_RO: Record<EffortTier, string> = {
+  warmup: "Încălzire",
+  light: "Ușor",
+  moderate: "Moderat",
+  solid: "Solid",
+  hard: "Greu",
+  brutal: "Brutal",
+};
+
+/** An effort reading's tier label in the app language. */
+export function effortTierLabel(effort: EffortReading): string {
+  return getLang() === "ro" ? EFFORT_TIER_RO[effort.tier] : effort.label;
+}
 
 /**
  * Group consecutive items by their (optional) `section`, preserving order — the
@@ -138,7 +163,7 @@ export function renderSessionSummary(
   return h("section", { class: "card live-effort", dataset: { tier: effort.tier } }, [
     h("div", { class: "effort-head" }, [
       h("span", { class: "effort-eyebrow", text: t("Session effort") }),
-      h("span", { class: "effort-tier", text: effort.label }),
+      h("span", { class: "effort-tier", text: effortTierLabel(effort) }),
     ]),
     h(
       "div",
@@ -162,7 +187,7 @@ export function renderSessionSummary(
         text: `≈ ${hydration.liters.toFixed(1)} L · ${glasses}`,
       }),
     ]),
-    h("p", { class: "hydration-note", text: hydration.note }),
+    h("p", { class: "hydration-note", text: t(hydration.note) }),
     h("div", { class: "protein-row" }, [
       h("span", { class: "protein-label", text: t("Protein to recover") }),
       h("span", { class: "protein-figure", text: `≈ ${protein} g` }),

@@ -1,5 +1,5 @@
 import { CARDIO_LEG_CREDIT, cardioLegDose, fatigueProximity, setFatigueShare } from "./effort";
-import { findMovement, isIsometricHold, SECONDARY_MUSCLE_SHARE } from "./movements";
+import { displayExerciseName, findMovement, isIsometricHold, SECONDARY_MUSCLE_SHARE } from "./movements";
 import { bodyweightOn, type BodyweightEntry } from "./bodyweightStore";
 import { muscleRecovery } from "./recovery";
 import { epleyLoad, exerciseKey, type ExerciseKey } from "./stats";
@@ -169,7 +169,7 @@ export function fatigueAt(
       prev.load += local;
       prev.sets = (prev.sets ?? 0) + sets;
     } else {
-      byExercise.set(ex.name, { kind: "exercise", label: ex.name, sets, load: local });
+      byExercise.set(ex.name, { kind: "exercise", label: displayExerciseName(ex), sets, load: local });
     }
   }
   sources.push(...byExercise.values());

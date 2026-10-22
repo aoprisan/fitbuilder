@@ -1,3 +1,4 @@
+import { registerTranslations, t } from "./i18n";
 import { MUSCLE_REFERENCE_LOAD_KG } from "./loadProfile";
 import {
   EQUIPMENT_LABELS,
@@ -261,6 +262,85 @@ const REGISTRY: ReadonlyMap<string, Movement> = new Map(
 /** Look up a movement by id, or undefined for an unknown/legacy id. */
 export function findMovement(id: string): Movement | undefined {
   return REGISTRY.get(id);
+}
+
+// Romanian display names for the curated catalog (generic gear is translated
+// through the equipment labels in i18n.ts). Catalog names and stored logs stay
+// English; only what's shown changes.
+registerTranslations({
+  "Incline Bench Press": "Împins la Bancă Înclinată",
+  "Larsen Press": "Împins Larsen",
+  Dips: "Flotări la Paralele",
+  "Push-Up": "Flotări",
+  "Decline Push-Up": "Flotări cu Picioarele Sus",
+  "Diamond Push-Up": "Flotări Diamant",
+  "Chest Press Machine": "Aparat Împins Piept",
+  "Incline Chest Press Machine": "Aparat Împins Piept Înclinat",
+  "Vertical Bench Press Machine": "Aparat Împins Vertical",
+  "Vertical Press (Smith Machine)": "Împins Vertical (Aparat Smith)",
+  "Chest Fly Machine": "Aparat Fluturări Piept",
+  "Pull-Up": "Tracțiuni Pronate",
+  "Chin-Up": "Tracțiuni Supinate",
+  "Inverted Row": "Ramat Australian",
+  "Muscle-Up": "Muscle-Up",
+  "Dead Hang": "Atârnare la Bară",
+  "Pronated Grip Pulldown": "Helcometru Priză Pronată",
+  "Neutral Grip Pulldown": "Helcometru Priză Neutră",
+  "Cable Row Machine": "Ramat la Cablu",
+  "Seated Row Machine": "Aparat Ramat Șezând",
+  "Straight-Arm Pulldown": "Tragere la Cablu cu Brațele Întinse",
+  "Lat Pullover": "Pullover",
+  "Back Extension": "Hiperextensii",
+  "Good Morning": "Good Morning",
+  "Back Extension Machine": "Aparat Hiperextensii",
+  "Overhead Press": "Împins Deasupra Capului",
+  "Seated Dumbbell Press": "Împins cu Gantere Șezând",
+  "Arnold Press": "Împins Arnold",
+  "Shoulder Press Machine": "Aparat Împins Umeri",
+  "Front Raise": "Ridicări Frontale",
+  "Pike Push-Up": "Flotări Pike",
+  "Handstand Push-Up": "Flotări în Stand pe Mâini",
+  "Dumbbell Lateral Raise": "Ridicări Laterale cu Gantere",
+  "Lateral Raise Machine": "Aparat Ridicări Laterale",
+  "Cable Lateral Raise (Behind Back)": "Ridicări Laterale la Cablu (Pe la Spate)",
+  "Upright Row": "Ramat Vertical",
+  "Rear Delt Fly Machine": "Aparat Fluturări Umăr Posterior",
+  "Bent-Over Reverse Fly": "Fluturări Inverse din Aplecat",
+  "Face Pull": "Face Pull",
+  "Wall Barbell Curl": "Flexii cu Bara la Perete",
+  Deadlift: "Îndreptări",
+  "Romanian Deadlift": "Îndreptări Românești",
+  "Barbell Squat": "Genuflexiuni cu Bara",
+  "Dumbbell Squat": "Genuflexiuni cu Gantere",
+  "Bodyweight Squat": "Genuflexiuni",
+  "Partner Squat (Human on Back)": "Genuflexiuni cu Partener (Om în Spate)",
+  "Barbell Lunge": "Fandări cu Bara",
+  "Dumbbell Lunge": "Fandări cu Gantere",
+  "Bodyweight Lunge": "Fandări",
+  "Leg Press": "Presă Picioare",
+  "Leg Extension": "Extensii Picioare",
+  "Prone Leg Curl": "Flexii Picioare din Culcat",
+  "Standing Calf Raise": "Ridicări pe Vârfuri din Picioare",
+  "Seated Calf Raise": "Ridicări pe Vârfuri Șezând",
+  "Tibialis Raise": "Ridicări Tibiale",
+  "Tibialis Raise Machine": "Aparat Ridicări Tibiale",
+  Plank: "Planșă",
+  "Bench Crunches": "Abdomene pe Bancă",
+  "Knee Raises": "Ridicări de Genunchi",
+  "Hanging Knee Raises": "Ridicări de Genunchi din Atârnat",
+  Treadmill: "Bandă de Alergare",
+  "Treadmill Intervals": "Intervale pe Bandă",
+  Boxing: "Box",
+});
+
+/**
+ * Name to show for a logged exercise: a catalog movement logged under its
+ * catalog name is shown in the app language; anything renamed or free-text
+ * keeps the name it was logged with.
+ */
+export function displayExerciseName(ex: { name: string; exerciseId?: string }): string {
+  const mv = ex.exerciseId !== undefined ? REGISTRY.get(ex.exerciseId) : undefined;
+  return mv !== undefined && ex.name === mv.name ? t(ex.name) : ex.name;
 }
 
 /**

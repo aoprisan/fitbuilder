@@ -16,6 +16,7 @@ import { registerTranslations, t } from "../i18n";
 import { exportStatus } from "./exportStatus";
 import { repeatSession } from "../log";
 import { clearProgress, loadProgress } from "../liveProgress";
+import { displayExerciseName } from "../movements";
 import { deleteSession, getSession, loadSessions, saveSession } from "../logStorage";
 import type { Cleanup, Nav } from "../router";
 import { exerciseKey, type ExerciseKey } from "../stats";
@@ -340,8 +341,8 @@ export function mountHistory(root: HTMLElement, nav: Nav): Cleanup {
         h("button", {
           class: "btn btn-tiny history-ex-chip",
           type: "button",
-          text: ex.name,
-          aria: { label: t("open history for {0}").replace("{0}", ex.name) },
+          text: displayExerciseName(ex),
+          aria: { label: t("open history for {0}").replace("{0}", displayExerciseName(ex)) },
           on: {
             click: () => {
               seedExercise(key);

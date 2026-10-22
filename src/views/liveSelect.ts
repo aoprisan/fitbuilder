@@ -4,6 +4,7 @@ import { filterField, matchesFilter } from "./filter";
 import { type SelectMode } from "../liveProgress";
 import { loadSessions } from "../logStorage";
 import {
+  displayExerciseName,
   findMovement,
   isCompoundMovement,
   isolationMovementsForMuscle,
@@ -154,7 +155,7 @@ export function renderSelect(ctx: LiveCtx): void {
         // generic-gear rows otherwise read as just the equipment (e.g. "Dumbbell").
         const muscleLabel = t(MUSCLE_LABELS[ex.muscle]);
         const setsText = (ex.sets.length === 1 ? t("{0} — {1} set") : t("{0} — {1} sets"))
-          .replace("{0}", ex.name)
+          .replace("{0}", displayExerciseName(ex))
           .replace("{1}", String(ex.sets.length));
         doneHost.append(
           h(
@@ -162,7 +163,7 @@ export function renderSelect(ctx: LiveCtx): void {
             {
               class: "btn btn-small live-done-row",
               type: "button",
-              aria: { label: t("log sets for {0}").replace("{0}", `${muscleLabel} · ${ex.name}`) },
+              aria: { label: t("log sets for {0}").replace("{0}", `${muscleLabel} · ${displayExerciseName(ex)}`) },
               on: { click: () => ctx.resumeExercise(ex) },
             },
             [
@@ -338,7 +339,7 @@ export function renderSelect(ctx: LiveCtx): void {
   const radialPicker = (): HTMLElement => {
     const dialHost = h("div", { class: "radial-host" });
     const toItems = (movements: readonly Movement[]): RadialItem[] =>
-      movements.map((mv) => ({ id: mv.id, label: mv.name }));
+      movements.map((mv) => ({ id: mv.id, label: t(mv.name) }));
 
     // What the user actually trains, newest first. Compound mode keeps only
     // the compounds, so the recall runs deeper than the ring holds before it
@@ -351,7 +352,9 @@ export function renderSelect(ctx: LiveCtx): void {
       (recentPicks.length > 0 ? recentPicks : compounds).slice(0, QUICK_PICK_RING);
 
     const filtered = (movements: readonly Movement[]): readonly Movement[] => {
-      const shown = movements.filter((mv) => matchesFilter(mv.name, st.movementFilter));
+      const shown = movements.filter(
+        (mv) => matchesFilter(mv.name, st.movementFilter) || matchesFilter(t(mv.name), st.movementFilter),
+      );
       return shown.length > 0 ? shown : movements;
     };
 
@@ -410,7 +413,7 @@ export function renderSelect(ctx: LiveCtx): void {
           rings,
           hub: {
             sub: t(MUSCLE_LABELS[st.muscle]),
-            title: picked?.name ?? t("Pick an exercise"),
+            title: picked ? t(picked.name) : t("Pick an exercise"),
             action: {
               label: planned ? t("Start →") : t("Next →"),
               onClick: planned ? () => ctx.resumeExercise(planned) : ctx.startExercise,
@@ -469,7 +472,7 @@ export function renderSelect(ctx: LiveCtx): void {
       ...(planned?.section
         ? [h("p", { class: "live-section-eyebrow", text: planned.section })]
         : []),
-      h("h2", { class: "section-title", text: planned ? planned.name || t("Next exercise") : t("Next exercise") }),
+      h("h2", { class: "section-title", text: planned ? displayExerciseName(planned) || t("Next exercise") : t("Next exercise") }),
       ...(planned && planned.prescription
         ? [h("p", { class: "now-target", text: planned.prescription })]
         : []),
@@ -480,7 +483,7 @@ export function renderSelect(ctx: LiveCtx): void {
             (() => {
               const partners = session.exercises
                 .filter((e) => e !== planned && e.supersetGroup === planned.supersetGroup)
-                .map((e) => e.name);
+                .map((e) => displayExerciseName(e));
               return partners.length > 0
                 ? h("p", {
                     class: "plan-meta live-ss-note",

@@ -1,5 +1,5 @@
 import { clear, h } from "../dom";
-import { registerTranslations, t } from "../i18n";
+import { dateLocale, registerTranslations, t } from "../i18n";
 import { loadSessions } from "../logStorage";
 import { clearOneRm, loadOneRmMaxes, setOneRm } from "../oneRmStore";
 import type { Cleanup, Nav } from "../router";
@@ -64,7 +64,7 @@ registerTranslations({
 function shortDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  return d.toLocaleDateString(dateLocale(), { day: "numeric", month: "short" });
 }
 
 // The exercise the detail screen opens on, seeded by whichever view navigated

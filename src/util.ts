@@ -1,3 +1,4 @@
+import { dateLocale } from "./i18n";
 import {
   EQUIPMENT_LABELS,
   FATIGUE_LABELS,
@@ -234,7 +235,7 @@ export function sessionsToXml(sessions: TrainingSession[]): string {
 export function formatSessionDate(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleString(undefined, {
+  return date.toLocaleString(dateLocale(), {
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -247,7 +248,7 @@ export function formatSessionDate(iso: string): string {
 export function formatSessionTime(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  return date.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit" });
 }
 
 /**

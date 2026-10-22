@@ -33,6 +33,7 @@ import {
   sessionSetCount,
 } from "../util";
 import { buildBodySvg } from "./bodySvg";
+import { effortTierLabel } from "./sessionSummary";
 import { isOnboarded, renderWelcome } from "./welcome";
 
 registerTranslations({
@@ -225,7 +226,7 @@ export function mountBody(root: HTMLElement, nav: Nav): Cleanup {
         const metaBits = [
           t("{0} sets").replace("{0}", String(sessionSetCount(past))),
           ...(durSec !== null ? [formatDuration(durSec)] : []),
-          readEffort(past, sessions).label,
+          effortTierLabel(readEffort(past, sessions)),
         ];
         return h("section", { class: "card last-session-card" }, [
           h("p", {
