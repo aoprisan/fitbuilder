@@ -57,6 +57,8 @@ const LOCALES = {
       ["Log every set", "with one thumb"],
       ["Every session, read back", "effort, hydration and protein"],
       ["Watch your strength grow", "estimated 1RM per exercise"],
+      ["Drink to your training", "the goal grows with today's sets"],
+      ["Fuel the cut", "calories and protein against your targets"],
     ],
   },
   ro: {
@@ -72,6 +74,8 @@ const LOCALES = {
       ["Notezi fiecare serie", "cu un singur deget"],
       ["Fiecare sesiune, recitită", "efort, hidratare și proteine"],
       ["Vezi cum crește forța", "1RM estimat pe exercițiu"],
+      ["Bei după antrenament", "obiectivul crește cu seriile de azi"],
+      ["Nutriție pentru slăbit", "calorii și proteine față de ținte"],
     ],
   },
 };
@@ -154,6 +158,50 @@ function seed(now, dayNames) {
     exercises: [exercise("bench", 5, 8, 80, true), exercise("incline", 3, 10, 62.5, true)],
   };
   return { sessions: [...sessions, active], active };
+}
+
+// Water, food, weigh-ins and the body profile — the Water and Fuel tabs, and
+// the today strip on Body. Times are relative to `now`, today's food is the
+// skyr bowl and beef + rice from the stock pantry.
+function healthSeed(now) {
+  const day = (n) => {
+    const d = new Date(now - n * 86400000);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  const drinks = [];
+  let n = 5000;
+  const drink = (ts, amountMl, kind) => drinks.push({ id: uuid(n++), ts, amountMl, kind });
+  for (let d = 6; d >= 1; d--) {
+    const base = now - d * 86400000;
+    drink(base - 9 * 3600000, 250, "coffee");
+    drink(base - 7 * 3600000, 500, "water");
+    drink(base - 5 * 3600000, 300, "tea");
+    drink(base - 3 * 3600000, 750, "water");
+    drink(base - 1 * 3600000, 500, "water");
+  }
+  drink(now - 6 * 3600000, 250, "coffee");
+  drink(now - 4.5 * 3600000, 500, "water");
+  drink(now - 3 * 3600000, 300, "tea");
+  drink(now - 1.5 * 3600000, 500, "water");
+  drink(now - 0.5 * 3600000, 330, "beerNA");
+
+  const weights = [];
+  for (let d = 21; d >= 0; d--) weights.push({ date: day(d), kg: Math.round((86 - (21 - d) * 0.085 + (d % 3 === 0 ? 0.3 : 0)) * 10) / 10 });
+  const waist = {};
+  for (const d of [21, 14, 7, 0]) waist[day(d)] = 94 - (21 - d) * 0.1;
+
+  return {
+    "gymlog.water": { entries: drinks, dailyGoalMl: 2500 },
+    "gymlog.bodyweight": weights,
+    "gymlog.body": { heightCm: 180, sex: "male" },
+    "gymlog.cut": {
+      settings: { kcal: 2300, protein: 185, winStart: "12:00", winEnd: "20:00", startDate: day(21), weeks: 10, startWeight: 86, goalWeight: 80 },
+      days: {
+        [day(0)]: { entries: [{ foodId: "skyr", g: 400 }, { foodId: "oats", g: 30 }, { foodId: "berries", g: 150 }, { foodId: "beef", g: 250 }, { foodId: "rice", g: 250 }, { foodId: "veg", g: 200 }] },
+      },
+      waist,
+    },
+  };
 }
 
 function progressFor(active, sub) {
@@ -320,7 +368,16 @@ try {
 
   for (const [locale, copy] of Object.entries(LOCALES)) {
     const { sessions, active } = seed(now, copy.days);
-    const history = { "gymlog.sessions": sessions.filter((s) => s !== active) };
+    const health = healthSeed(now);
+    const history = { "gymlog.sessions": sessions.filter((s) => s !== active), ...health };
+    // Water and Fuel: today's push day finished two hours ago, so the water goal
+    // and Fuel's training card carry it.
+    const doneToday = {
+      ...active,
+      startedAt: new Date(now - 3 * 3600000).toISOString(),
+      endedAt: new Date(now - 2 * 3600000).toISOString(),
+    };
+    const trainedToday = { ...history, "gymlog.sessions": [...history["gymlog.sessions"], doneToday] };
     const live = (sub) => ({ "gymlog.sessions": sessions, "gymlog.liveProgress": progressFor(active, sub) });
     const dir = join(META, locale, "images");
     const shotsDir = join(dir, "phoneScreenshots");
@@ -357,6 +414,10 @@ try {
         await sleep(400);
         await scrollTo(p, ".exercise-title");
       }],
+      // 6 · Water — today's glass, the training top-up and what's still in you.
+      ["6_water", trainedToday, async (p) => { await navTo(p, 3); await sleep(600); }],
+      // 7 · Fuel — today's calories and macros against the cut's targets.
+      ["7_fuel", trainedToday, async (p) => { await navTo(p, 4); await sleep(600); }],
     ];
     for (const [i, [name, state, drive]] of screens.entries()) {
       const raw = await capture(browser, copy.lang, state, drive);

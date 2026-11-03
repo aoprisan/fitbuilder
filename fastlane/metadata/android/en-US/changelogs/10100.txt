@@ -1,0 +1,6 @@
+New: Water and Fuel tabs, alongside your training.
+• Water: log drinks by how well they hydrate; the daily goal grows with the day's sessions
+• See caffeine and estimated blood alcohol still on board, and when they clear
+• Fuel: calories and macros against your cut's targets, eating window, weigh-ins and waist
+• Share an AI assistant's meal estimate or menu back into Fuel from the share sheet
+• Today's water and food on the Body home
