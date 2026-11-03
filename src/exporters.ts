@@ -4,7 +4,14 @@ import { renderBodyMapToCanvas } from "./bodyMapRender";
 import { dataUrlToBytes, jpegToPdf } from "./pdf";
 import { renderSessionToCanvas } from "./sessionRender";
 import type { TrainingSession } from "./types";
-import { sessionsToJson, sessionsToMarkdown, sessionsToXml, slug } from "./util";
+import { sessionsToJson, sessionsToMarkdown as trainingMarkdown, sessionsToXml, slug } from "./util";
+import { healthContextMarkdown } from "./health/crossData";
+
+/** The training report, plus the water / food logged on those days when there is any. */
+function sessionsToMarkdown(sessions: TrainingSession[]): string {
+  const health = healthContextMarkdown(sessions);
+  return health ? `${trainingMarkdown(sessions)}\n\n---\n\n${health}` : trainingMarkdown(sessions);
+}
 
 // Web Share API (Level 2, with files) isn't in every lib.dom version; describe
 // just what we use so the code type-checks and degrades gracefully.

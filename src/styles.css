@@ -3926,6 +3926,952 @@ textarea:focus-visible {
 }
 
 /* =============================================================================
+   HEALTH JOURNAL — the Water and Fuel tabs (views/water.ts, views/fuel*.ts).
+   Built from the same tokens as the rest of the ledger, so every theme (and
+   the Sport skin below) restyles it. Drink accents map onto the theme's stamp
+   colours rather than introducing new ones.
+   ========================================================================== */
+
+:root {
+  --drink-water: var(--navy);
+  --drink-tea: var(--olive);
+  --drink-coffee: var(--clay);
+  --drink-beer-na: var(--teal);
+  --drink-beer-light: var(--mustard);
+  --drink-beer: var(--rust);
+  --drink-beer-strong: var(--brick);
+}
+
+/* Fields the ledger doesn't style globally: dates, times, selects. */
+.view-fuel input[type="date"],
+.view-fuel input[type="time"],
+.hl-select {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 16px;
+  color: var(--ink);
+  background: var(--paper);
+  border: var(--bw-3) solid var(--edge);
+  border-radius: 0;
+  padding: 10px 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.hl-textarea {
+  min-height: 0;
+}
+
+.hl-hidden-file {
+  display: none;
+}
+
+/* ── Water hero: glass, thermometer, read-out ── */
+.hl-hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 0.55fr) minmax(0, 1.2fr);
+  gap: 12px;
+  align-items: end;
+  margin-top: 10px;
+}
+
+.hl-figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.hl-figure .plan-meta {
+  margin: 0;
+  text-align: center;
+  letter-spacing: 0.06em;
+}
+
+.hl-glass,
+.hl-meter {
+  width: 100%;
+  max-height: 210px;
+}
+
+.glass-water-fill {
+  transition: transform 900ms var(--ease);
+}
+
+.hl-meter-fill {
+  transition: y 900ms var(--ease);
+}
+
+.wave-back {
+  animation: hl-wave 7s linear infinite;
+}
+
+.wave-front {
+  animation: hl-wave 4.5s linear infinite reverse;
+}
+
+@keyframes hl-wave {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-100px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wave-back,
+  .wave-front {
+    animation: none;
+  }
+  .glass-water-fill,
+  .hl-meter-fill {
+    transition: none;
+  }
+}
+
+.hl-readout {
+  align-self: center;
+}
+
+.hl-big {
+  font-family: var(--font-display);
+  font-size: clamp(46px, 14vw, 72px);
+  line-height: 0.9;
+  color: var(--ink);
+}
+
+.hl-big.is-hit,
+.hl-hit {
+  color: var(--pine);
+}
+
+.hl-link-note {
+  border-left: var(--bw-3) solid var(--drink-water);
+  padding-left: 8px;
+}
+
+.hl-details {
+  margin-top: 14px;
+}
+
+.hl-details > summary {
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: var(--fs-10);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--brick);
+}
+
+.hl-inline {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.hl-inline input {
+  max-width: 140px;
+}
+
+/* ── "Still in you" ── */
+.hl-load-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--paper);
+  color: var(--ink);
+  border: var(--bw-2) solid var(--edge);
+  cursor: pointer;
+  text-align: left;
+}
+
+.hl-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.hl-chip {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+}
+
+.hl-chip-key {
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--brick);
+  min-width: 8ch;
+}
+
+.hl-chip-val.is-clear,
+.hl-load-value.is-clear {
+  color: var(--pine);
+}
+
+.hl-load-hint {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: var(--fs-10);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.hl-load-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.hl-load-card {
+  border: var(--bw-2) solid var(--edge);
+  border-top: 6px solid var(--hl-accent, var(--ink));
+  background: var(--paper);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hl-load-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.hl-load-head .plan-meta {
+  margin: 0;
+}
+
+.hl-load-value {
+  font-family: var(--font-display);
+  font-size: 34px;
+  line-height: 1;
+  color: var(--ink);
+}
+
+.hl-load-card .plan-note {
+  margin: 0;
+}
+
+.hl-curve {
+  width: 100%;
+  height: 64px;
+  display: block;
+}
+
+.hl-curve-empty {
+  height: 64px;
+  border-bottom: 1px solid var(--ink-faint);
+}
+
+.hl-load-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: var(--fs-10_5);
+  color: var(--ink-soft);
+  border-top: var(--bw-1) var(--dash) var(--sep);
+  padding-top: 6px;
+}
+
+.hl-load-foot strong {
+  color: var(--ink);
+}
+
+/* ── Pour a drink ── */
+.hl-drink-tabs {
+  margin: 0 0 12px;
+}
+
+.hl-drink-tabs .toggle-btn {
+  flex: 1 1 25%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-top: 4px solid var(--hl-accent);
+}
+
+.hl-tab-factor {
+  font-weight: 500;
+  font-size: var(--fs-8_5);
+  letter-spacing: 0.02em;
+  text-transform: none;
+  opacity: 0.8;
+}
+
+.hl-quick {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.hl-quick-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px 8px;
+  background: var(--paper);
+  color: var(--ink);
+  border: var(--bw-3) solid var(--edge);
+  box-shadow: var(--block-3);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 80ms ease, box-shadow 80ms ease;
+}
+
+.hl-quick-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: var(--block-1);
+}
+
+.hl-glassware {
+  width: 40px;
+  height: 52px;
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2.2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.hl-glassware-body {
+  fill: var(--hl-accent);
+  fill-opacity: 0.35;
+}
+
+.hl-quick-amount {
+  font-family: var(--font-stamp);
+  font-size: 14px;
+}
+
+/* ── Lists (drinks, plate, menu, record) ── */
+.hl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.hl-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 0;
+  border-bottom: var(--bw-1) var(--dash) var(--sep);
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+}
+
+.hl-row:last-child {
+  border-bottom: none;
+}
+
+.hl-row-time {
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.hl-row-main {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.hl-entry-kind {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.hl-row-amount {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.hl-row-soft {
+  color: var(--ink-soft);
+}
+
+.hl-row-name {
+  font-weight: 600;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+/* Food rows: name + grams on top, macros + remove below on narrow screens. */
+.hl-food-row,
+.hl-menu-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.hl-food-row > .hl-row-soft,
+.hl-menu-row > .hl-row-soft {
+  grid-column: 1;
+}
+
+.hl-menu-row > .icon-btn {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.hl-food-row > .icon-btn {
+  grid-column: 2;
+}
+
+.hl-record {
+  grid-template-columns: auto 1fr 1fr auto;
+}
+
+.hl-row-grams {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hl-grams {
+  width: 84px !important;
+  padding: 6px 8px !important;
+  font-size: 15px !important;
+}
+
+.hl-tag {
+  margin-left: 8px;
+  font-size: var(--fs-8_5);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--pine);
+  border: var(--bw-1) solid currentColor;
+  padding: 1px 5px;
+}
+
+.hl-day {
+  border-bottom: var(--bw-1) var(--dash) var(--sep);
+  padding: 8px 0;
+}
+
+.hl-day > summary {
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+}
+
+.hl-day-label {
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.hl-day-total {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.hl-day-total.is-hit {
+  color: var(--pine);
+}
+
+/* ── Fuel ── */
+.hl-fuel-head .plan-meta {
+  margin-bottom: 12px;
+}
+
+.hl-subtabs {
+  margin: 0;
+}
+
+.hl-subtabs .toggle-btn {
+  flex: 1 1 25%;
+}
+
+.hl-fuel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hl-daynav {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.hl-daynav .icon-btn {
+  font-size: 18px;
+  padding: 4px 12px;
+}
+
+.hl-daynav-center {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.hl-daynav-title {
+  font-family: var(--font-stamp);
+  font-size: 14px;
+  text-transform: uppercase;
+}
+
+.hl-window {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: var(--fs-10);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border: var(--bw-1) solid currentColor;
+  background: transparent;
+}
+
+.hl-window.is-open {
+  color: var(--pine);
+}
+
+.hl-window.is-closed {
+  color: var(--ink-soft);
+}
+
+.hl-window.is-link {
+  color: var(--brick);
+  cursor: pointer;
+}
+
+.hl-macros {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.hl-macro .plan-meta {
+  margin-top: 4px;
+}
+
+.hl-macro-value {
+  font-family: var(--font-display);
+  font-size: clamp(26px, 8vw, 36px);
+  line-height: 1;
+  margin: 6px 0;
+  color: var(--ink);
+}
+
+.hl-macro.is-over .hl-macro-value {
+  color: var(--signal);
+}
+
+.hl-macro.is-hit .hl-macro-value {
+  color: var(--pine);
+}
+
+.hl-bar {
+  height: 10px;
+  border: var(--bw-2) solid var(--edge);
+  background: var(--paper);
+  overflow: hidden;
+}
+
+.hl-bar-fill {
+  height: 100%;
+  background: var(--ink);
+  transition: width 600ms var(--ease);
+}
+
+.hl-bar.is-kcal .hl-bar-fill {
+  background: var(--mustard);
+}
+
+.hl-macro.is-over .hl-bar-fill {
+  background: var(--signal);
+}
+
+.hl-bar.is-protein .hl-bar-fill {
+  background: var(--brick);
+}
+
+.hl-bar.is-water .hl-bar-fill {
+  background: var(--drink-water);
+}
+
+.is-on {
+  color: var(--pine);
+}
+
+.is-slow {
+  color: var(--mustard);
+}
+
+.is-fast,
+.hl-off {
+  color: var(--signal);
+}
+
+.hl-cross .plan-note {
+  margin-bottom: 10px;
+}
+
+.hl-meals {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.hl-meal {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  text-align: left;
+  padding: 10px;
+  background: var(--paper);
+  color: var(--ink);
+  border: var(--bw-2) solid var(--edge);
+  box-shadow: var(--block-2);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: var(--fs-10_5);
+}
+
+.hl-meal:active {
+  transform: translate(2px, 2px);
+  box-shadow: var(--block-1);
+}
+
+.hl-meal-name {
+  font-family: var(--font-stamp);
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.hl-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  margin-top: 14px;
+}
+
+.hl-add .field {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+.hl-add .hl-grow {
+  flex: 3 1 200px;
+}
+
+.hl-add .hl-narrow {
+  flex: 1 1 80px;
+  max-width: 120px;
+}
+
+.hl-add > .btn {
+  margin-bottom: 2px;
+}
+
+.hl-claude {
+  margin-top: 14px;
+  border: var(--bw-2) var(--dash) var(--sep);
+  padding: 10px 12px;
+}
+
+.hl-claude-summary {
+  cursor: pointer;
+  font-family: var(--font-stamp);
+  font-size: 13px;
+  text-transform: uppercase;
+  color: var(--brick);
+}
+
+.hl-claude-step {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.hl-claude-step > .plan-note {
+  margin: 0;
+}
+
+.hl-reply {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hl-reply .plan-note {
+  margin: 0;
+}
+
+.hl-error {
+  color: var(--signal);
+}
+
+.hl-error:empty,
+.hl-flash:empty {
+  display: none;
+}
+
+.hl-claude-preview:not(:empty) {
+  margin-top: 12px;
+  border-top: var(--bw-2) solid var(--edge);
+  padding-top: 8px;
+}
+
+.hl-toggle {
+  margin: 0;
+}
+
+.hl-chart {
+  width: 100%;
+  min-height: 60px;
+}
+
+.hl-chart svg {
+  display: block;
+}
+
+.hl-chart-grid {
+  stroke: var(--ink-ghost);
+  stroke-width: 1;
+}
+
+.hl-chart-tick {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  fill: var(--ink-soft);
+}
+
+.hl-chart-today {
+  stroke: var(--ink-faint);
+  stroke-dasharray: 2 3;
+}
+
+.hl-chart-pace {
+  stroke: var(--pine);
+  stroke-width: 1.6;
+  stroke-dasharray: 5 4;
+}
+
+.hl-chart-dot {
+  fill: var(--ink-soft);
+}
+
+.hl-chart-avg {
+  fill: none;
+  stroke: var(--brick);
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+}
+
+.hl-navel-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 150px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  margin-top: 10px;
+}
+
+.hl-navel {
+  width: 100%;
+}
+
+.hl-navel-body {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.hl-navel-hint {
+  fill: none;
+  stroke: var(--ink-faint);
+  stroke-width: 1.4;
+}
+
+.hl-navel-tape {
+  fill: none;
+  stroke: var(--mustard);
+  stroke-width: 5;
+}
+
+.hl-navel-tape-back {
+  fill: none;
+  stroke: var(--mustard);
+  stroke-width: 3;
+  stroke-dasharray: 4 4;
+  opacity: 0.6;
+}
+
+.hl-navel-tick {
+  stroke: var(--ink);
+  stroke-width: 1;
+}
+
+.hl-navel-dot {
+  fill: var(--brick);
+}
+
+.hl-navel-level {
+  stroke: var(--brick);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.hl-navel-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  fill: var(--brick);
+}
+
+.hl-steps {
+  margin: 0;
+  padding-left: 18px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-10_5);
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.hl-pantry {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-x: auto;
+}
+
+.hl-pantry-row {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) repeat(4, 62px) auto;
+  gap: 4px;
+  align-items: center;
+  min-width: 420px;
+}
+
+.hl-pantry-head {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: var(--fs-9);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--brick);
+}
+
+.hl-cell {
+  padding: 6px 6px !important;
+  font-size: 14px !important;
+  border-width: var(--bw-1) !important;
+}
+
+.hl-terms {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.hl-measures {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hl-measures .plan-note {
+  margin: 0;
+}
+
+.hl-measures-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* Body home: today's water + food beside readiness. */
+.hl-today-strip {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.hl-today-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.hl-today-cell .plan-meta {
+  margin: 0;
+}
+
+@media (max-width: 460px) {
+  .hl-hero-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.6fr);
+  }
+  .hl-readout {
+    grid-column: 1 / -1;
+  }
+  .hl-navel-wrap {
+    grid-template-columns: 1fr;
+  }
+  .hl-navel {
+    max-width: 180px;
+  }
+}
+
+/* Sport skin: rounded surfaces to match its cards and toggles. */
+:root[data-theme^="sport"] .hl-load-toggle,
+:root[data-theme^="sport"] .hl-load-card,
+:root[data-theme^="sport"] .hl-quick-btn,
+:root[data-theme^="sport"] .hl-meal,
+:root[data-theme^="sport"] .hl-claude,
+:root[data-theme^="sport"] .view-fuel input[type="date"],
+:root[data-theme^="sport"] .view-fuel input[type="time"],
+:root[data-theme^="sport"] .hl-select {
+  border-radius: var(--radius-sm);
+}
+
+:root[data-theme^="sport"] .hl-bar,
+:root[data-theme^="sport"] .hl-window,
+:root[data-theme^="sport"] .hl-tag {
+  border-radius: var(--pill);
+}
+
+/* =============================================================================
    SPORT — the default skin
    A modern training-app look over the same markup: a clean sans (Inter) for
    everything you read, a condensed bold (Barlow Condensed) for headlines and

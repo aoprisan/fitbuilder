@@ -21,9 +21,15 @@ UNDERSTAND YOUR TRAINING
 • Per-exercise estimated 1RM, trend chart and reps you can expect at the loads you train
 • Export sessions as PNG or PDF, or share a Markdown recap to an AI assistant of your choice for analysis
 
+WATER AND FUEL, ALONGSIDE YOUR TRAINING
+• Log drinks by how well they hydrate; the daily goal grows with the day's training
+• See caffeine and estimated blood alcohol still on board, and when they clear
+• Track calories and protein against your targets, an eating window, weigh-ins and waist
+• Weigh-ins share one log with the protein and calorie estimates on your sessions
+
 PRIVATE BY DESIGN
 • No account, no sign-in, no ads
-• Your training data stays on your phone — nothing is uploaded
+• Your training, food and drink logs stay on your phone — nothing is uploaded
 • Works fully offline; back up and restore everything to a single file whenever you like
 
 Available in English and Romanian.

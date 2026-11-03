@@ -35,6 +35,7 @@ import {
 import { buildBodySvg } from "./bodySvg";
 import { effortTierLabel } from "./sessionSummary";
 import { isOnboarded, renderWelcome } from "./welcome";
+import { renderTodayStrip } from "./todayStrip";
 
 registerTranslations({
   // — Readiness header · start CTA · last session —
@@ -207,7 +208,7 @@ export function mountBody(root: HTMLElement, nav: Nav): Cleanup {
         }),
       ]);
     if (isOnboarded() || inFlight) {
-      container.append(header, cta, emptyCard());
+      container.append(header, cta, renderTodayStrip(nav, sessions), emptyCard());
     } else {
       // First run: the welcome card stands in for the CTA and the empty note.
       const welcome = renderWelcome(startSession, () => welcome.replaceWith(cta, emptyCard()));
@@ -309,6 +310,7 @@ export function mountBody(root: HTMLElement, nav: Nav): Cleanup {
   container.append(
     header,
     cta,
+    renderTodayStrip(nav, sessions),
     stageCard,
     ...(lastCard ? [lastCard] : []),
     renderExportPanel(sessions, () => metric),

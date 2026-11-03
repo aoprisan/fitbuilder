@@ -1,7 +1,7 @@
 {
   "name": "Gym Log: Lift & Recover",
   "short_name": "Gym Log",
-  "description": "See your body's readiness at a glance, log training sessions set by set, and analyse your history with Claude.",
+  "description": "See your body's readiness at a glance, log training sessions set by set, track water and food alongside them, and analyse your history with Claude.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -27,5 +27,14 @@
       "sizes": "432x432",
       "purpose": "maskable"
     }
-  ]
+  ],
+  "share_target": {
+    "action": "./",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
 }

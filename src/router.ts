@@ -1,4 +1,4 @@
-export type ViewName = "body" | "live" | "history" | "exercise";
+export type ViewName = "body" | "live" | "history" | "exercise" | "water" | "fuel";
 
 export type Cleanup = () => void;
 
