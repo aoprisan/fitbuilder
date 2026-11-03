@@ -1,4 +1,4 @@
-package com.fitbuilder.app;
+package io.galagogen.fitbuilder;
 
 import com.getcapacitor.BridgeActivity;
 

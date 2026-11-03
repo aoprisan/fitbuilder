@@ -34,10 +34,10 @@ def releaseKeyPassword = signingValue('keyPassword', 'ANDROID_KEY_PASSWORD') ?: 
 def hasReleaseSigning = releaseStoreFile && releaseStorePassword && releaseKeyAlias
 
 android {
-    namespace = "com.fitbuilder.app"
+    namespace = "io.galagogen.fitbuilder"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.fitbuilder.app"
+        applicationId "io.galagogen.fitbuilder"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode appVersionCode

@@ -43,7 +43,7 @@ if [[ "$MODE" == "sim" ]]; then
   APP="$OUT/ios-derived/Build/Products/Debug-iphonesimulator/App.app"
   echo
   echo "✔ $APP"
-  echo "  run it: open -a Simulator && xcrun simctl install booted \"$APP\" && xcrun simctl launch booted com.fitbuilder.app"
+  echo "  run it: open -a Simulator && xcrun simctl install booted \"$APP\" && xcrun simctl launch booted io.galagogen.fitbuilder"
   exit 0
 fi
 

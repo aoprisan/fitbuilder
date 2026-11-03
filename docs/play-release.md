@@ -1,6 +1,6 @@
 # Google Play release
 
-Everything needed to ship the Android app (`com.fitbuilder.app`) to Google Play:
+Everything needed to ship the Android app (`io.galagogen.fitbuilder`) to Google Play:
 what's automated, what you do once by hand, and what to answer in the Play Console.
 Builds stay local (see `MOBILE.md`, no CI job).
 

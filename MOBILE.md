@@ -6,7 +6,7 @@ no separate mobile codebase.
 
 ## Config
 
-`capacitor.config.ts` — `appId: com.fitbuilder.app`, `appName: Gym Log`, `webDir: dist`.
+`capacitor.config.ts` — `appId: io.galagogen.fitbuilder`, `appName: Gym Log`, `webDir: dist`.
 
 ## Prerequisites
 
