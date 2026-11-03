@@ -1,0 +1,5 @@
+First Google Play release.
+• Readiness-first home: 3D body map and per-muscle recovery
+• Live set-by-set logger with rest alerts on the lock screen
+• Fatigue-adjusted "expected now" forecast for every exercise
+• History, per-exercise 1RM trends and PNG/PDF export

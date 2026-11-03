@@ -116,7 +116,8 @@ enter them by hand instead, paste from the same files.
 - **App category:** Health & Fitness. **Tags:** workout tracker, gym log, strength
   training.
 - **Title:** don't put "Training Ledger" in public copy. Play already has an app called *Training Ledger: Workout Log*, so here it only names the design style.
-- **Contact e-mail:** the one in the privacy policy. Website: the GitHub Pages URL.
+- **Contact e-mail:** the one in the privacy policy. Website: leave empty for now;
+  the GitHub Pages URL is the web app itself, not a page about it.
 - **Graphics:** `images/icon.png` (512×512, full-bleed; Play adds the rounded
   mask), `images/featureGraphic.jpg` (1024×500), `images/phoneScreenshots/*.jpg`
   (5 × 1080×1920, captioned; JPEG because Play rejects alpha channels). Play accepts 2 to 8 phone screenshots. Tablet

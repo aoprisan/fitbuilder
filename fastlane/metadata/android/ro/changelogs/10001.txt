@@ -1,0 +1,5 @@
+Prima lansare pe Google Play.
+• Ecran principal centrat pe recuperare: hartă 3D și recuperare pe mușchi
+• Jurnal live set cu set, cu alertă de pauză pe ecranul blocat
+• Estimare „așteptat acum” ajustată după oboseală pentru fiecare exercițiu
+• Istoric, evoluția 1RM pe exercițiu și export PNG/PDF

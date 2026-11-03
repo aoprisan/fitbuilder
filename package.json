@@ -2,7 +2,7 @@
   "name": "gym-log-exercise-builder",
   "private": true,
   "license": "UNLICENSED",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "Gym Log — an offline-first training log: a readiness body map, a live set-by-set logger, session history and per-exercise stats.",
   "scripts": {
