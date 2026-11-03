@@ -21,9 +21,15 @@ NOTEZI LIVE, SET CU SET
 • 1RM estimat pe exercițiu, grafic de evoluție și repetările de așteptat la greutățile folosite
 • Exportă sesiunile ca PNG sau PDF, sau trimite un rezumat Markdown unui asistent AI ales de tine pentru analiză
 
+APĂ ȘI NUTRIȚIE, LÂNGĂ ANTRENAMENT
+• Notezi băuturile după cât de bine hidratează; obiectivul zilnic crește cu antrenamentul zilei
+• Vezi cofeina și alcoolemia estimată rămase în organism și când dispar
+• Urmărești caloriile și proteinele față de ținte, fereastra de masă, cântăririle și talia
+• Cântăririle folosesc același jurnal ca estimările de proteine și calorii ale sesiunilor
+
 PRIVAT DIN CONSTRUCȚIE
 • Fără cont, fără autentificare, fără reclame
-• Datele de antrenament rămân pe telefon — nimic nu este încărcat
+• Jurnalele de antrenament, mâncare și băuturi rămân pe telefon — nimic nu este încărcat
 • Funcționează complet offline; salvezi și restaurezi totul într-un singur fișier oricând
 
 Disponibil în engleză și română.
