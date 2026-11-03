@@ -8,7 +8,7 @@ Builds stay local (see `MOBILE.md`, no CI job).
 
 | Path | What it is |
 | --- | --- |
-| `android/app/build.gradle` | `versionName` = `package.json` version; `versionCode` = `MAJOR*10000 + MINOR*100 + PATCH` (1.0.0 → 10000). Release signing from `android/keystore.properties` or env vars. |
+| `android/app/build.gradle` | `versionName` = `package.json` version; `versionCode` = `MAJOR*10000 + MINOR*100 + PATCH` (1.0.0 → 10000), so minor and patch must stay within 0–99 (the build fails otherwise). Release signing from `android/keystore.properties` or env vars. |
 | `android/keystore.properties.example` | Template for the git-ignored signing config. |
 | `scripts/build-android.sh release` | Web build → `cap sync` → signed `build-output/gym-log-release.aab`. |
 | `fastlane/metadata/android/{en-US,ro}/` | Store listing: `title.txt` (≤30), `short_description.txt` (≤80), `full_description.txt` (≤4000), `changelogs/<versionCode>.txt` (≤500), `images/` (icon, feature graphic, phone screenshots). |

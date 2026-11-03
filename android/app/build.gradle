@@ -6,11 +6,15 @@ import groovy.json.JsonSlurper
 // package.json's "version" is the single source of truth: `npm version patch`
 // bumps the app everywhere. versionName is that string; versionCode is derived
 // as MAJOR*10000 + MINOR*100 + PATCH (1.2.3 → 10203), so every semver bump is a
-// strictly higher code, as Google Play requires. Override the code for a one-off
-// re-upload with ANDROID_VERSION_CODE (env) or -PversionCode=….
+// strictly higher code, as Google Play requires. That only holds while minor and
+// patch stay within 0-99, so the build fails beyond that. Override the code for a
+// one-off re-upload with ANDROID_VERSION_CODE (env) or -PversionCode=….
 def pkg = new JsonSlurper().parse(rootProject.file('../package.json'))
 def appVersionName = pkg.version as String
 def semver = appVersionName.tokenize('-')[0].tokenize('.').collect { it as int }
+if (semver[1] > 99 || semver[2] > 99) {
+    throw new GradleException("package.json version ${appVersionName}: minor and patch must be 0-99, or the derived versionCode collides with other versions.")
+}
 def derivedVersionCode = semver[0] * 10000 + semver[1] * 100 + semver[2]
 def appVersionCode = (project.findProperty('versionCode')
         ?: System.getenv('ANDROID_VERSION_CODE')
