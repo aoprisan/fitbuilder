@@ -89,6 +89,24 @@ npm run ios               # build + sync + open ios/App/App.xcodeproj in Xcode
 Pick your team under *Signing & Capabilities* once, then run on a device or archive
 for TestFlight / the App Store.
 
+### Share extension (Fuel's Claude replies)
+
+The project has a second target, **ShareExtension** (`ios/App/ShareExtension/`,
+bundle id `io.galagogen.fitbuilder.ShareExtension`), embedded in the app. It puts
+*Gym Log* in the share sheet for text: sharing Claude's reply to a Fuel meal estimate
+or menu plan opens the app on Fuel with the reply read in. The extension forwards the
+text over the app's `gymlog-share://fuel?text=…` URL scheme (`App/Info.plist`), and
+`AppDelegate.openSharedText` reloads the web view with `?text=…` — the same entry point
+the PWA share target and the Android `ACTION_SEND` intent use. No App Group is needed.
+
+- **Signing:** pick your team for *both* targets in Xcode the first time;
+  `build:ios:archive` signs both automatically (`-allowProvisioningUpdates`).
+- **Versions:** the extension carries its own `MARKETING_VERSION` /
+  `CURRENT_PROJECT_VERSION` build settings. Keep them equal to the App target's when
+  you bump a release, or App Store Connect rejects the upload.
+- If the app can't be reached, the extension leaves the reply on the clipboard so
+  *Paste reply* in Fuel still works.
+
 ## Rest timer & notifications
 
 Timers (set stopwatch, rest clock, session HUD) are anchored to wall-clock time and the

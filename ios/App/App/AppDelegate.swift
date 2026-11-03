@@ -34,9 +34,40 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        if url.scheme == "gymlog-share" {
+            openSharedText(from: url)
+            return true
+        }
         // Called when the app was launched with a url. Feel free to add additional processing here,
         // but if you want the App API to support tracking app url opens, make sure to keep this call
         return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
+    }
+
+    /// Text handed over by the Share Extension (`gymlog-share://fuel?text=…`):
+    /// reload the web app with `?text=…`, the same entry point the PWA share
+    /// target and the Android intent use — health/cutClaude.ts reads it once at
+    /// boot and main.ts opens Fuel. The asset handler serves by path, so the
+    /// query only reaches the page. On a cold launch the bridge may still be
+    /// coming up, so this retries briefly.
+    private func openSharedText(from url: URL, attempt: Int = 0) {
+        guard let text = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?.first(where: { $0.name == "text" })?.value,
+              !text.isEmpty else { return }
+        guard let bridge = (window?.rootViewController as? CAPBridgeViewController)?.bridge,
+              let webView = bridge.webView,
+              var components = URLComponents(url: bridge.config.appStartServerURL, resolvingAgainstBaseURL: false)
+        else {
+            if attempt < 20 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                    self.openSharedText(from: url, attempt: attempt + 1)
+                }
+            }
+            return
+        }
+        components.queryItems = [URLQueryItem(name: "text", value: text)]
+        if let target = components.url {
+            webView.load(URLRequest(url: target))
+        }
     }
 
     func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
