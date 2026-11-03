@@ -48,8 +48,9 @@ const LOCALES = {
     lang: "en",
     bench: "Bench Press", // History chip label for the exercise-detail shot
     days: { push: "Push day", pull: "Pull day", legs: "Legs day" }, // seeded session names
+    kicker: "Lift. Log it. Recover.",
     tagline: "Recovery-aware lifting log",
-    sub: "Offline · No account · No ads",
+    sub: "Offline · No account",
     shots: [
       ["Know what's recovered", "before you pick what to train"],
       ["Know what to expect", "after the sets you've already done"],
@@ -62,8 +63,9 @@ const LOCALES = {
     lang: "ro",
     bench: "Împins la Bancă",
     days: { push: "Zi de împins", pull: "Zi de tras", legs: "Zi de picioare" },
+    kicker: "Ridici. Notezi. Te refaci.",
     tagline: "Jurnal de forță cu recuperare",
-    sub: "Offline · Fără cont · Fără reclame",
+    sub: "Offline · Fără cont",
     shots: [
       ["Vezi ce s-a refăcut", "înainte să alegi ce antrenezi"],
       ["Știi ce să aștepți", "după seriile deja făcute"],
@@ -247,7 +249,7 @@ function featureHtml(copy) {
     .tag{margin:0;font:700 28px/1.25 Inter,sans-serif}
     .sub{margin:10px 0 0;font:500 18px/1.2 Inter,sans-serif;color:rgba(243,245,248,.6);letter-spacing:.08em;text-transform:uppercase}
   </style></head><body><div class="wrap"><div class="icon">${iconSvg(false)}</div><div>
-    <h1>GYM LOG</h1><p class="kicker">TRAINING LEDGER</p>
+    <h1>GYM LOG</h1><p class="kicker">${copy.kicker}</p>
     <p class="tag">${copy.tagline}</p><p class="sub">${copy.sub}</p>
   </div></div></body></html>`;
 }

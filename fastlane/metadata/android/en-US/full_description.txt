@@ -1,4 +1,4 @@
-Gym Log is a training ledger for people who log their own lifting. It opens on your body: which muscles are recovered, which are still on the clock, and one tap to start a session.
+Gym Log is a workout tracker for people who log their own lifting. It opens on your body: which muscles are recovered, which are still on the clock, and one tap to start a session.
 
 READINESS FIRST
 • A rotatable 3D body map coloured by fatigue, strength, hypertrophy or efficiency

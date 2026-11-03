@@ -44,7 +44,7 @@ npm run play:promote -- to:production rollout:0.2   # see "Promote" below
    Keep **Play App Signing** on when the console offers it (the default): Google
    holds the app-signing key, and your key above is only the *upload* key, which
    Google can reset if it's lost.
-3. **Create the app** in the console: name *Gym Log · Training Ledger*, default
+3. **Create the app** in the console: name *Gym Log: Lift & Recover*, default
    language English (United States), *App*, *Free*.
 4. **First upload by hand:** Google requires the first AAB to go through the
    console. Run `npm run build:android:release`, then upload
@@ -115,13 +115,17 @@ enter them by hand instead, paste from the same files.
 
 - **App category:** Health & Fitness. **Tags:** workout tracker, gym log, strength
   training.
+- **Title:** don't put "Training Ledger" in public copy. Play already has an app called *Training Ledger: Workout Log*, so here it only names the design style.
 - **Contact e-mail:** the one in the privacy policy. Website: the GitHub Pages URL.
 - **Graphics:** `images/icon.png` (512×512, full-bleed; Play adds the rounded
   mask), `images/featureGraphic.jpg` (1024×500), `images/phoneScreenshots/*.jpg`
   (5 × 1080×1920, captioned; JPEG because Play rejects alpha channels). Play accepts 2 to 8 phone screenshots. Tablet
   screenshots are optional; the app is portrait phone-first.
-- **Romanian (ro):** a full translated listing ships alongside en-US. Add the
-  language under *Manage translations* if you enter it by hand.
+- **Romanian (ro):** the store listing is English only for now, though the app
+  itself has both languages. The translated listing stays ready in `ro/`; add it
+  under *Manage translations* when you want it live. Fastlane uploads should pick up
+  every language folder, so exclude `ro/` before using `play:metadata` or
+  `play:internal` until then.
 
 ## Smoke test before promoting
 

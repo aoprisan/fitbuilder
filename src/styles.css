@@ -550,7 +550,7 @@ textarea {
 }
 
 .brand::after {
-  content: "TRAINING LEDGER · Nº 01";
+  content: "LIFT & RECOVER · Nº 01";
   display: inline-block;
   white-space: nowrap;
   font-family: var(--font-mono);
