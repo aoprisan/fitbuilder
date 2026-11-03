@@ -120,7 +120,7 @@ enter them by hand instead, paste from the same files.
   the GitHub Pages URL is the web app itself, not a page about it.
 - **Graphics:** `images/icon.png` (512×512, full-bleed; Play adds the rounded
   mask), `images/featureGraphic.jpg` (1024×500), `images/phoneScreenshots/*.jpg`
-  (5 × 1080×1920, captioned; JPEG because Play rejects alpha channels). Play accepts 2 to 8 phone screenshots. Tablet
+  (7 × 1080×1920, captioned; JPEG because Play rejects alpha channels). Play accepts 2 to 8 phone screenshots. Tablet
   screenshots are optional; the app is portrait phone-first.
 - **Romanian (ro):** the store listing is English only for now, though the app
   itself has both languages. The translated listing stays ready in `ro/`; add it
