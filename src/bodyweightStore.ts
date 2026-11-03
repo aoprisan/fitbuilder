@@ -97,3 +97,10 @@ export function bodyweightOn(
   }
   return (found ?? entries[0])?.kg ?? null;
 }
+
+/** Drop the entry for a day (no-op when that day has none). */
+export function removeBodyweight(date: string): void {
+  const entries = loadBodyweights();
+  const kept = entries.filter((e) => e.date !== date);
+  if (kept.length !== entries.length) writeAll(kept);
+}

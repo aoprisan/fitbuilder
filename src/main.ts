@@ -5,7 +5,6 @@ import { getSession, PERSIST_ERROR_EVENT, SESSIONS_KEY } from "./logStorage";
 import { setActiveLog, state } from "./state";
 import { PROGRESS_KEY } from "./liveProgress";
 import { backupFilename, buildBackup, RestoreQuotaError, restoreBackup } from "./backup";
-import { latestBodyweight, logBodyweight } from "./bodyweightStore";
 import { clear, h } from "./dom";
 import { forceAppUpdate, registerServiceWorker } from "./pwa";
 import type { Cleanup, Nav, ViewName } from "./router";
@@ -16,6 +15,10 @@ import { mountBody } from "./views/body";
 import { mountExercise } from "./views/exercise";
 import { mountHistory } from "./views/history";
 import { mountLive } from "./views/live";
+import { mountWater } from "./views/water";
+import { mountFuel } from "./views/fuel";
+import { measuresForm } from "./views/measures";
+import { peekSharedReply } from "./health/cutClaude";
 import { dismissSnackbar, showNotice } from "./views/snackbar";
 import { mountNotifySettings } from "./views/notifySettings";
 import { onNotificationTap } from "./notify";
@@ -59,12 +62,9 @@ registerTranslations({
   Privacy: "Confidențialitate",
   Terms: "Termeni",
   "That file is not a Gym Log backup.": "Acel fișier nu este o copie de rezervă Gym Log.",
-  Bodyweight: "Greutate corporală",
-  "Your bodyweight sharpens the protein and calorie estimates.":
-    "Greutatea ta corporală îmbunătățește estimările de proteine și calorii.",
-  "Bodyweight (kg)": "Greutate corporală (kg)",
-  Save: "Salvează",
-  "Saved.": "Salvat.",
+  Water: "Apă",
+  Fuel: "Nutriție",
+  "Body measures": "Măsuri corporale",
 });
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -101,9 +101,11 @@ interface NavItem {
   icon: () => SVGElement;
 }
 
-// The three tabs of the readiness-first shell: Body (the fatigue map home),
-// Train (the live logger) and History (past sessions + Claude analysis).
-// Exercise detail is a pushed screen reached from History and the picker.
+// The tabs: Body (the fatigue map home), Train (the live logger), History
+// (past sessions + Claude analysis), then the health journal — Water (drinks,
+// caffeine, alcohol) and Fuel (the cut: food, weigh-ins, waist). The logs are
+// separate but read each other (health/crossData.ts). Exercise detail is a
+// pushed screen reached from History and the picker.
 const NAV_ITEMS: ReadonlyArray<NavItem> = [
   {
     name: "body",
@@ -120,6 +122,16 @@ const NAV_ITEMS: ReadonlyArray<NavItem> = [
     name: "history",
     label: "History",
     icon: () => navIcon("M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z", "M12 7v5l3.5 2"),
+  },
+  {
+    name: "water",
+    label: "Water",
+    icon: () => navIcon("M12 3c3.5 4.6 6 8 6 11a6 6 0 0 1-12 0c0-3 2.5-6.4 6-11z"),
+  },
+  {
+    name: "fuel",
+    label: "Fuel",
+    icon: () => navIcon("M7 3v8a2 2 0 0 0 4 0V3", "M9 11v10", "M16 21V3c2.5 1.5 3.5 4 3.5 7s-1.5 4-3.5 4"),
   },
 ];
 
@@ -188,7 +200,7 @@ function boot(): void {
 
   // Every view name navigate() can mount — the whitelist popstate restores from,
   // so a stale or foreign history entry can never mount an unknown view.
-  const ALL_VIEWS: ReadonlyArray<ViewName> = ["body", "live", "history", "exercise"];
+  const ALL_VIEWS: ReadonlyArray<ViewName> = ["body", "live", "history", "exercise", "water", "fuel"];
 
   const nav: Nav = {
     go: (view) => navigate(view),
@@ -231,6 +243,12 @@ function boot(): void {
         break;
       case "exercise":
         result = mountExercise(viewHost, nav);
+        break;
+      case "water":
+        result = mountWater(viewHost, nav);
+        break;
+      case "fuel":
+        result = mountFuel(viewHost, nav);
         break;
     }
     cleanup = typeof result === "function" ? result : null;
@@ -399,34 +417,23 @@ function boot(): void {
     text: t("Terms"),
   });
 
-  // Bodyweight — sharpens the protein/calorie estimates on session summaries.
-  const bodyweightLabel = h("span", { class: "settings-label", text: t("Bodyweight") });
-  const bodyweightDesc = h("p", {
-    class: "settings-disclaimer",
-    text: t("Your bodyweight sharpens the protein and calorie estimates."),
-  });
-  const bodyweightInput = h("input", {
-    class: "plan-name-input oneRm-input",
-    type: "number",
-    inputmode: "decimal",
-    min: "0",
-    step: "0.5",
-    value: latestBodyweight() ? String(latestBodyweight()!.kg) : "",
-    placeholder: "kg",
-    aria: { label: t("Bodyweight (kg)") },
-  });
-  const bodyweightStatus = h("p", { class: "settings-disclaimer" });
-  const bodyweightSave = h("button", {
-    class: "btn btn-small",
-    type: "button",
-    text: t("Save"),
-  });
-  bodyweightSave.addEventListener("click", () => {
-    const kg = Number(bodyweightInput.value);
-    if (!Number.isFinite(kg) || kg <= 0) return;
-    logBodyweight(kg);
-    bodyweightStatus.textContent = t("Saved.");
-  });
+  // Body measures — weight (the shared body-weight log: protein/calorie
+  // estimates, Fuel weigh-ins), height and build (blood alcohol, waist-to-height).
+  // Rebuilt on open and on a language change so it shows the latest weigh-in.
+  const bodyweightLabel = h("span", { class: "settings-label", text: t("Body measures") });
+  const measuresHost = h("div");
+  function mountMeasures(): void {
+    measuresHost.replaceChildren(
+      measuresForm({
+        withNote: true,
+        // Water and Fuel read the measures at mount — refresh them behind the sheet.
+        onSaved: () => {
+          if (currentView === "water" || currentView === "fuel") navigate(currentView, { push: false });
+        },
+      }).el,
+    );
+  }
+  mountMeasures();
 
   // Updates — pull the latest build and refresh this installed copy.
   const updatesLabel = h("span", { class: "settings-label", text: t("Updates") });
@@ -549,12 +556,7 @@ function boot(): void {
       h("div", { class: "settings-head" }, [settingsTitle, closeBtn]),
       h("div", { class: "settings-row" }, [langLabel, langToggle]),
       h("div", { class: "settings-row" }, [themeLabel, themeToggle]),
-      h("div", { class: "settings-row" }, [
-        bodyweightLabel,
-        bodyweightDesc,
-        h("div", { class: "settings-links" }, [bodyweightInput, bodyweightSave]),
-        bodyweightStatus,
-      ]),
+      h("div", { class: "settings-row" }, [bodyweightLabel, measuresHost]),
       notifyRow,
       h("div", { class: "settings-row" }, [updatesLabel, updateBtn, buildStamp]),
       h("div", { class: "settings-row" }, [
@@ -579,6 +581,7 @@ function boot(): void {
     if (settingsOpen) return;
     settingsOpen = true;
     settingsReturnFocus = document.activeElement as HTMLElement | null;
+    mountMeasures();
     scrim.classList.add("is-open");
     settingsBtn.setAttribute("aria-expanded", "true");
     (dialog.querySelector<HTMLElement>("button:not(.settings-close)") ?? closeBtn).focus();
@@ -622,9 +625,8 @@ function boot(): void {
     settingsTitle.textContent = t("Settings");
     langLabel.textContent = t("Language");
     themeLabel.textContent = t("Theme");
-    bodyweightLabel.textContent = t("Bodyweight");
-    bodyweightDesc.textContent = t("Your bodyweight sharpens the protein and calorie estimates.");
-    bodyweightSave.textContent = t("Save");
+    bodyweightLabel.textContent = t("Body measures");
+    mountMeasures();
     updatesLabel.textContent = t("Updates");
     // Leave the button reading "Updating…" if an update is mid-flight.
     if (!updateBtn.disabled) updateBtn.textContent = t("Update app");
@@ -695,7 +697,8 @@ function boot(): void {
   highlightLang();
   highlightTheme();
   renderNav();
-  const initialView: ViewName = "body";
+  // A Claude reply shared into the installed PWA (manifest share_target) opens Fuel.
+  const initialView: ViewName = peekSharedReply() !== null ? "fuel" : "body";
   navigate(initialView, { push: false });
   // Stamp the first history entry with its view so backing all the way up
   // still restores a known screen (instead of a null state).
