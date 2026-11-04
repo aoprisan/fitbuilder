@@ -1,3 +1,4 @@
+import { latestBodyweight } from "../bodyweightStore";
 import { h } from "../dom";
 import { loadBody, saveBody } from "../health/bodyProfile";
 import { todayIso, type CutSettings } from "../health/cutModel";
@@ -19,6 +20,10 @@ registerTranslations({
   "Goal weight kg": "Greutate țintă kg",
   "Blank → first weigh-in": "Gol → prima cântărire",
   "Saved.": "Salvat.",
+  "At {0} kg, 1.6–2.2 g/kg is {1}–{2} g a day — enough to keep muscle on a cut, training included.":
+    "La {0} kg, 1,6–2,2 g/kg înseamnă {1}–{2} g pe zi — suficient ca să păstrezi mușchii la definire, inclusiv antrenamentul.",
+  "Log a weigh-in to see a range for your weight (1.6–2.2 g/kg, training included).":
+    "Înregistrează o cântărire ca să vezi un interval pentru greutatea ta (1,6–2,2 g/kg, inclusiv antrenamentul).",
   "Your measures": "Măsurile tale",
   "Cut file": "Fișierul definirii",
   "Export JSON": "Exportă JSON",
@@ -55,6 +60,22 @@ const toDraft = (s: CutSettings): Draft => ({
   goalWeight: s.goalWeight === null ? "" : String(s.goalWeight),
 });
 
+// Daily protein that preserves muscle in a deficit for someone who lifts; the
+// training sessions are inside this range, not on top of it.
+const PROTEIN_G_PER_KG_LOW = 1.6;
+const PROTEIN_G_PER_KG_HIGH = 2.2;
+
+function proteinHint(): string {
+  const kg = latestBodyweight()?.kg;
+  if (kg === undefined || !(kg > 0))
+    return t("Log a weigh-in to see a range for your weight (1.6–2.2 g/kg, training included).");
+  const r5 = (x: number): number => Math.round(x / 5) * 5;
+  return t("At {0} kg, 1.6–2.2 g/kg is {1}–{2} g a day — enough to keep muscle on a cut, training included.")
+    .replace("{0}", String(Math.round(kg * 10) / 10))
+    .replace("{1}", String(r5(kg * PROTEIN_G_PER_KG_LOW)))
+    .replace("{2}", String(r5(kg * PROTEIN_G_PER_KG_HIGH)));
+}
+
 export function renderFuelTerms(host: HTMLElement, ctx: FuelCtx): void {
   const draft = toDraft(ctx.state.settings);
   const inputs = FIELDS.map((f) => {
@@ -70,6 +91,7 @@ export function renderFuelTerms(host: HTMLElement, ctx: FuelCtx): void {
       h("span", { class: "field-label", text: t(f.label) }),
       el,
       f.hint ? h("span", { class: "plan-meta plan-note", text: t(f.hint) }) : null,
+      f.key === "protein" ? h("span", { class: "plan-meta plan-note", text: proteinHint() }) : null,
     ]);
   });
 

@@ -27,13 +27,13 @@ export const CLAUDE_NEW_CHAT = "https://claude.ai/new";
 export interface TrainingNote {
   /** Rough kcal the day's logged training burned. */
   kcal: number;
-  /** Recovery-protein estimate for the day's training, g. */
+  /** Protein to eat in the meal after the day's training, g (inside the daily target). */
   proteinG: number;
 }
 
 function trainingLine(training: TrainingNote | null): string | null {
   if (!training || training.kcal <= 0) return null;
-  return `I trained today (logged in my gym log): roughly ${training.kcal} kcal burned, and about ${training.proteinG} g of protein recommended for recovery.`;
+  return `I trained today (logged in my gym log): roughly ${training.kcal} kcal burned, and about ${training.proteinG} g of protein suggested in the meal after the session (part of my daily protein target, not on top of it).`;
 }
 
 export function buildMealPrompt(description: string, pantry: readonly Food[], withPhoto: boolean): string {
@@ -210,12 +210,11 @@ export function buildMenuPrompt(ctx: MenuContext, scope: MenuScope, changes: str
       "Suggest a full day of meals that together land within about 3% of the calorie target and reach the protein target.",
     );
   } else {
-    const pTarget = s.protein + (training?.proteinG ?? 0);
     const kcalLeft = Math.max(0, Math.round(s.kcal - eaten.kcal));
-    const pLeft = Math.max(0, Math.round(pTarget - eaten.p));
+    const pLeft = Math.max(0, Math.round(s.protein - eaten.p));
     lines.push(
       "Suggest what to eat for the rest of today on my cut.",
-      `Daily targets: ${s.kcal} kcal and at least ${pTarget} g protein${training && training.proteinG > 0 ? ` (${s.protein} g plus ${training.proteinG} g for today's training)` : ""}; my eating window closes at ${s.winEnd}.`,
+      `Daily targets: ${s.kcal} kcal and at least ${s.protein} g protein; my eating window closes at ${s.winEnd}.`,
       `Eaten so far: ${Math.round(eaten.kcal)} kcal and ${Math.round(eaten.p)} g protein — that leaves ${kcalLeft} kcal and ${pLeft} g protein.`,
       "Suggest one to three meals that use up the remaining calories (within about 3%) and close the protein gap.",
     );
@@ -223,7 +222,7 @@ export function buildMenuPrompt(ctx: MenuContext, scope: MenuScope, changes: str
     if (tl)
       lines.push(
         tl,
-        "Keep the calorie target as set (don't eat back the training burn); the recovery protein is already in the protein target above — favour protein and some carbs around the session.",
+        "Keep the calorie target as set (don't eat back the training burn); put that post-session protein, and some carbs, in the meal closest to the session.",
       );
   }
 
