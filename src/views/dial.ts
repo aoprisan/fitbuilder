@@ -107,6 +107,15 @@ export function dialField(opts: DialFieldOpts): HTMLElement {
     aria: { label },
   });
 
+  // Shrink the number as it gets longer so "125" or "122.5" fits inside the
+  // ring instead of being clipped by the input's box.
+  const fitNum = (): void => {
+    const len = input.value.length;
+    const scale = len <= 2 ? 1 : len === 3 ? 0.68 : len === 4 ? 0.52 : 0.46;
+    input.style.setProperty("--dial-num-scale", String(scale));
+  };
+  fitNum();
+
   const center = h("div", { class: "dial-input-center" }, [
     input,
     h("span", { class: "dial-input-unit", text: unit }),
@@ -158,7 +167,10 @@ export function dialField(opts: DialFieldOpts): HTMLElement {
 
   const setValue = (n: number, reflect: boolean): void => {
     const next = Math.max(min, normalize(n));
-    if (reflect) input.value = String(next);
+    if (reflect) {
+      input.value = String(next);
+      fitNum();
+    }
     if (next === current) return;
     current = next;
     paint();
@@ -166,6 +178,7 @@ export function dialField(opts: DialFieldOpts): HTMLElement {
   };
 
   input.addEventListener("input", () => {
+    fitNum();
     const n = parseFloat(input.value);
     if (Number.isFinite(n)) setValue(n, false);
   });
