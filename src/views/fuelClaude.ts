@@ -11,9 +11,20 @@ import {
   resolveItems,
   type TrainingNote,
 } from "../health/cutClaude";
-import { dayTotals, type Macros, type Meal, r1, sumMacros, ZERO_MACROS } from "../health/cutModel";
+import {
+  type CutState,
+  dayTotals,
+  type Food,
+  type Macros,
+  type Meal,
+  type MealItem,
+  r1,
+  sumMacros,
+  upsertMeal,
+  ZERO_MACROS,
+} from "../health/cutModel";
 import { dateLocale, registerTranslations, t } from "../i18n";
-import { flashLine, replyBox, sendRow, sessionDraft, takeSharedReply } from "./claudeBridge";
+import { flashLine, replyBox, sendRow, sessionDraft, shrinkPhoto, takeSharedReply } from "./claudeBridge";
 import { fill, type FuelCtx } from "./fuelCtx";
 import { showNotice } from "./snackbar";
 
@@ -22,7 +33,9 @@ registerTranslations({
   "Describe it, or snap it": "Descrie-o sau fotografiaz-o",
   "What did you eat?": "Ce ai mâncat?",
   "e.g. chicken shawarma wrap, small ayran": "de ex. shaorma de pui, un ayran mic",
-  "Add photo": "Adaugă fotografie",
+  "Take photo": "Fă o fotografie",
+  "Retake photo": "Refă fotografia",
+  "Choose photo": "Alege o fotografie",
   "Change photo": "Schimbă fotografia",
   "Remove photo": "Elimină fotografia",
   "Paste Claude's reply": "Lipește răspunsul lui Claude",
@@ -59,6 +72,12 @@ registerTranslations({
   "Meals with a name already on the menu replace it. New foods join the pantry at Claude's values; pantry names use yours.":
     "Mesele cu un nume deja în meniu îl înlocuiesc. Alimentele noi intră în cămară cu valorile lui Claude; numele din cămară folosesc valorile tale.",
   "Training today is included in the prompt.": "Antrenamentul de azi este inclus în prompt.",
+  "Meal name": "Numele mesei",
+  "e.g. Shawarma lunch": "de ex. Prânz cu shaorma",
+  "Save as meal": "Salvează ca masă",
+  "Name the meal first.": "Dă mai întâi un nume mesei.",
+  "Replace the saved meal “{0}”?": "Înlocuiești masa salvată „{0}”?",
+  "Saved “{0}” — it's under Set the table.": "„{0}” a fost salvată — o găsești la Pune masa.",
 });
 
 export const fmtMacros = (m: Macros): string =>
@@ -72,6 +91,8 @@ let mealItems: EstimateItem[] | null = null;
 let menuMeals: MenuMeal[] | null = null;
 let menuScope: MenuScope = "day";
 let photo: File | null = null;
+/** The name typed for "Save as meal" on the estimate; null → from the description. */
+let estimateName: string | null = null;
 
 const mealDesc = sessionDraft("gymlog.fuel.meal-draft");
 const mealReply = sessionDraft("gymlog.fuel.meal-reply");
@@ -139,40 +160,64 @@ export function renderMealClaude(ctx: FuelCtx, day: string): HTMLElement {
     syncReady();
   });
 
-  const photoInput = h("input", { type: "file", accept: "image/*", class: "hl-hidden-file" });
-  const photoRow = h("div", { class: "btn-row" });
+  // Two pickers: the camera straight away, or a photo already taken.
+  const cameraInput = h("input", { type: "file", accept: "image/*", class: "hl-hidden-file" });
+  cameraInput.setAttribute("capture", "environment");
+  const galleryInput = h("input", { type: "file", accept: "image/*", class: "hl-hidden-file" });
+  const photoRow = h("div", { class: "hl-photo-row" });
+  let thumbUrl: string | null = null;
   const paintPhoto = (): void => {
     clear(photoRow);
+    if (thumbUrl) URL.revokeObjectURL(thumbUrl);
+    thumbUrl = photo ? URL.createObjectURL(photo) : null;
+    const thumb = thumbUrl ? h("img", { class: "hl-photo-thumb", aria: { hidden: "true" } }) : null;
+    if (thumb && thumbUrl) thumb.src = thumbUrl;
     append(photoRow, [
-      h("button", {
-        class: "btn btn-small",
-        type: "button",
-        text: photo ? t("Change photo") : t("Add photo"),
-        on: { click: () => photoInput.click() },
-      }),
-      photo
-        ? h("button", {
-            class: "btn btn-small",
-            type: "button",
-            text: `${photo.name.length > 22 ? `${photo.name.slice(0, 20)}…` : photo.name} ✕`,
-            aria: { label: t("Remove photo") },
-            on: {
-              click: () => {
-                photo = null;
-                paintPhoto();
-                syncReady();
+      thumb,
+      h("div", { class: "btn-row" }, [
+        h("button", {
+          class: "btn btn-small",
+          type: "button",
+          text: photo ? t("Retake photo") : t("Take photo"),
+          on: { click: () => cameraInput.click() },
+        }),
+        h("button", {
+          class: "btn btn-small",
+          type: "button",
+          text: photo ? t("Change photo") : t("Choose photo"),
+          on: { click: () => galleryInput.click() },
+        }),
+        photo
+          ? h("button", {
+              class: "btn btn-small",
+              type: "button",
+              text: `✕ ${t("Remove photo")}`,
+              on: {
+                click: () => {
+                  photo = null;
+                  paintPhoto();
+                  syncReady();
+                },
               },
-            },
-          })
-        : null,
-      photoInput,
+            })
+          : null,
+      ]),
+      cameraInput,
+      galleryInput,
     ]);
   };
-  photoInput.addEventListener("change", () => {
-    photo = photoInput.files?.[0] ?? null;
-    paintPhoto();
-    syncReady();
-  });
+  const takePhoto = (input: HTMLInputElement): void => {
+    const file = input.files?.[0] ?? null;
+    input.value = "";
+    if (!file) return;
+    void shrinkPhoto(file).then((small) => {
+      photo = small;
+      paintPhoto();
+      syncReady();
+    });
+  };
+  cameraInput.addEventListener("change", () => takePhoto(cameraInput));
+  galleryInput.addEventListener("change", () => takePhoto(galleryInput));
   paintPhoto();
   syncReady();
 
@@ -182,6 +227,12 @@ export function renderMealClaude(ctx: FuelCtx, day: string): HTMLElement {
     if (!items.length) return;
     const lines = items.map((it) => ({ it, m: lineMacros(ctx.state.foods, it) }));
     const total = lines.reduce<Macros>((acc, l) => sumMacros(acc, l.m), ZERO_MACROS);
+    const saveRow = saveMealRow(
+      ctx,
+      estimateName ?? defaultMealName(desc.value),
+      (st) => resolveItems(st.foods, items),
+      (v) => (estimateName = v),
+    );
     preview.append(
       h(
         "ul",
@@ -223,6 +274,7 @@ export function renderMealClaude(ctx: FuelCtx, day: string): HTMLElement {
           Math.round(total.f),
         ),
       }),
+      saveRow,
       h("div", { class: "btn-row" }, [
         h("button", {
           class: "btn btn-small btn-accent",
@@ -236,6 +288,7 @@ export function renderMealClaude(ctx: FuelCtx, day: string): HTMLElement {
               mealReply.set("");
               mealDesc.set("");
               photo = null;
+              estimateName = null;
               logEstimate(ctx, day, keep);
               showAfter(fill(t("{0} food(s) on the plate."), keep.length));
             },
@@ -507,6 +560,58 @@ export function renderMenuClaude(ctx: FuelCtx, day: string, training: TrainingNo
     step(2, t("Paste Claude's menu"), [reply.el]),
     preview,
     flash.el,
+  ]);
+}
+
+/** "Wrap with ayran, extra garlic sauce" → "Wrap with ayran" — a short default meal name. */
+export function defaultMealName(desc: string): string {
+  const first = desc.trim().split(/[\n,.;]/)[0]?.trim() ?? "";
+  return first.length > 40 ? `${first.slice(0, 38).trimEnd()}…` : first;
+}
+
+/**
+ * A name field and "Save as meal": the foods go on the menu under "Set the
+ * table" for one-tap logging later (a meal with that name is replaced).
+ * `resolve` turns the current state into the foods to save (it may add new
+ * pantry foods, e.g. from a Claude estimate).
+ */
+export function saveMealRow(
+  ctx: FuelCtx,
+  initialName: string,
+  resolve: (st: CutState) => { foods: Food[]; pairs: MealItem[] },
+  onName?: (name: string) => void,
+): HTMLElement {
+  const name = h("input", {
+    type: "text",
+    placeholder: t("e.g. Shawarma lunch"),
+    value: initialName,
+    aria: { label: t("Meal name") },
+  });
+  const save = (): void => {
+    const n = name.value.trim();
+    if (!n) {
+      name.focus();
+      showNotice(t("Name the meal first."));
+      return;
+    }
+    const replacing = ctx.state.meals.some((m) => m.name.trim().toLowerCase() === n.toLowerCase());
+    if (replacing && !confirm(fill(t("Replace the saved meal “{0}”?"), n))) return;
+    let saved = false;
+    ctx.update((st) => {
+      const { foods, pairs } = resolve(st);
+      if (!pairs.length) return st;
+      saved = true;
+      return { ...st, foods, meals: upsertMeal(st.meals, { name: n, items: pairs }) };
+    });
+    if (saved) showNotice(fill(t("Saved “{0}” — it's under Set the table."), n));
+  };
+  name.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") save();
+  });
+  if (onName) name.addEventListener("input", () => onName(name.value));
+  return h("div", { class: "hl-add hl-save-meal" }, [
+    h("label", { class: "field hl-grow" }, [h("span", { class: "field-label", text: t("Meal name") }), name]),
+    h("button", { class: "btn btn-small", type: "button", text: t("Save as meal"), on: { click: save } }),
   ]);
 }
 

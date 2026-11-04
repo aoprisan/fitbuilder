@@ -6,6 +6,7 @@
 import { h } from "../dom";
 import { claudeChatUrl, clearSharedReply, peekSharedReply, replyKind } from "../health/cutClaude";
 import { registerTranslations, t } from "../i18n";
+import { hasNativeShare, nativeShare } from "../nativeShare";
 
 registerTranslations({
   "Send to Claude": "Trimite la Claude",
@@ -18,6 +19,12 @@ registerTranslations({
     "Prompt copiat — lipește-l dacă conversația se deschide goală.",
   "This browser can't share photos — attach it in Claude.":
     "Acest browser nu poate partaja fotografii — atașeaz-o în Claude.",
+  "Prompt copied — paste it in Claude next to the photo.":
+    "Prompt copiat — lipește-l în Claude lângă fotografie.",
+  "If Claude shows only the photo, tap Copy prompt and paste it there.":
+    "Dacă Claude arată doar fotografia, apasă Copiază prompt și lipește-l acolo.",
+  "Prompt copied — attach the photo in Claude and paste the prompt.":
+    "Prompt copiat — atașează fotografia în Claude și lipește promptul.",
   "Paste reply": "Lipește răspunsul",
   "Clear reply": "Golește",
   Reply: "Răspuns",
@@ -56,7 +63,8 @@ export function flashLine(): { el: HTMLElement; say: (msg: string) => void } {
     say(msg: string) {
       el.textContent = msg;
       clearTimeout(timer);
-      timer = window.setTimeout(() => (el.textContent = ""), 2600);
+      // Long instructions (paste the prompt next to the photo) stay up longer.
+      timer = window.setTimeout(() => (el.textContent = ""), Math.max(2600, msg.length * 80));
     },
   };
 }
@@ -94,12 +102,22 @@ export function sessionDraft(key: string): { get: () => string; set: (v: string)
   };
 }
 
-/** Share sheet → Claude app where available; claude.ai (pre-filled, prompt also copied) otherwise. */
+/**
+ * Share sheet → Claude app where available (the native sheet in the app, the
+ * Web Share API in a browser); claude.ai (pre-filled, prompt also copied)
+ * otherwise.
+ *
+ * With a photo attached, the Claude app takes the image and drops the text
+ * that rides along with it, so the prompt is copied to the clipboard as the
+ * sheet opens and the person pastes it next to the photo.
+ */
 export function sendRow(opts: {
   prompt: () => string;
   photo?: () => File | null;
   say: (msg: string) => void;
 }): { el: HTMLElement; setDisabled: (d: boolean) => void } {
+  const native = hasNativeShare();
+  const shareable = native || canShare;
   const openWeb = async (): Promise<void> => {
     const prompt = opts.prompt();
     const copied = await copyText(prompt);
@@ -107,14 +125,33 @@ export function sendRow(opts: {
     if (copied) opts.say(t("Prompt copied — paste it if the chat opens empty."));
   };
   const send = async (): Promise<void> => {
-    if (!canShare) return openWeb();
     const prompt = opts.prompt();
     const photo = opts.photo?.() ?? null;
-    const withFile: ShareData | null = photo ? { text: prompt, files: [photo] } : null;
-    const data: ShareData = withFile && navigator.canShare?.(withFile) ? withFile : { text: prompt };
+    if (!shareable) {
+      await openWeb();
+      if (photo) opts.say(t("Prompt copied — attach the photo in Claude and paste the prompt."));
+      return;
+    }
+    // Start the copy before the sheet opens: it needs the tap's user activation.
+    const copying = photo ? copyText(prompt) : Promise.resolve(false);
     try {
-      await navigator.share(data);
-      if (photo && data !== withFile) opts.say(t("This browser can't share photos — attach it in Claude."));
+      if (native) {
+        if ((await nativeShare({ text: prompt, file: photo })) === "cancelled") return;
+      } else {
+        const withFile: ShareData | null = photo ? { text: prompt, files: [photo] } : null;
+        const data: ShareData = withFile && navigator.canShare?.(withFile) ? withFile : { text: prompt };
+        await navigator.share(data);
+        if (photo && data !== withFile) {
+          opts.say(t("This browser can't share photos — attach it in Claude."));
+          return;
+        }
+      }
+      if (photo)
+        opts.say(
+          (await copying)
+            ? t("Prompt copied — paste it in Claude next to the photo.")
+            : t("If Claude shows only the photo, tap Copy prompt and paste it there."),
+        );
     } catch (e) {
       if ((e as DOMException | null)?.name !== "AbortError") void openWeb();
     }
@@ -123,10 +160,10 @@ export function sendRow(opts: {
     h("button", {
       class: "btn btn-small btn-accent",
       type: "button",
-      text: canShare ? t("Send to Claude") : t("Open Claude"),
+      text: shareable ? t("Send to Claude") : t("Open Claude"),
       on: { click: () => void send() },
     }),
-    canShare
+    shareable
       ? h("button", { class: "btn btn-small", type: "button", text: t("claude.ai"), on: { click: () => void openWeb() } })
       : null,
     h("button", {
@@ -145,6 +182,32 @@ export function sendRow(opts: {
       for (const b of buttons) b.disabled = d;
     },
   };
+}
+
+/**
+ * A phone photo scaled down for sharing (longest side ≤ 1600 px, JPEG): a
+ * 10 MB camera shot shares slowly and some apps refuse it, and Claude reads a
+ * plate just as well at this size. Falls back to the original on any failure.
+ */
+export async function shrinkPhoto(file: File, maxSide = 1600): Promise<File> {
+  try {
+    const bmp = await createImageBitmap(file);
+    const scale = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
+    if (scale === 1 && file.size < 1_500_000 && file.type === "image/jpeg") {
+      bmp.close();
+      return file;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bmp.width * scale);
+    canvas.height = Math.round(bmp.height * scale);
+    canvas.getContext("2d")?.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    bmp.close();
+    const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", 0.85));
+    if (!blob) return file;
+    return new File([blob], `meal-${Date.now().toString(36)}.jpg`, { type: "image/jpeg" });
+  } catch {
+    return file;
+  }
 }
 
 /** Paste button, the reply box and the parse error line. */

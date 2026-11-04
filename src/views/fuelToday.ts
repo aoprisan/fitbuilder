@@ -14,7 +14,7 @@ import {
 } from "../health/cutModel";
 import { dateLocale, registerTranslations, t } from "../i18n";
 import { fill, type FuelCtx } from "./fuelCtx";
-import { renderMealClaude, renderMenuClaude } from "./fuelClaude";
+import { renderMealClaude, renderMenuClaude, saveMealRow } from "./fuelClaude";
 
 registerTranslations({
   "Previous day": "Ziua precedentă",
@@ -51,6 +51,9 @@ registerTranslations({
   "(deleted food)": "(aliment șters)",
   "Grams of {0}": "Grame de {0}",
   "Remove {0}": "Șterge {0}",
+  "Save the plate as a meal": "Salvează farfuria ca masă",
+  "Keeps these foods and grams under Set the table, to log again with one tap.":
+    "Păstrează aceste alimente și gramaje la Pune masa, ca să le înregistrezi din nou cu o atingere.",
 });
 
 // The day being viewed survives repaints and remounts within a session.
@@ -279,6 +282,21 @@ export function renderFuelToday(host: HTMLElement, ctx: FuelCtx): void {
             ]);
           }),
         ),
+    entries.length
+      ? h("details", { class: "hl-claude" }, [
+          h("summary", { class: "hl-claude-summary", text: t("Save the plate as a meal") }),
+          h("p", {
+            class: "plan-meta plan-note",
+            text: t("Keeps these foods and grams under Set the table, to log again with one tap."),
+          }),
+          saveMealRow(ctx, "", (st) => ({
+            foods: st.foods,
+            pairs: (st.days[day]?.entries ?? [])
+              .filter((e) => e.g > 0 && st.foods.some((x) => x.id === e.foodId))
+              .map((e): [string, number] => [e.foodId, e.g]),
+          })),
+        ])
+      : null,
   ]);
 
   host.append(hero, cross, table, plate);
