@@ -33,12 +33,13 @@ registerTranslations({
   "{0} g to go of {1}": "încă {0} g din {1}",
   "Target kept — {0} g": "Țintă atinsă — {0} g",
   "Training & water": "Antrenament și apă",
+  "+{0} g for training": "+{0} g pentru antrenament",
   "{0} session(s) · ~{1} kcal burned · ~{2} g protein for recovery":
     "{0} sesiune(i) · ~{1} kcal arse · ~{2} g proteine pentru recuperare",
   "No training logged on this day.": "Niciun antrenament înregistrat în această zi.",
   "Water {0} of {1} ml": "Apă {0} din {1} ml",
-  "The calorie target stays as set — the burn is shown so a training day's hunger makes sense, not to be eaten back.":
-    "Ținta de calorii rămâne cea setată — arderea e afișată ca să explice foamea dintr-o zi de antrenament, nu ca să fie mâncată înapoi.",
+  "The recovery protein is added to today's protein target and the training fluid to the water goal. The calorie target stays as set — the burn is shown so a training day's hunger makes sense, not to be eaten back.":
+    "Proteinele pentru recuperare se adaugă la ținta de proteine a zilei, iar lichidele pentru antrenament la obiectivul de apă. Ținta de calorii rămâne cea setată — arderea e afișată ca să explice foamea dintr-o zi de antrenament, nu ca să fie mâncată înapoi.",
   "Open Water": "Deschide Apă",
   "Set the table": "Pune masa",
   Food: "Aliment",
@@ -86,8 +87,13 @@ export function renderFuelToday(host: HTMLElement, ctx: FuelCtx): void {
   };
 
   const { kcal, p, c, f } = dayTotals(state, day);
+  // The day's training and water, from the other logs: training raises the
+  // protein target by its recovery dose (and the water goal by its fluid).
+  const ledger = dayLedger(day);
+  const tr = ledger.training;
+  const pTarget = ledger.proteinTarget;
   const kcalLeft = s.kcal - kcal;
-  const pLeft = s.protein - p;
+  const pLeft = pTarget - p;
   const over = kcal > s.kcal * 1.03;
   const open = windowOpen(s);
 
@@ -134,19 +140,18 @@ export function renderFuelToday(host: HTMLElement, ctx: FuelCtx): void {
       h("div", { class: `hl-macro${pLeft <= 0 ? " is-hit" : ""}` }, [
         h("span", { class: "field-label", text: t("Protein") }),
         h("div", { class: "hl-macro-value", text: `${Math.round(p)} g` }),
-        bar(p / s.protein, "is-protein"),
+        bar(p / Math.max(1, pTarget), "is-protein"),
         h("p", {
           class: "plan-meta",
-          text: pLeft > 0 ? fill(t("{0} g to go of {1}"), Math.round(pLeft), s.protein) : fill(t("Target kept — {0} g"), s.protein),
+          text: pLeft > 0 ? fill(t("{0} g to go of {1}"), Math.round(pLeft), pTarget) : fill(t("Target kept — {0} g"), pTarget),
         }),
+        tr.proteinG > 0 ? h("p", { class: "plan-meta", text: fill(t("+{0} g for training"), tr.proteinG) }) : null,
       ]),
     ]),
     h("p", { class: "plan-meta", text: `${t("Carbs")} ${Math.round(c)} g · ${t("Fat")} ${Math.round(f)} g` }),
   ]);
 
-  // ── The day's training and water, from the other logs ──
-  const ledger = dayLedger(day);
-  const tr = ledger.training;
+  // ── The day's training and water ──
   const cross = h("section", { class: "card hl-cross" }, [
     h("h2", { class: "section-title", text: t("Training & water") }),
     h("p", {
@@ -160,7 +165,9 @@ export function renderFuelToday(host: HTMLElement, ctx: FuelCtx): void {
     tr.sessions.length
       ? h("p", {
           class: "plan-meta plan-note",
-          text: t("The calorie target stays as set — the burn is shown so a training day's hunger makes sense, not to be eaten back."),
+          text: t(
+            "The recovery protein is added to today's protein target and the training fluid to the water goal. The calorie target stays as set — the burn is shown so a training day's hunger makes sense, not to be eaten back.",
+          ),
         })
       : null,
     h("div", { class: "btn-row" }, [

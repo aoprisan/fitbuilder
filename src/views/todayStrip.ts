@@ -8,7 +8,8 @@ registerTranslations({
   "Today's fuel": "Alimentația de azi",
   "Water {0}%": "Apă {0}%",
   "{0} of {1} ml": "{0} din {1} ml",
-  "{0} of {1} kcal · {2} g protein": "{0} din {1} kcal · {2} g proteine",
+  "{0} of {1} kcal · {2} of {3} g protein": "{0} din {1} kcal · {2} din {3} g proteine",
+  "+{0} g protein for training": "+{0} g proteine pentru antrenament",
   "+{0} ml for training": "+{0} ml pentru antrenament",
   "Open Water": "Deschide Apă",
   "Open Fuel": "Deschide Nutriție",
@@ -23,7 +24,7 @@ function bar(fraction: number, cls: string): HTMLElement {
 /**
  * The Body home's glance at the health journal: today's effective hydration
  * against a goal that grows with today's training, and today's food against
- * the Fuel targets. Each half opens its tab.
+ * the Fuel targets (protein topped up by today's training too). Each half opens its tab.
  */
 export function renderTodayStrip(nav: Nav, sessions: TrainingSession[]): HTMLElement {
   const d = dayLedger(undefined, sessions);
@@ -55,11 +56,15 @@ export function renderTodayStrip(nav: Nav, sessions: TrainingSession[]): HTMLEle
           bar(d.food.kcal / Math.max(1, d.kcalTarget), "is-kcal"),
           h("span", {
             class: "plan-meta",
-            text: t("{0} of {1} kcal · {2} g protein")
+            text: t("{0} of {1} kcal · {2} of {3} g protein")
               .replace("{0}", n0(d.food.kcal))
               .replace("{1}", n0(d.kcalTarget))
-              .replace("{2}", String(Math.round(d.food.p))),
+              .replace("{2}", String(Math.round(d.food.p)))
+              .replace("{3}", String(d.proteinTarget)),
           }),
+          d.training.proteinG > 0
+            ? h("span", { class: "plan-meta", text: t("+{0} g protein for training").replace("{0}", String(d.training.proteinG)) })
+            : null,
         ],
       ),
     ]),
