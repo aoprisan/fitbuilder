@@ -305,10 +305,13 @@ export function renderMenuClaude(ctx: FuelCtx, day: string, training: TrainingNo
   changes.value = menuChanges.get();
   changes.addEventListener("input", () => menuChanges.set(changes.value));
 
+  // The rest of a training day aims at the protein target plus the session's
+  // recovery dose; a full-day menu is the standing plan, so it keeps the base.
+  const dayProtein = s.protein + (training?.proteinG ?? 0);
   const goals = (): { kcal: number; p: number } =>
     menuScope === "day"
       ? { kcal: s.kcal, p: s.protein }
-      : { kcal: Math.max(0, s.kcal - eaten.kcal), p: Math.max(0, s.protein - eaten.p) };
+      : { kcal: Math.max(0, s.kcal - eaten.kcal), p: Math.max(0, dayProtein - eaten.p) };
 
   const target = h("p", { class: "plan-meta plan-note" });
   const scopeRow = h("div", { class: "toggle hl-toggle", role: "radiogroup", aria: { label: t("What should Claude plan?") } });

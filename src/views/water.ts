@@ -1,7 +1,7 @@
 import { todayKey } from "../bodyweightStore";
 import { append, clear, h } from "../dom";
 import { loadBody } from "../health/bodyProfile";
-import { trainingOn } from "../health/crossData";
+import { trainingOn, trainingWaterGoal } from "../health/crossData";
 import { DRINK_ORDER, DRINKS, QUICK_SIZES_ML, type DrinkEntry, type DrinkKind } from "../health/drinks";
 import {
   alcoholGramsOf,
@@ -189,7 +189,7 @@ export function mountWater(root: HTMLElement, _nav: Nav): Cleanup {
     const water = loadWater();
     const day = waterDay(water.entries);
     const training = trainingOn();
-    const goal = water.dailyGoalMl + training.hydrationMl;
+    const goal = trainingWaterGoal(water.dailyGoalMl, training);
     const pct = goal > 0 ? Math.round((day.hydrationMl / goal) * 100) : 0;
     const volPct = goal > 0 ? Math.round((day.totalMl / goal) * 100) : 0;
     const reached = day.hydrationMl >= goal;
@@ -533,7 +533,7 @@ export function mountWater(root: HTMLElement, _nav: Nav): Cleanup {
     }
     for (const d of days.slice(0, 60)) {
       const training = trainingOn(d.date);
-      const goal = water.dailyGoalMl + training.hydrationMl;
+      const goal = trainingWaterGoal(water.dailyGoalMl, training);
       const kept = d.hydrationMl >= goal;
       const label = new Date(`${d.date}T12:00:00`).toLocaleDateString(dateLocale(), {
         weekday: "long",

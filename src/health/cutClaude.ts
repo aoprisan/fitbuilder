@@ -210,16 +210,21 @@ export function buildMenuPrompt(ctx: MenuContext, scope: MenuScope, changes: str
       "Suggest a full day of meals that together land within about 3% of the calorie target and reach the protein target.",
     );
   } else {
+    const pTarget = s.protein + (training?.proteinG ?? 0);
     const kcalLeft = Math.max(0, Math.round(s.kcal - eaten.kcal));
-    const pLeft = Math.max(0, Math.round(s.protein - eaten.p));
+    const pLeft = Math.max(0, Math.round(pTarget - eaten.p));
     lines.push(
       "Suggest what to eat for the rest of today on my cut.",
-      `Daily targets: ${s.kcal} kcal and at least ${s.protein} g protein; my eating window closes at ${s.winEnd}.`,
+      `Daily targets: ${s.kcal} kcal and at least ${pTarget} g protein${training && training.proteinG > 0 ? ` (${s.protein} g plus ${training.proteinG} g for today's training)` : ""}; my eating window closes at ${s.winEnd}.`,
       `Eaten so far: ${Math.round(eaten.kcal)} kcal and ${Math.round(eaten.p)} g protein — that leaves ${kcalLeft} kcal and ${pLeft} g protein.`,
       "Suggest one to three meals that use up the remaining calories (within about 3%) and close the protein gap.",
     );
     const tl = trainingLine(training);
-    if (tl) lines.push(tl, "Keep the calorie target as set (don't eat back the training burn), but favour protein and some carbs around the session.");
+    if (tl)
+      lines.push(
+        tl,
+        "Keep the calorie target as set (don't eat back the training burn); the recovery protein is already in the protein target above — favour protein and some carbs around the session.",
+      );
   }
 
   if (meals.length) {
