@@ -1812,7 +1812,7 @@ textarea {
   background: transparent;
   padding: 0;
   font-family: var(--font-display);
-  font-size: clamp(23px, 8vw, 30px);
+  font-size: calc(clamp(23px, 8vw, 30px) * var(--dial-num-scale, 1));
   line-height: 0.9;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
@@ -5310,7 +5310,7 @@ textarea:focus-visible {
   border-radius: 0;
   box-shadow: none;
   font-family: var(--font-display);
-  font-size: clamp(38px, 12vw, 52px);
+  font-size: calc(clamp(38px, 12vw, 52px) * var(--dial-num-scale, 1));
 }
 
 /* Just the thumb on the ring — no needle crossing the big number. */
