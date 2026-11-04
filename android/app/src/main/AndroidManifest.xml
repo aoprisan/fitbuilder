@@ -43,6 +43,14 @@
         </provider>
     </application>
 
+    <!-- Fuel's "Take photo" opens the camera app (ACTION_IMAGE_CAPTURE, no
+         CAMERA permission needed); Android 11+ only resolves it when declared. -->
+    <queries>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+    </queries>
+
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />

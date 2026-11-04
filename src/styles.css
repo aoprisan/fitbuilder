@@ -4641,6 +4641,30 @@ textarea:focus-visible {
   display: none;
 }
 
+.hl-photo-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hl-photo-thumb {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border: var(--bw-2) solid var(--edge);
+  flex: none;
+}
+
+.hl-photo-row > .btn-row {
+  flex: 1 1 auto;
+  margin: 0;
+}
+
+.hl-save-meal {
+  margin-top: 8px;
+}
+
 .hl-claude-preview:not(:empty) {
   margin-top: 12px;
   border-top: var(--bw-2) solid var(--edge);

@@ -5,8 +5,8 @@ import { fill, type FuelCtx } from "./fuelCtx";
 
 registerTranslations({
   "The menu": "Meniul",
-  "The meals under “Set the table”. Plan new ones with Claude on the Today page.":
-    "Mesele de la „Pune masa”. Planifică altele noi cu Claude pe pagina Azi.",
+  "The meals under “Set the table”. Save one from the plate or a Claude estimate, or plan new ones with Claude on the Today page.":
+    "Mesele de la „Pune masa”. Salvează una din farfurie sau dintr-o estimare Claude, ori planifică altele noi cu Claude pe pagina Azi.",
   "No meals on the menu.": "Nicio masă în meniu.",
   "Remove {0} from the menu": "Elimină {0} din meniu",
   "Reset menu": "Resetează meniul",
@@ -37,7 +37,7 @@ export function renderFuelFoods(host: HTMLElement, ctx: FuelCtx): void {
   // ── The menu ──
   const menu = h("section", { class: "card" }, [
     h("h2", { class: "section-title", text: t("The menu") }),
-    h("p", { class: "plan-meta plan-note", text: t("The meals under “Set the table”. Plan new ones with Claude on the Today page.") }),
+    h("p", { class: "plan-meta plan-note", text: t("The meals under “Set the table”. Save one from the plate or a Claude estimate, or plan new ones with Claude on the Today page.") }),
     state.meals.length === 0
       ? h("p", { class: "empty", text: t("No meals on the menu.") })
       : h(

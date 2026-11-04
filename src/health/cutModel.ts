@@ -98,6 +98,17 @@ export const DEFAULT_MEALS: readonly Meal[] = [
 export const cloneMeals = (ms: readonly Meal[]): Meal[] =>
   ms.map((m) => ({ name: m.name, items: m.items.map(([id, g]): MealItem => [id, g]) }));
 
+/**
+ * Save a meal for reuse under "Set the table": a meal with the same name (any
+ * case) is replaced in place, otherwise it joins the end of the menu.
+ */
+export function upsertMeal(meals: readonly Meal[], meal: Meal): Meal[] {
+  const key = (n: string): string => n.trim().toLowerCase();
+  const i = meals.findIndex((m) => key(m.name) === key(meal.name));
+  const copy = { name: meal.name.trim(), items: meal.items.map(([id, g]): MealItem => [id, g]) };
+  return i < 0 ? [...meals, copy] : meals.map((m, j) => (j === i ? copy : m));
+}
+
 /* ─── dates (local, "YYYY-MM-DD") ─────────────────────────── */
 
 export function isoDay(d: Date): string {

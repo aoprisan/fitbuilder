@@ -107,6 +107,19 @@ the PWA share target and the Android `ACTION_SEND` intent use. No App Group is n
 - If the app can't be reached, the extension leaves the reply on the clipboard so
   *Paste reply* in Fuel still works.
 
+## Meal photos & sharing to Claude
+
+Fuel's *Take photo* is a `capture` file input. On Android, Capacitor's WebView chrome
+client opens the camera app (`ACTION_IMAGE_CAPTURE`, declared under `<queries>` in the
+manifest so Android 11+ can resolve it; no `CAMERA` permission). On iOS it needs the
+`NSCameraUsageDescription` / `NSPhotoLibraryUsageDescription` strings in `Info.plist`.
+Android's WebView has no `navigator.share`, so *Send to Claude* uses
+[`@capacitor/share`](https://capacitorjs.com/docs/apis/share): the photo is written to
+the cache with `@capacitor/filesystem` and shared through the existing `FileProvider`.
+The prompt is copied to the clipboard as well, because the Claude app keeps a shared
+image but drops the text that comes with it. After pulling this change, run
+`npm run build:mobile` so `cap sync` picks up the two plugins.
+
 ## Rest timer & notifications
 
 Timers (set stopwatch, rest clock, session HUD) are anchored to wall-clock time and the
