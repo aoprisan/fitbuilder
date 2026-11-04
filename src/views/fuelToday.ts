@@ -33,13 +33,13 @@ registerTranslations({
   "{0} g to go of {1}": "încă {0} g din {1}",
   "Target kept — {0} g": "Țintă atinsă — {0} g",
   "Training & water": "Antrenament și apă",
-  "+{0} g for training": "+{0} g pentru antrenament",
-  "{0} session(s) · ~{1} kcal burned · ~{2} g protein for recovery":
-    "{0} sesiune(i) · ~{1} kcal arse · ~{2} g proteine pentru recuperare",
+  "~{0} g in the meal after training": "~{0} g în masa de după antrenament",
+  "{0} session(s) · ~{1} kcal burned · ~{2} g protein after training":
+    "{0} sesiune(i) · ~{1} kcal arse · ~{2} g proteine după antrenament",
   "No training logged on this day.": "Niciun antrenament înregistrat în această zi.",
   "Water {0} of {1} ml": "Apă {0} din {1} ml",
-  "The recovery protein is added to today's protein target and the training fluid to the water goal. The calorie target stays as set — the burn is shown so a training day's hunger makes sense, not to be eaten back.":
-    "Proteinele pentru recuperare se adaugă la ținta de proteine a zilei, iar lichidele pentru antrenament la obiectivul de apă. Ținta de calorii rămâne cea setată — arderea e afișată ca să explice foamea dintr-o zi de antrenament, nu ca să fie mâncată înapoi.",
+  "The training fluid is added to the water goal. The protein target already covers training — the post-session amount is when to eat part of it, not extra. The calorie target stays as set — the burn is shown so a training day's hunger makes sense, not to be eaten back.":
+    "Lichidele pentru antrenament se adaugă la obiectivul de apă. Ținta de proteine acoperă deja antrenamentul — cantitatea de după sesiune arată când să mănânci o parte din ea, nu în plus. Ținta de calorii rămâne cea setată — arderea e afișată ca să explice foamea dintr-o zi de antrenament, nu ca să fie mâncată înapoi.",
   "Open Water": "Deschide Apă",
   "Set the table": "Pune masa",
   Food: "Aliment",
@@ -87,11 +87,11 @@ export function renderFuelToday(host: HTMLElement, ctx: FuelCtx): void {
   };
 
   const { kcal, p, c, f } = dayTotals(state, day);
-  // The day's training and water, from the other logs: training raises the
-  // protein target by its recovery dose (and the water goal by its fluid).
+  // The day's training and water, from the other logs. Training raises the
+  // water goal; protein keeps its daily target and gets a post-session serving.
   const ledger = dayLedger(day);
   const tr = ledger.training;
-  const pTarget = ledger.proteinTarget;
+  const pTarget = s.protein;
   const kcalLeft = s.kcal - kcal;
   const pLeft = pTarget - p;
   const over = kcal > s.kcal * 1.03;
@@ -145,7 +145,7 @@ export function renderFuelToday(host: HTMLElement, ctx: FuelCtx): void {
           class: "plan-meta",
           text: pLeft > 0 ? fill(t("{0} g to go of {1}"), Math.round(pLeft), pTarget) : fill(t("Target kept — {0} g"), pTarget),
         }),
-        tr.proteinG > 0 ? h("p", { class: "plan-meta", text: fill(t("+{0} g for training"), tr.proteinG) }) : null,
+        tr.proteinG > 0 ? h("p", { class: "plan-meta", text: fill(t("~{0} g in the meal after training"), tr.proteinG) }) : null,
       ]),
     ]),
     h("p", { class: "plan-meta", text: `${t("Carbs")} ${Math.round(c)} g · ${t("Fat")} ${Math.round(f)} g` }),
@@ -157,7 +157,7 @@ export function renderFuelToday(host: HTMLElement, ctx: FuelCtx): void {
     h("p", {
       class: "plan-meta plan-note",
       text: tr.sessions.length
-        ? fill(t("{0} session(s) · ~{1} kcal burned · ~{2} g protein for recovery"), tr.sessions.length, n0(tr.kcal), tr.proteinG)
+        ? fill(t("{0} session(s) · ~{1} kcal burned · ~{2} g protein after training"), tr.sessions.length, n0(tr.kcal), tr.proteinG)
         : t("No training logged on this day."),
     }),
     bar(ledger.hydrationMl / Math.max(1, ledger.waterGoalMl), "is-water"),
@@ -166,7 +166,7 @@ export function renderFuelToday(host: HTMLElement, ctx: FuelCtx): void {
       ? h("p", {
           class: "plan-meta plan-note",
           text: t(
-            "The recovery protein is added to today's protein target and the training fluid to the water goal. The calorie target stays as set — the burn is shown so a training day's hunger makes sense, not to be eaten back.",
+            "The training fluid is added to the water goal. The protein target already covers training — the post-session amount is when to eat part of it, not extra. The calorie target stays as set — the burn is shown so a training day's hunger makes sense, not to be eaten back.",
           ),
         })
       : null,

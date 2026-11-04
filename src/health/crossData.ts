@@ -18,8 +18,9 @@ import { loadWater, waterDay } from "./waterStore";
  * day so each view can show what the others imply:
  *
  *  - Water: the day's sessions add their effort-based fluid estimate to the goal.
- *  - Fuel: the day's sessions add their recovery-protein dose to the protein
- *    target, and show their rough burn (the calorie target stays as set).
+ *  - Fuel: the day's sessions show their rough burn and the protein to eat in
+ *    the meal after training. Both targets stay as set: the daily protein
+ *    target already covers training, and the burn isn't meant to be eaten back.
  *  - Body / History: water and food logged on a day sit beside its training.
  */
 
@@ -29,7 +30,7 @@ export interface TrainingDay {
   hydrationMl: number;
   /** Rough kcal burned by the day's training. */
   kcal: number;
-  /** Recovery-protein estimate for the day's training, g. */
+  /** Protein to eat after the day's training, g — a serving, not a target top-up. */
   proteinG: number;
 }
 
@@ -50,22 +51,12 @@ export function trainingOn(date = todayKey(), sessions = loadSessions()): Traini
   return { sessions: onDay, hydrationMl, kcal, proteinG };
 }
 
-/**
- * A day's targets with its training folded in: the water goal grows by the
- * sessions' fluid estimate and the protein target by their recovery dose. The
- * calorie target is left as set — the burn isn't meant to be eaten back.
- */
-export function trainingTargets(
-  base: { waterGoalMl: number; proteinG: number },
-  training: Pick<TrainingDay, "hydrationMl" | "proteinG">,
-): { waterGoalMl: number; proteinG: number } {
-  return {
-    waterGoalMl: trainingWaterGoal(base.waterGoalMl, training),
-    proteinG: base.proteinG + training.proteinG,
-  };
-}
 
-/** The water goal for a day, with its training fluid added, ml. */
+/**
+ * The water goal for a day, with its training fluid added, ml. Only water grows
+ * with training (it replaces sweat actually lost); protein and calorie targets
+ * stay as set.
+ */
 export function trainingWaterGoal(dailyGoalMl: number, training: Pick<TrainingDay, "hydrationMl">): number {
   return dailyGoalMl + training.hydrationMl;
 }
@@ -79,10 +70,7 @@ export interface DayLedger {
   waterGoalMl: number;
   food: Macros;
   kcalTarget: number;
-  /** The Fuel protein target plus the day's training recovery dose, g. */
   proteinTarget: number;
-  /** The protein target as set in Fuel, before training, g. */
-  proteinBase: number;
 }
 
 /** Drinks, food and training for one day, side by side. */
@@ -90,16 +78,14 @@ export function dayLedger(date = todayKey(), sessions = loadSessions()): DayLedg
   const training = trainingOn(date, sessions);
   const water = loadWater();
   const cut = loadCut();
-  const targets = trainingTargets({ waterGoalMl: water.dailyGoalMl, proteinG: cut.settings.protein }, training);
   return {
     date,
     training,
     hydrationMl: waterDay(water.entries, date).hydrationMl,
-    waterGoalMl: targets.waterGoalMl,
+    waterGoalMl: trainingWaterGoal(water.dailyGoalMl, training),
     food: dayTotals(cut, date),
     kcalTarget: cut.settings.kcal,
-    proteinTarget: targets.proteinG,
-    proteinBase: cut.settings.protein,
+    proteinTarget: cut.settings.protein,
   };
 }
 
@@ -122,15 +108,15 @@ export function healthContextMarkdown(sessions: readonly TrainingSession[]): str
     const kg = cut.weights[date];
     if (w.entries.length === 0 && food.kcal === 0 && kg === undefined) continue;
     const tr = trainingOn(date, all);
-    const goals = trainingTargets({ waterGoalMl: water.dailyGoalMl, proteinG: cut.settings.protein }, tr);
+    const waterGoal = trainingWaterGoal(water.dailyGoalMl, tr);
     const parts: string[] = [];
     if (w.entries.length)
       parts.push(
-        `water ${w.hydrationMl} ml effective (goal ${goals.waterGoalMl} ml = ${water.dailyGoalMl} ml + ${tr.hydrationMl} ml for training)`,
+        `water ${w.hydrationMl} ml effective (goal ${waterGoal} ml = ${water.dailyGoalMl} ml + ${tr.hydrationMl} ml for training)`,
       );
     if (food.kcal > 0)
       parts.push(
-        `ate ${Math.round(food.kcal)} kcal / ${Math.round(food.p)} g protein (targets ${cut.settings.kcal} kcal / ${goals.proteinG} g = ${cut.settings.protein} g + ${tr.proteinG} g for training)`,
+        `ate ${Math.round(food.kcal)} kcal / ${Math.round(food.p)} g protein (targets ${cut.settings.kcal} kcal / ${cut.settings.protein} g)`,
       );
     if (kg !== undefined) parts.push(`weighed ${kg} kg`);
     rows.push(`- ${date}: ${parts.join("; ")}`);

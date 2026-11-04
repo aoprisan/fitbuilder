@@ -396,10 +396,16 @@ const PROTEIN_PER_MUSCLE = 2;
 const PROTEIN_BASE_PER_KG = 0.25;
 const PROTEIN_BASE_MIN_G = 15;
 const PROTEIN_BASE_MAX_G = 35;
+// One sitting's useful dose tops out around 0.4 g/kg (~40 g without a weight):
+// past that the extra protein is just food, so a brutal session can't ask for a
+// 50 g meal. This is a post-session serving, not an addition to the day's total.
+const PROTEIN_DOSE_PER_KG_MAX = 0.4;
+const PROTEIN_DOSE_MAX_G = 40;
 
 /**
- * Estimated protein (g) to support recovery from this session, rounded to 5 g.
- * When the user's body weight is known the base dose scales per-kg.
+ * Estimated protein (g) to eat in the meal after this session, rounded to 5 g.
+ * When the user's body weight is known the base dose and the cap scale per-kg.
+ * It's a serving to time around training, already inside a daily protein target.
  */
 export function estimateProteinG(
   effort: EffortReading,
@@ -410,7 +416,11 @@ export function estimateProteinG(
     bodyweightKg !== undefined && bodyweightKg > 0
       ? clamp(bodyweightKg * PROTEIN_BASE_PER_KG, PROTEIN_BASE_MIN_G, PROTEIN_BASE_MAX_G)
       : PROTEIN_BASE_G;
-  const raw = base + effort.points * PROTEIN_PER_EFFORT + muscleCount * PROTEIN_PER_MUSCLE;
+  const cap =
+    bodyweightKg !== undefined && bodyweightKg > 0
+      ? clamp(bodyweightKg * PROTEIN_DOSE_PER_KG_MAX, base, PROTEIN_DOSE_MAX_G)
+      : PROTEIN_DOSE_MAX_G;
+  const raw = Math.min(cap, base + effort.points * PROTEIN_PER_EFFORT + muscleCount * PROTEIN_PER_MUSCLE);
   return Math.round(raw / 5) * 5;
 }
 
