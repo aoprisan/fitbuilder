@@ -1,6 +1,7 @@
 import { track } from "./analytics";
 import { BODY_METRIC_LABELS, type BodyMetric } from "./bodyMap";
 import { renderBodyMapToCanvas } from "./bodyMapRender";
+import { copyText } from "./clipboard";
 import { dataUrlToBytes, jpegToPdf } from "./pdf";
 import { renderSessionToCanvas } from "./sessionRender";
 import type { TrainingSession } from "./types";
@@ -79,32 +80,6 @@ export function exportSessionsXml(sessions: TrainingSession[]): void {
 const CLAUDE_NEW_CHAT_URL = "https://claude.ai/new";
 
 export type AnalyzeResult = "shared" | "copied-opened" | "copied" | "downloaded";
-
-/** Copy text to the clipboard, falling back to a hidden textarea for older webviews. */
-async function copyText(text: string): Promise<boolean> {
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch {
-    // Fall through to the execCommand path below.
-  }
-  try {
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.style.position = "fixed";
-    ta.style.opacity = "0";
-    document.body.appendChild(ta);
-    ta.focus();
-    ta.select();
-    const ok = document.execCommand("copy");
-    ta.remove();
-    return ok;
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Hand a Markdown report to an agent for analysis. On phones the OS share sheet

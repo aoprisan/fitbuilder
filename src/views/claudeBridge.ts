@@ -3,6 +3,7 @@
  * Claude app, or claude.ai pre-filled) and reading the reply back (paste, or a
  * reply shared into the installed PWA). No API, no key — see CLAUDE.md.
  */
+import { canReadClipboard, copyText, readText } from "../clipboard";
 import { h } from "../dom";
 import { claudeChatUrl, clearSharedReply, peekSharedReply, replyKind } from "../health/cutClaude";
 import { registerTranslations, t } from "../i18n";
@@ -42,17 +43,7 @@ registerTranslations({
 });
 
 const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
-const canReadClipboard =
-  typeof navigator !== "undefined" && typeof navigator.clipboard?.readText === "function";
 
-export async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 /** A status line that clears itself. */
 export function flashLine(): { el: HTMLElement; say: (msg: string) => void } {
@@ -132,8 +123,11 @@ export function sendRow(opts: {
       if (photo) opts.say(t("Prompt copied — attach the photo in Claude and paste the prompt."));
       return;
     }
-    // Start the copy before the sheet opens: it needs the tap's user activation.
+    // Copy before the sheet opens. In a browser the copy needs the tap's user
+    // activation and the sheet needs it too, so it's started, not awaited; the
+    // native clipboard needs neither, so it's finished before the app switches.
     const copying = photo ? copyText(prompt) : Promise.resolve(false);
+    if (native && photo) await copying;
     try {
       if (native) {
         if ((await nativeShare({ text: prompt, file: photo })) === "cancelled") return;
@@ -230,14 +224,14 @@ export function replyBox(opts: {
   };
   const el = h("div", { class: "hl-reply" }, [
     h("div", { class: "btn-row" }, [
-      canReadClipboard
+      canReadClipboard()
         ? h("button", {
             class: "btn btn-small btn-primary",
             type: "button",
             text: t("Paste reply"),
             on: {
               click: () =>
-                void navigator.clipboard.readText().then(set, () => {
+                void readText().then(set, () => {
                   error.textContent = t("Couldn't read the clipboard — long-press the box below and paste.");
                 }),
             },

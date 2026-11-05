@@ -117,8 +117,11 @@ Android's WebView has no `navigator.share`, so *Send to Claude* uses
 [`@capacitor/share`](https://capacitorjs.com/docs/apis/share): the photo is written to
 the cache with `@capacitor/filesystem` and shared through the existing `FileProvider`.
 The prompt is copied to the clipboard as well, because the Claude app keeps a shared
-image but drops the text that comes with it. After pulling this change, run
-`npm run build:mobile` so `cap sync` picks up the two plugins.
+image but drops the text that comes with it. That copy (and *Copy prompt* / *Paste
+reply*) goes through [`@capacitor/clipboard`](https://capacitorjs.com/docs/apis/clipboard)
+(`src/clipboard.ts`): the WebView often refuses `navigator.clipboard`, which left
+nothing to paste. After pulling, run `npm run build:mobile` so `cap sync` picks up
+the plugins, then reinstall the app.
 
 ## Rest timer & notifications
 
