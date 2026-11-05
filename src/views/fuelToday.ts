@@ -56,8 +56,13 @@ registerTranslations({
     "Păstrează aceste alimente și gramaje la Pune masa, ca să le înregistrezi din nou cu o atingere.",
 });
 
-// The day being viewed survives repaints and remounts within a session.
+// The past day being browsed (null = today). It survives repaints while Fuel
+// is open; opening Fuel again starts back on today (resetFuelDay).
 let viewDay: string | null = null;
+
+export function resetFuelDay(): void {
+  viewDay = null;
+}
 
 function dayTitle(day: string, today: string): string {
   const label = new Date(`${day}T12:00:00`).toLocaleDateString(dateLocale(), {
@@ -82,10 +87,11 @@ export function renderFuelToday(host: HTMLElement, ctx: FuelCtx): void {
   const state = ctx.state;
   const s = state.settings;
   const today = todayIso();
-  if (viewDay === null || viewDay > today) viewDay = today;
-  const day = viewDay;
+  // null = follow the calendar, so "today" never sticks to the day it was set.
+  if (viewDay !== null && viewDay >= today) viewDay = null;
+  const day = viewDay ?? today;
   const go = (d: string): void => {
-    viewDay = d;
+    viewDay = d >= todayIso() ? null : d;
     ctx.reload();
   };
 

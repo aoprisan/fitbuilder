@@ -11,6 +11,7 @@ import type { Cleanup, Nav, ViewName } from "./router";
 import { getTheme, setTheme, type Theme, THEMES } from "./theme";
 import { getLang, type Lang, onLangChange, registerTranslations, setLang, t } from "./i18n";
 import { formatSessionDate } from "./util";
+import { todayKey } from "./bodyweightStore";
 import { mountBody } from "./views/body";
 import { mountExercise } from "./views/exercise";
 import { mountHistory } from "./views/history";
@@ -206,6 +207,22 @@ function boot(): void {
     go: (view) => navigate(view),
   };
 
+  // The calendar day the current view was mounted on. Body, Water and Fuel
+  // show "today", so when the date rolls over while one is open (left on
+  // overnight, or brought back from the background the next morning) it is
+  // remounted onto the new day — unless the person is typing in it, in which
+  // case the next check does it.
+  let mountedDay = todayKey();
+  const DAY_VIEWS: ReadonlyArray<ViewName> = ["body", "water", "fuel"];
+  function followNewDay(): void {
+    if (document.hidden || mountedDay === todayKey() || !DAY_VIEWS.includes(currentView)) return;
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement && viewHost.contains(focused) && focused.matches("input, textarea, select")) return;
+    navigate(currentView, { push: false });
+  }
+  document.addEventListener("visibilitychange", followNewDay);
+  window.setInterval(followNewDay, 60_000);
+
   function navigate(view: ViewName, opts?: { push?: boolean }): void {
     // Record each screen change as a history entry so the browser / Android
     // hardware back button walks back through views instead of exiting the app.
@@ -222,6 +239,7 @@ function boot(): void {
       cleanup = null;
     }
     currentView = view;
+    mountedDay = todayKey();
     highlightNav();
     track("view", { name: view });
 
