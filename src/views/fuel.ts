@@ -6,6 +6,7 @@ import { registerTranslations, t } from "../i18n";
 import type { Cleanup, Nav } from "../router";
 import { fill, type FuelCtx } from "./fuelCtx";
 import { renderFuelFoods } from "./fuelFoods";
+import { renderFuelSupps } from "./fuelSupps";
 import { renderFuelTerms } from "./fuelTerms";
 import { renderFuelToday, resetFuelDay } from "./fuelToday";
 import { renderFuelWeight } from "./fuelWeight";
@@ -20,19 +21,27 @@ registerTranslations({
   Weight: "Greutate",
   Foods: "Alimente",
   Targets: "Ținte",
+  Supps: "Supl.",
   "Fuel pages": "Paginile Nutriție",
 });
 
-type Tab = "today" | "weight" | "foods" | "terms";
+export type FuelTab = "today" | "weight" | "foods" | "supps" | "terms";
+type Tab = FuelTab;
 const TABS: ReadonlyArray<{ id: Tab; label: string }> = [
   { id: "today", label: "Today" },
   { id: "weight", label: "Weight" },
   { id: "foods", label: "Foods" },
+  { id: "supps", label: "Supps" },
   { id: "terms", label: "Targets" },
 ];
 
 // Survives remounts (language switch, a trip to another tab and back).
 let lastTab: Tab = "today";
+
+/** Open Fuel on a given page next time it mounts (e.g. from the Body home). */
+export function seedFuelTab(tab: FuelTab): void {
+  lastTab = tab;
+}
 
 function weekText(state: CutState): string {
   const w = cutWeek(state.settings);
@@ -44,7 +53,7 @@ function weekText(state: CutState): string {
 /**
  * Fuel — the cut: calories and macros against a daily target, the eating
  * window, weigh-ins (the shared body-weight log) and waist, the pantry and
- * menu, and Claude estimates. Four sub-pages under one tab.
+ * menu, Claude estimates, and vitamins & supplements. Five sub-pages under one tab.
  */
 export function mountFuel(root: HTMLElement, nav: Nav): Cleanup {
   const container = h("div", { class: "view view-fuel" });
@@ -106,7 +115,7 @@ export function mountFuel(root: HTMLElement, nav: Nav): Cleanup {
     tabCleanup?.();
     tabCleanup = null;
     clear(body);
-    let result: Cleanup | void;
+    let result: Cleanup | void = undefined;
     switch (lastTab) {
       case "today":
         result = renderFuelToday(body, ctx);
@@ -116,6 +125,9 @@ export function mountFuel(root: HTMLElement, nav: Nav): Cleanup {
         break;
       case "foods":
         result = renderFuelFoods(body, ctx);
+        break;
+      case "supps":
+        renderFuelSupps(body);
         break;
       case "terms":
         result = renderFuelTerms(body, ctx);

@@ -3,6 +3,8 @@ import { dayLedger } from "../health/crossData";
 import { dateLocale, registerTranslations, t } from "../i18n";
 import type { Nav } from "../router";
 import type { TrainingSession } from "../types";
+import { loadSupps, stackStatus } from "../health/suppStore";
+import { seedFuelTab } from "./fuel";
 
 registerTranslations({
   "Today's fuel": "Alimentația de azi",
@@ -13,6 +15,10 @@ registerTranslations({
   "+{0} ml for training": "+{0} ml pentru antrenament",
   "Open Water": "Deschide Apă",
   "Open Fuel": "Deschide Nutriție",
+  "Supplements {0}/{1}": "Suplimente {0}/{1}",
+  "Open supplements": "Deschide suplimentele",
+  "All taken": "Toate luate",
+  "{0} still to take": "{0} de luat",
 });
 
 function bar(fraction: number, cls: string): HTMLElement {
@@ -24,12 +30,45 @@ function bar(fraction: number, cls: string): HTMLElement {
 /**
  * The Body home's glance at the health journal: today's effective hydration
  * against a goal that grows with today's training, and today's food against
- * the Fuel targets, with the protein to eat after today's training. Each half opens its tab.
+ * the Fuel targets, with the protein to eat after today's training, and — once a supplement stack
+ * exists — how much of it is ticked off. Each cell opens its tab.
  */
 export function renderTodayStrip(nav: Nav, sessions: TrainingSession[]): HTMLElement {
   const d = dayLedger(undefined, sessions);
   const n0 = (x: number): string => Math.round(x).toLocaleString(dateLocale());
   const waterPct = Math.round((d.hydrationMl / Math.max(1, d.waterGoalMl)) * 100);
+  const supps = stackStatus(loadSupps());
+  const suppCell =
+    supps.total > 0
+      ? h(
+          "button",
+          {
+            class: "hl-today-cell hl-today-wide",
+            type: "button",
+            aria: { label: t("Open supplements") },
+            on: {
+              click: () => {
+                seedFuelTab("supps");
+                nav.go("fuel");
+              },
+            },
+          },
+          [
+            h("span", {
+              class: "field-label",
+              text: t("Supplements {0}/{1}").replace("{0}", String(supps.done)).replace("{1}", String(supps.total)),
+            }),
+            bar(supps.done / supps.total, "is-supps"),
+            h("span", {
+              class: "plan-meta",
+              text:
+                supps.done >= supps.total
+                  ? t("All taken")
+                  : t("{0} still to take").replace("{0}", String(supps.total - supps.done)),
+            }),
+          ],
+        )
+      : null;
   return h("section", { class: "card" }, [
     h("p", { class: "eyebrow", text: t("Today's fuel") }),
     h("div", { class: "hl-today-strip" }, [
@@ -67,6 +106,7 @@ export function renderTodayStrip(nav: Nav, sessions: TrainingSession[]): HTMLEle
             : null,
         ],
       ),
+      suppCell,
     ]),
   ]);
 }
