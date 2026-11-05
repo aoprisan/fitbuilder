@@ -7,7 +7,7 @@ import type { Cleanup, Nav } from "../router";
 import { fill, type FuelCtx } from "./fuelCtx";
 import { renderFuelFoods } from "./fuelFoods";
 import { renderFuelTerms } from "./fuelTerms";
-import { renderFuelToday } from "./fuelToday";
+import { renderFuelToday, resetFuelDay } from "./fuelToday";
 import { renderFuelWeight } from "./fuelWeight";
 
 registerTranslations({
@@ -52,6 +52,7 @@ export function mountFuel(root: HTMLElement, nav: Nav): Cleanup {
 
   // A Claude reply shared into the PWA lands on Today, where its panel opens.
   if (peekSharedReply() !== null) lastTab = "today";
+  resetFuelDay();
 
   let state = loadCut();
   const sub = h("p", { class: "plan-meta" });
