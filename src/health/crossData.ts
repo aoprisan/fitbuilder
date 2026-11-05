@@ -10,6 +10,7 @@ import { loadSessions } from "../logStorage";
 import type { TrainingSession } from "../types";
 import { dayTotals, type Macros } from "./cutModel";
 import { loadCut } from "./cutStore";
+import { dayDoseSummary, loadSupps } from "./suppStore";
 import { loadWater, waterDay } from "./waterStore";
 
 /**
@@ -21,7 +22,7 @@ import { loadWater, waterDay } from "./waterStore";
  *  - Fuel: the day's sessions show their rough burn and the protein to eat in
  *    the meal after training. Both targets stay as set: the daily protein
  *    target already covers training, and the burn isn't meant to be eaten back.
- *  - Body / History: water and food logged on a day sit beside its training.
+ *  - Body / History: water, food and supplements logged on a day sit beside its training.
  */
 
 export interface TrainingDay {
@@ -90,7 +91,7 @@ export function dayLedger(date = todayKey(), sessions = loadSessions()): DayLedg
 }
 
 /**
- * Hydration, food and weigh-ins on the days of the given sessions, as a
+ * Hydration, food, weigh-ins and supplement doses on the days of the given sessions, as a
  * Markdown section for the "Analyze with Claude" report — so the analysis can
  * weigh a flat session against a short night of water or a deep deficit.
  * Empty when none of those days has anything logged.
@@ -100,13 +101,15 @@ export function healthContextMarkdown(sessions: readonly TrainingSession[]): str
   if (!days.length) return "";
   const water = loadWater();
   const cut = loadCut();
+  const supps = loadSupps();
   const all = loadSessions();
   const rows: string[] = [];
   for (const date of days) {
     const w = waterDay(water.entries, date);
     const food = dayTotals(cut, date);
     const kg = cut.weights[date];
-    if (w.entries.length === 0 && food.kcal === 0 && kg === undefined) continue;
+    const took = dayDoseSummary(supps.doses, date);
+    if (w.entries.length === 0 && food.kcal === 0 && kg === undefined && !took) continue;
     const tr = trainingOn(date, all);
     const waterGoal = trainingWaterGoal(water.dailyGoalMl, tr);
     const parts: string[] = [];
@@ -119,8 +122,9 @@ export function healthContextMarkdown(sessions: readonly TrainingSession[]): str
         `ate ${Math.round(food.kcal)} kcal / ${Math.round(food.p)} g protein (targets ${cut.settings.kcal} kcal / ${cut.settings.protein} g)`,
       );
     if (kg !== undefined) parts.push(`weighed ${kg} kg`);
+    if (took) parts.push(`supplements: ${took}`);
     rows.push(`- ${date}: ${parts.join("; ")}`);
   }
   if (!rows.length) return "";
-  return ["## Hydration & nutrition on these days", "", ...rows].join("\n");
+  return ["## Hydration, nutrition & supplements on these days", "", ...rows].join("\n");
 }

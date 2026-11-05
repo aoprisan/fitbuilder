@@ -4403,10 +4403,14 @@ textarea:focus-visible {
 
 .hl-subtabs {
   margin: 0;
+  flex-wrap: nowrap;
 }
 
 .hl-subtabs .toggle-btn {
-  flex: 1 1 25%;
+  flex: 1 1 0;
+  min-width: 0;
+  padding-inline: 2px;
+  letter-spacing: 0.02em;
 }
 
 .hl-fuel-body {
@@ -4862,6 +4866,155 @@ textarea:focus-visible {
   margin: 0;
 }
 
+.hl-today-wide {
+  grid-column: 1 / -1;
+}
+
+.hl-bar.is-supps .hl-bar-fill {
+  background: var(--pine);
+}
+
+/* ── Fuel → Supplements ── */
+.hl-supp-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.hl-supp-check {
+  font-weight: 700;
+  font-size: var(--fs-11);
+  color: var(--ink-soft);
+  width: 1.4em;
+  text-align: center;
+}
+
+.hl-supp-row.is-done .hl-supp-check {
+  color: var(--pine);
+}
+
+.hl-supp-row.is-done .hl-row-name {
+  color: var(--ink-soft);
+}
+
+.hl-supp-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hl-supp-note {
+  font-size: var(--fs-10);
+}
+
+.hl-supp-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Name + count on one line, then the 14 days filling the card's width. */
+.hl-supp-grid-row {
+  display: grid;
+  grid-template-columns: repeat(14, minmax(0, 1fr));
+  gap: 3px;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: var(--fs-10);
+}
+
+.hl-supp-grid-label {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hl-supp-grid-head {
+  font-weight: 700;
+  font-size: var(--fs-9);
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.hl-supp-grid-head .is-today {
+  color: var(--ink);
+}
+
+.hl-supp-grid-name {
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hl-supp-grid-count {
+  white-space: nowrap;
+}
+
+.hl-supp-cell {
+  width: 100%;
+  aspect-ratio: 1;
+  max-height: 28px;
+  padding: 0;
+  background: var(--paper);
+  border: var(--bw-1) solid var(--ink-ghost);
+  cursor: pointer;
+}
+
+.hl-supp-cell.is-today {
+  border-color: var(--ink-soft);
+}
+
+.hl-supp-cell.is-on {
+  background: var(--pine);
+  border-color: var(--pine);
+}
+
+.hl-supp-cell.is-part {
+  background: linear-gradient(to top, var(--pine) 50%, var(--paper) 50%);
+}
+
+.hl-supp-creatine {
+  margin-top: 12px;
+}
+
+.hl-supp-creatine.is-lapsed .plan-note {
+  color: var(--brick);
+}
+
+.hl-supp-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hl-supp-edit-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 62px 68px 42px auto;
+  gap: 4px;
+  align-items: center;
+}
+
+.hl-supp-edit-row .hl-select {
+  padding: 6px 4px;
+  font-size: 14px;
+  border-width: var(--bw-1);
+}
+
+.hl-supp-quick {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hl-supp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 @media (max-width: 460px) {
   .hl-hero-grid {
     grid-template-columns: minmax(0, 1fr) minmax(0, 0.6fr);
@@ -4885,7 +5038,8 @@ textarea:focus-visible {
 :root[data-theme^="sport"] .hl-claude,
 :root[data-theme^="sport"] .view-fuel input[type="date"],
 :root[data-theme^="sport"] .view-fuel input[type="time"],
-:root[data-theme^="sport"] .hl-select {
+:root[data-theme^="sport"] .hl-select,
+:root[data-theme^="sport"] .hl-supp-cell {
   border-radius: var(--radius-sm);
 }
 
@@ -5251,6 +5405,17 @@ textarea:focus-visible {
 :root[data-theme^="sport"] .rir-toggle .toggle-btn {
   flex: 1 1 calc(20% - 3px);
   padding-inline: 4px;
+}
+
+/* Fuel's five pages on one row. */
+:root[data-theme^="sport"] .hl-subtabs {
+  flex-wrap: nowrap;
+}
+
+:root[data-theme^="sport"] .hl-subtabs .toggle-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  padding-inline: 2px;
 }
 
 /* ── Fields ────────────────────────────────────────────────────────────── */
