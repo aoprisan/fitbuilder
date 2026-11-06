@@ -2,6 +2,7 @@ import { clear, h } from "../dom";
 import { cutWeek, type CutState } from "../health/cutModel";
 import { loadCut, updateCut } from "../health/cutStore";
 import { peekSharedReply } from "../health/cutClaude";
+import { replyKind } from "../health/suppClaude";
 import { registerTranslations, t } from "../i18n";
 import type { Cleanup, Nav } from "../router";
 import { fill, type FuelCtx } from "./fuelCtx";
@@ -59,8 +60,10 @@ export function mountFuel(root: HTMLElement, nav: Nav): Cleanup {
   const container = h("div", { class: "view view-fuel" });
   root.appendChild(container);
 
-  // A Claude reply shared into the PWA lands on Today, where its panel opens.
-  if (peekSharedReply() !== null) lastTab = "today";
+  // A Claude reply shared into the PWA lands on the page whose panel takes it:
+  // a supplement label read on Supps, a meal or menu on Today.
+  const shared = peekSharedReply();
+  if (shared !== null) lastTab = replyKind(shared) === "supps" ? "supps" : "today";
   resetFuelDay();
 
   let state = loadCut();

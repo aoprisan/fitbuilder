@@ -66,7 +66,7 @@ export function claudeChatUrl(prompt: string): string {
 
 /* ─── reading the reply ────────────────────────────────────── */
 
-const pick = (o: Record<string, unknown>, keys: readonly string[]): unknown => {
+export const pick = (o: Record<string, unknown>, keys: readonly string[]): unknown => {
   const lower: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(o)) lower[k.toLowerCase().replace(/[\s-]/g, "_")] = v;
   for (const k of keys) if (lower[k] !== undefined) return lower[k];
@@ -74,7 +74,7 @@ const pick = (o: Record<string, unknown>, keys: readonly string[]): unknown => {
 };
 
 /** 150, "150", "150 g", "~150g", "1,5" → number; anything else → NaN. */
-function toNum(v: unknown): number {
+export function toNum(v: unknown): number {
   if (typeof v === "number") return v;
   if (typeof v !== "string") return NaN;
   const m = v.replace(",", ".").match(/-?\d+(?:\.\d+)?/);
@@ -145,7 +145,7 @@ function lenientParse(s: string): unknown {
 }
 
 /** Each JSON value found in the text, in the order `candidates` ranks them. */
-function* parsedCandidates(text: string): Generator<unknown> {
+export function* parsedCandidates(text: string): Generator<unknown> {
   for (const c of candidates(text)) {
     try {
       yield lenientParse(c);
@@ -274,16 +274,6 @@ export function parseMenuReply(text: string): MenuMeal[] {
     if (meals.length) return meals;
   }
   throw new Error(ERR_NO_MENU);
-}
-
-/** Whether a pasted or shared reply is a menu (has "meals") or a single meal's estimate. */
-export function replyKind(text: string): "menu" | "meal" {
-  try {
-    parseMenuReply(text);
-    return "menu";
-  } catch {
-    return "meal";
-  }
 }
 
 /**
