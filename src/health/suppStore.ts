@@ -35,6 +35,8 @@ export interface Supplement {
   unit: SuppUnit;
   /** Doses planned per day (1–6). */
   perDay: number;
+  /** How to take it (e.g. from a Claude label read); presets fall back to their own note. */
+  note?: string;
 }
 
 export interface SuppDose {
@@ -76,8 +78,8 @@ export const SUPP_PRESETS: readonly SuppPreset[] = [
 
 export const SUPP_KEY = "gymlog.supplements";
 
-const isUnit = (v: unknown): v is SuppUnit => typeof v === "string" && (SUPP_UNITS as readonly string[]).includes(v);
-const isKind = (v: unknown): v is SuppKind => typeof v === "string" && (SUPP_KINDS as readonly string[]).includes(v);
+export const isUnit = (v: unknown): v is SuppUnit => typeof v === "string" && (SUPP_UNITS as readonly string[]).includes(v);
+export const isKind = (v: unknown): v is SuppKind => typeof v === "string" && (SUPP_KINDS as readonly string[]).includes(v);
 const posNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v > 0;
 
 export function clampPerDay(n: number): number {
@@ -98,6 +100,7 @@ function coerceSupp(raw: unknown): Supplement | null {
     dose: r["dose"],
     unit: r["unit"],
     perDay: clampPerDay(typeof r["perDay"] === "number" ? r["perDay"] : 1),
+    ...(typeof r["note"] === "string" && r["note"].trim() ? { note: r["note"].trim() } : {}),
   };
 }
 

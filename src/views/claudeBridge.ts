@@ -4,8 +4,9 @@
  * reply shared into the installed PWA). No API, no key — see CLAUDE.md.
  */
 import { canReadClipboard, copyText, readText } from "../clipboard";
-import { h } from "../dom";
-import { claudeChatUrl, clearSharedReply, peekSharedReply, replyKind } from "../health/cutClaude";
+import { append, clear, h } from "../dom";
+import { claudeChatUrl, clearSharedReply, peekSharedReply } from "../health/cutClaude";
+import { replyKind } from "../health/suppClaude";
 import { registerTranslations, t } from "../i18n";
 import { hasNativeShare, nativeShare } from "../nativeShare";
 
@@ -38,6 +39,13 @@ registerTranslations({
   "Paste Claude's reply first.": "Lipește mai întâi răspunsul lui Claude.",
   "No meal found — the reply needs the JSON block with name, g and kcal.":
     "Nu s-a găsit nicio masă — răspunsul trebuie să conțină blocul JSON cu name, g și kcal.",
+  'No supplement found — the reply needs the JSON block with "supplements", each with name, dose and unit.':
+    "Nu s-a găsit niciun supliment — răspunsul trebuie să conțină blocul JSON cu „supplements”, fiecare cu name, dose și unit.",
+  "Take photo": "Fă o fotografie",
+  "Retake photo": "Refă fotografia",
+  "Choose photo": "Alege o fotografie",
+  "Change photo": "Schimbă fotografia",
+  "Remove photo": "Elimină fotografia",
   'No menu found — the reply needs the JSON block with "meals", each with its items.':
     "Nu s-a găsit niciun meniu — răspunsul trebuie să conțină blocul JSON cu „meals”, fiecare cu alimentele sale.",
 });
@@ -62,10 +70,11 @@ export function flashLine(): { el: HTMLElement; say: (msg: string) => void } {
 
 /**
  * A reply shared into the installed app, if it belongs to this kind of panel
- * (a menu reply goes to the menu planner, anything else to the meal estimate).
+ * (a supplement read goes to Supps, a menu reply to the menu planner,
+ * anything else to the meal estimate).
  * Taken once, then forgotten.
  */
-export function takeSharedReply(kind: "menu" | "meal"): string | null {
+export function takeSharedReply(kind: "supps" | "menu" | "meal"): string | null {
   const text = peekSharedReply();
   if (text === null || replyKind(text) !== kind) return null;
   clearSharedReply();
@@ -183,7 +192,7 @@ export function sendRow(opts: {
  * 10 MB camera shot shares slowly and some apps refuse it, and Claude reads a
  * plate just as well at this size. Falls back to the original on any failure.
  */
-export async function shrinkPhoto(file: File, maxSide = 1600): Promise<File> {
+export async function shrinkPhoto(file: File, maxSide = 1600, prefix = "meal"): Promise<File> {
   try {
     const bmp = await createImageBitmap(file);
     const scale = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
@@ -198,10 +207,81 @@ export async function shrinkPhoto(file: File, maxSide = 1600): Promise<File> {
     bmp.close();
     const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", 0.85));
     if (!blob) return file;
-    return new File([blob], `meal-${Date.now().toString(36)}.jpg`, { type: "image/jpeg" });
+    return new File([blob], `${prefix}-${Date.now().toString(36)}.jpg`, { type: "image/jpeg" });
   } catch {
     return file;
   }
+}
+
+/**
+ * Take a photo (camera straight away) or choose one already taken, with a
+ * thumbnail and a remove button. The photo itself is held by the caller
+ * (`get`/`set`) so it survives the panel being rebuilt.
+ */
+export function photoPicker(opts: {
+  get: () => File | null;
+  set: (f: File | null) => void;
+  /** File name prefix for the shrunk JPEG. */
+  prefix?: string;
+}): HTMLElement {
+  const cameraInput = h("input", { type: "file", accept: "image/*", class: "hl-hidden-file" });
+  cameraInput.setAttribute("capture", "environment");
+  const galleryInput = h("input", { type: "file", accept: "image/*", class: "hl-hidden-file" });
+  const row = h("div", { class: "hl-photo-row" });
+  let thumbUrl: string | null = null;
+  const paint = (): void => {
+    const photo = opts.get();
+    clear(row);
+    if (thumbUrl) URL.revokeObjectURL(thumbUrl);
+    thumbUrl = photo ? URL.createObjectURL(photo) : null;
+    const thumb = thumbUrl ? h("img", { class: "hl-photo-thumb", aria: { hidden: "true" } }) : null;
+    if (thumb && thumbUrl) thumb.src = thumbUrl;
+    append(row, [
+      thumb,
+      h("div", { class: "btn-row" }, [
+        h("button", {
+          class: "btn btn-small",
+          type: "button",
+          text: photo ? t("Retake photo") : t("Take photo"),
+          on: { click: () => cameraInput.click() },
+        }),
+        h("button", {
+          class: "btn btn-small",
+          type: "button",
+          text: photo ? t("Change photo") : t("Choose photo"),
+          on: { click: () => galleryInput.click() },
+        }),
+        photo
+          ? h("button", {
+              class: "btn btn-small",
+              type: "button",
+              text: `✕ ${t("Remove photo")}`,
+              on: {
+                click: () => {
+                  opts.set(null);
+                  paint();
+                },
+              },
+            })
+          : null,
+      ]),
+      cameraInput,
+      galleryInput,
+    ]);
+  };
+  const take = (input: HTMLInputElement): void => {
+    const file = input.files?.[0] ?? null;
+    input.value = "";
+    if (!file) return;
+    void shrinkPhoto(file, 1600, opts.prefix).then((small) => {
+      opts.set(small);
+      paint();
+    });
+  };
+  cameraInput.addEventListener("change", () => take(cameraInput));
+  galleryInput.addEventListener("change", () => take(galleryInput));
+  paint();
+  return row;
 }
 
 /** Paste button, the reply box and the parse error line. */

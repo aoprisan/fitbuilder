@@ -19,8 +19,11 @@ import {
   type Supplement,
   type SuppUnit,
 } from "../health/suppStore";
+import { buildSuppPrompt, parseSuppReply, stackMatch, type SuppEstimate } from "../health/suppClaude";
 import { dateLocale, registerTranslations, t } from "../i18n";
+import { flashLine, photoPicker, replyBox, sendRow, sessionDraft, takeSharedReply } from "./claudeBridge";
 import { fill } from "./fuelCtx";
+import { showNotice } from "./snackbar";
 
 registerTranslations({
   Supplements: "Suplimente",
@@ -77,7 +80,25 @@ registerTranslations({
   "With food, apart from iron or calcium.": "Cu mâncare, separat de fier sau calciu.",
   "Any time.": "Oricând.",
   "With breakfast.": "La micul dejun.",
+  "Read a label with Claude": "Citește o etichetă cu Claude",
+  "Snap the label, or describe it": "Fotografiază eticheta sau descrie produsul",
+  "What is it?": "Ce produs este?",
+  "e.g. Now Foods D3 5000 IU, one softgel every other day":
+    "de ex. Now Foods D3 5000 UI, o capsulă la două zile",
+  "in your stack": "în listă",
+  "{0} a day": "{0} pe zi",
+  "Add to stack": "Adaugă în listă",
+  "{0} added, {1} updated.": "{0} adăugate, {1} actualizate.",
+  "Claude reads dose, unit and times a day off the label and flags overlaps with your stack. Names already in your stack update that item; doses already logged stay as they were.":
+    "Claude citește de pe etichetă doza, unitatea și de câte ori pe zi și semnalează suprapunerile cu lista ta. Numele deja în listă actualizează acel produs; dozele deja înregistrate rămân neschimbate.",
 });
+
+// Survive the repaint every tick triggers and the trip to the Claude app and back.
+let claudeOpen = false;
+let suppItems: SuppEstimate[] | null = null;
+let photo: File | null = null;
+const suppDesc = sessionDraft("gymlog.fuel.supp-draft");
+const suppReply = sessionDraft("gymlog.fuel.supp-reply");
 
 const NOON = 12;
 
@@ -93,6 +114,7 @@ function tsFor(date: string): number {
 }
 
 function noteFor(s: Supplement): string | null {
+  if (s.note) return s.note;
   const p = SUPP_PRESETS.find((x) => x.kind === s.kind);
   return p ? t(p.note) : null;
 }
@@ -376,6 +398,7 @@ export function renderFuelSupps(host: HTMLElement): void {
         h("label", { class: "field hl-narrow" }, [h("span", { class: "field-label", text: t("Per day") }), cPer]),
         h("button", { class: "btn btn-small btn-primary", type: "button", text: t("Add"), on: { click: addCustom } }),
       ]),
+      claudePanel(),
       h("p", {
         class: "plan-meta plan-note",
         text: t(
@@ -383,6 +406,173 @@ export function renderFuelSupps(host: HTMLElement): void {
         ),
       }),
     ]);
+  }
+
+
+  // ── Read a label with Claude ──
+  function claudePanel(): HTMLElement {
+    const shared = takeSharedReply("supps");
+    if (shared !== null) {
+      suppReply.set(shared);
+      suppItems = null;
+      claudeOpen = true;
+    }
+    const flash = flashLine();
+    const preview = h("div", { class: "hl-claude-preview" });
+
+    const desc = h("textarea", {
+      class: "hl-textarea",
+      rows: "2",
+      placeholder: t("e.g. Now Foods D3 5000 IU, one softgel every other day"),
+      aria: { label: t("What is it?") },
+    });
+    desc.value = suppDesc.get();
+    const send = sendRow({
+      prompt: () => buildSuppPrompt(desc.value, state.stack, photo !== null),
+      photo: () => photo,
+      say: flash.say,
+    });
+    const syncReady = (): void => send.setDisabled(desc.value.trim() === "" && photo === null);
+    desc.addEventListener("input", () => {
+      suppDesc.set(desc.value);
+      syncReady();
+    });
+    const photoRow = photoPicker({
+      get: () => photo,
+      set: (f) => {
+        photo = f;
+        syncReady();
+      },
+      prefix: "label",
+    });
+    syncReady();
+
+    const addAll = (items: readonly SuppEstimate[]): void => {
+      let added = 0;
+      let updated = 0;
+      change((st) => {
+        const stack = [...st.stack];
+        for (const e of items) {
+          const fields = {
+            kind: e.kind,
+            name: e.name,
+            dose: e.dose,
+            unit: e.unit,
+            perDay: e.perDay,
+            ...(e.note ? { note: e.note } : {}),
+          };
+          const match = stackMatch(stack, e.name);
+          if (match) {
+            const i = stack.indexOf(match);
+            stack[i] = { ...match, ...fields, name: match.name, kind: e.kind === "other" ? match.kind : e.kind };
+            updated++;
+          } else {
+            stack.push(newSupplement(fields));
+            added++;
+          }
+        }
+        return { ...st, stack };
+      });
+      showNotice(fill(t("{0} added, {1} updated."), added, updated));
+    };
+
+    const paintPreview = (): void => {
+      clear(preview);
+      const items = suppItems ?? [];
+      if (!items.length) return;
+      preview.append(
+        h(
+          "ul",
+          { class: "hl-list" },
+          items.map((e, i) =>
+            h("li", { class: "hl-row hl-supp-row" }, [
+              h("div", { class: "hl-supp-main" }, [
+                h("span", { class: "hl-row-name" }, [
+                  e.name,
+                  stackMatch(state.stack, e.name) ? h("span", { class: "hl-tag", text: t("in your stack") }) : null,
+                ]),
+                h("span", {
+                  class: "hl-row-soft",
+                  text: `${formatDose(e.dose, e.unit)} · ${fill(t("{0} a day"), `×${e.perDay}`)}`,
+                }),
+                e.note ? h("span", { class: "hl-row-soft hl-supp-note", text: e.note }) : null,
+              ]),
+              h("button", {
+                class: "btn btn-small",
+                type: "button",
+                text: t("Drop"),
+                on: {
+                  click: () => {
+                    suppItems = items.filter((_, j) => j !== i);
+                    paintPreview();
+                  },
+                },
+              }),
+            ]),
+          ),
+        ),
+        h("div", { class: "btn-row" }, [
+          h("button", {
+            class: "btn btn-small btn-accent",
+            type: "button",
+            text: t("Add to stack"),
+            on: {
+              click: () => {
+                suppItems = null;
+                suppReply.set("");
+                suppDesc.set("");
+                photo = null;
+                addAll(items);
+              },
+            },
+          }),
+        ]),
+      );
+    };
+
+    const reply = replyBox({
+      initial: suppReply.get(),
+      onReply: (text) => {
+        suppReply.set(text);
+        read(text);
+      },
+    });
+    const read = (text: string): void => {
+      if (!text.trim()) {
+        suppItems = null;
+        reply.setError(null);
+      } else {
+        try {
+          suppItems = parseSuppReply(text);
+          reply.setError(null);
+        } catch (e) {
+          suppItems = null;
+          reply.setError((e as Error).message);
+        }
+      }
+      paintPreview();
+    };
+    if (suppItems === null) read(suppReply.get());
+    else paintPreview();
+
+    const step = (n: number, label: string, children: HTMLElement[]): HTMLElement =>
+      h("div", { class: "hl-claude-step" }, [h("span", { class: "field-label", text: `${n} · ${label}` }), ...children]);
+    const d = h("details", { class: "hl-claude" }, [
+      h("summary", { class: "hl-claude-summary", text: `✦ ${t("Read a label with Claude")}` }),
+      step(1, t("Snap the label, or describe it"), [desc, photoRow, send.el]),
+      step(2, t("Paste Claude's reply"), [reply.el]),
+      preview,
+      h("p", {
+        class: "plan-meta plan-note",
+        text: t(
+          "Claude reads dose, unit and times a day off the label and flags overlaps with your stack. Names already in your stack update that item; doses already logged stay as they were.",
+        ),
+      }),
+      flash.el,
+    ]);
+    d.open = claudeOpen;
+    d.addEventListener("toggle", () => (claudeOpen = d.open));
+    return d;
   }
 
   function paint(): void {

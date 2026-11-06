@@ -1,4 +1,4 @@
-import { append, clear, h } from "../dom";
+import { clear, h } from "../dom";
 import {
   buildMealPrompt,
   buildMenuPrompt,
@@ -24,7 +24,7 @@ import {
   ZERO_MACROS,
 } from "../health/cutModel";
 import { dateLocale, registerTranslations, t } from "../i18n";
-import { flashLine, replyBox, sendRow, sessionDraft, shrinkPhoto, takeSharedReply } from "./claudeBridge";
+import { flashLine, photoPicker, replyBox, sendRow, sessionDraft, takeSharedReply } from "./claudeBridge";
 import { fill, type FuelCtx } from "./fuelCtx";
 import { showNotice } from "./snackbar";
 
@@ -33,11 +33,6 @@ registerTranslations({
   "Describe it, or snap it": "Descrie-o sau fotografiaz-o",
   "What did you eat?": "Ce ai mâncat?",
   "e.g. chicken shawarma wrap, small ayran": "de ex. shaorma de pui, un ayran mic",
-  "Take photo": "Fă o fotografie",
-  "Retake photo": "Refă fotografia",
-  "Choose photo": "Alege o fotografie",
-  "Change photo": "Schimbă fotografia",
-  "Remove photo": "Elimină fotografia",
   "Paste Claude's reply": "Lipește răspunsul lui Claude",
   pantry: "cămară",
   replaces: "înlocuiește",
@@ -160,65 +155,13 @@ export function renderMealClaude(ctx: FuelCtx, day: string): HTMLElement {
     syncReady();
   });
 
-  // Two pickers: the camera straight away, or a photo already taken.
-  const cameraInput = h("input", { type: "file", accept: "image/*", class: "hl-hidden-file" });
-  cameraInput.setAttribute("capture", "environment");
-  const galleryInput = h("input", { type: "file", accept: "image/*", class: "hl-hidden-file" });
-  const photoRow = h("div", { class: "hl-photo-row" });
-  let thumbUrl: string | null = null;
-  const paintPhoto = (): void => {
-    clear(photoRow);
-    if (thumbUrl) URL.revokeObjectURL(thumbUrl);
-    thumbUrl = photo ? URL.createObjectURL(photo) : null;
-    const thumb = thumbUrl ? h("img", { class: "hl-photo-thumb", aria: { hidden: "true" } }) : null;
-    if (thumb && thumbUrl) thumb.src = thumbUrl;
-    append(photoRow, [
-      thumb,
-      h("div", { class: "btn-row" }, [
-        h("button", {
-          class: "btn btn-small",
-          type: "button",
-          text: photo ? t("Retake photo") : t("Take photo"),
-          on: { click: () => cameraInput.click() },
-        }),
-        h("button", {
-          class: "btn btn-small",
-          type: "button",
-          text: photo ? t("Change photo") : t("Choose photo"),
-          on: { click: () => galleryInput.click() },
-        }),
-        photo
-          ? h("button", {
-              class: "btn btn-small",
-              type: "button",
-              text: `✕ ${t("Remove photo")}`,
-              on: {
-                click: () => {
-                  photo = null;
-                  paintPhoto();
-                  syncReady();
-                },
-              },
-            })
-          : null,
-      ]),
-      cameraInput,
-      galleryInput,
-    ]);
-  };
-  const takePhoto = (input: HTMLInputElement): void => {
-    const file = input.files?.[0] ?? null;
-    input.value = "";
-    if (!file) return;
-    void shrinkPhoto(file).then((small) => {
-      photo = small;
-      paintPhoto();
+  const photoRow = photoPicker({
+    get: () => photo,
+    set: (f) => {
+      photo = f;
       syncReady();
-    });
-  };
-  cameraInput.addEventListener("change", () => takePhoto(cameraInput));
-  galleryInput.addEventListener("change", () => takePhoto(galleryInput));
-  paintPhoto();
+    },
+  });
   syncReady();
 
   const paintPreview = (): void => {
