@@ -4339,6 +4339,23 @@ textarea:focus-visible {
   grid-column: 2;
 }
 
+/* Recipes from a photo: each recipe is a block — summary row, method, save/plate. */
+.hl-recipe {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.5rem 0;
+  border-bottom: var(--bw-1) dashed var(--edge);
+}
+
+.hl-recipe:last-child {
+  border-bottom: 0;
+}
+
+.hl-recipe-steps > ol {
+  margin: 0.25rem 0 0;
+  padding-left: 1.25rem;
+}
+
 .hl-record {
   grid-template-columns: auto 1fr 1fr auto;
 }

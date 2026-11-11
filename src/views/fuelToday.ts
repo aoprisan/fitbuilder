@@ -14,7 +14,7 @@ import {
 } from "../health/cutModel";
 import { dateLocale, registerTranslations, t } from "../i18n";
 import { fill, type FuelCtx } from "./fuelCtx";
-import { renderMealClaude, renderMenuClaude, saveMealRow } from "./fuelClaude";
+import { renderMealClaude, renderMenuClaude, renderRecipeClaude, saveMealRow } from "./fuelClaude";
 
 registerTranslations({
   "Previous day": "Ziua precedentă",
@@ -235,6 +235,7 @@ export function renderFuelToday(host: HTMLElement, ctx: FuelCtx): void {
     ]),
     renderMealClaude(ctx, day),
     renderMenuClaude(ctx, day, tr.sessions.length ? { kcal: tr.kcal, proteinG: tr.proteinG } : null),
+    renderRecipeClaude(ctx, day, tr.sessions.length ? { kcal: tr.kcal, proteinG: tr.proteinG } : null),
   ]);
 
   // ── The plate ──
