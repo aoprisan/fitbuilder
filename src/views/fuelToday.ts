@@ -64,6 +64,11 @@ export function resetFuelDay(): void {
   viewDay = null;
 }
 
+/** Browse `day` next time Today paints (today or later = follow the calendar). */
+export function seedFuelDay(day: string): void {
+  viewDay = day >= todayIso() ? null : day;
+}
+
 function dayTitle(day: string, today: string): string {
   const label = new Date(`${day}T12:00:00`).toLocaleDateString(dateLocale(), {
     weekday: "long",
