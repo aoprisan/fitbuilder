@@ -3,7 +3,7 @@
  * products back as stack items. Same share/paste contract as the meal
  * estimate in `cutClaude.ts` — no API, no key.
  */
-import { ERR_EMPTY, parseMenuReply, parsedCandidates, pick, toNum } from "./cutClaude";
+import { ERR_EMPTY, parseMenuReply, parsedCandidates, parseRecipeReply, pick, toNum } from "./cutClaude";
 import {
   clampPerDay,
   formatDose,
@@ -143,11 +143,19 @@ export function parseSuppReply(text: string): SuppEstimate[] {
 }
 
 /** Whether a pasted or shared reply is a supplement read, a menu (has "meals") or a single meal's estimate. */
-export function replyKind(text: string): "supps" | "menu" | "meal" {
+export function replyKind(text: string): "supps" | "recipes" | "menu" | "meal" {
   for (const data of parsedCandidates(text)) {
     if (data && typeof data === "object" && !Array.isArray(data)) {
       const o = data as Record<string, unknown>;
       if (pick(o, ["supplements"]) !== undefined && suppsOf(data).length) return "supps";
+      if (pick(o, ["recipes"]) !== undefined) {
+        try {
+          parseRecipeReply(text);
+          return "recipes";
+        } catch {
+          // not a usable recipe list — fall through
+        }
+      }
     }
   }
   try {

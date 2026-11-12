@@ -2,12 +2,15 @@ import { clear, h } from "../dom";
 import {
   buildMealPrompt,
   buildMenuPrompt,
+  buildRecipePrompt,
   type EstimateItem,
   lineMacros,
   type MenuMeal,
   type MenuScope,
   parseClaudeReply,
   parseMenuReply,
+  parseRecipeReply,
+  type Recipe,
   resolveItems,
   type TrainingNote,
 } from "../health/cutClaude";
@@ -73,6 +76,19 @@ registerTranslations({
   "Name the meal first.": "Dă mai întâi un nume mesei.",
   "Replace the saved meal “{0}”?": "Înlocuiești masa salvată „{0}”?",
   "Saved “{0}” — it's under Set the table.": "„{0}” a fost salvată — o găsești la Pune masa.",
+  "Recipes from a photo with Claude": "Rețete dintr-o fotografie cu Claude",
+  "Snap your ingredients": "Fotografiază ingredientele",
+  "Your fridge, a shelf, ingredients on the counter or a dish you'd like to make — Claude suggests cut-friendly recipes around today's {0} kcal and {1} g protein left.":
+    "Frigiderul, un raft, ingredientele de pe blat sau un fel pe care vrei să-l gătești — Claude propune rețete potrivite pentru cură, în jurul celor {0} kcal și {1} g proteine rămase azi.",
+  "Notes · optional": "Note · opțional",
+  "e.g. 20 minutes max, no oven, dinner for one": "de ex. maxim 20 de minute, fără cuptor, cină pentru unul",
+  "Paste Claude's recipes": "Lipește rețetele lui Claude",
+  "{0} min": "{0} min",
+  "Per serving · {0}": "Pe porție · {0}",
+  "Method": "Preparare",
+  "{0} on the plate.": "{0} în farfurie.",
+  "Recipes are one serving; new ingredients join the pantry at Claude's values, pantry names use yours.":
+    "Rețetele sunt pentru o porție; ingredientele noi intră în cămară cu valorile lui Claude, numele din cămară folosesc valorile tale.",
 });
 
 export const fmtMacros = (m: Macros): string =>
@@ -81,11 +97,13 @@ export const fmtMacros = (m: Macros): string =>
 const n0 = (x: number): string => Math.round(x).toLocaleString(dateLocale());
 
 // Open state and in-flight replies survive the repaint every logged change triggers.
-const openPanels = { meal: false, menu: false };
+const openPanels = { meal: false, menu: false, recipes: false };
 let mealItems: EstimateItem[] | null = null;
 let menuMeals: MenuMeal[] | null = null;
 let menuScope: MenuScope = "day";
 let photo: File | null = null;
+let recipes: Recipe[] | null = null;
+let recipePhoto: File | null = null;
 /** The name typed for "Save as meal" on the estimate; null → from the description. */
 let estimateName: string | null = null;
 
@@ -93,8 +111,10 @@ const mealDesc = sessionDraft("gymlog.fuel.meal-draft");
 const mealReply = sessionDraft("gymlog.fuel.meal-reply");
 const menuChanges = sessionDraft("gymlog.fuel.menu-draft");
 const menuReply = sessionDraft("gymlog.fuel.menu-reply");
+const recipeNotes = sessionDraft("gymlog.fuel.recipe-draft");
+const recipeReply = sessionDraft("gymlog.fuel.recipe-reply");
 
-function panel(kind: "meal" | "menu", title: string, content: HTMLElement[]): HTMLDetailsElement {
+function panel(kind: keyof typeof openPanels, title: string, content: HTMLElement[]): HTMLDetailsElement {
   const d = h("details", { class: "hl-claude" }, [
     h("summary", { class: "hl-claude-summary", text: `✦ ${title}` }),
     ...content,
@@ -501,6 +521,165 @@ export function renderMenuClaude(ctx: FuelCtx, day: string, training: TrainingNo
   return panel("menu", t("Plan the menu with Claude"), [
     step(1, t("What should Claude plan?"), [scopeRow, target, changes, send.el]),
     step(2, t("Paste Claude's menu"), [reply.el]),
+    preview,
+    flash.el,
+  ]);
+}
+
+/* ─── recipes from a photo ──────────────────────────────── */
+
+export function renderRecipeClaude(ctx: FuelCtx, day: string, training: TrainingNote | null): HTMLElement {
+  const shared = takeSharedReply("recipes");
+  if (shared !== null) {
+    recipeReply.set(shared);
+    recipes = null;
+    openPanels.recipes = true;
+  }
+  const s = ctx.state.settings;
+  const eaten = dayTotals(ctx.state, day);
+  const flash = flashLine();
+  const preview = h("div", { class: "hl-claude-preview" });
+
+  const notes = h("textarea", {
+    class: "hl-textarea",
+    rows: "2",
+    placeholder: t("e.g. 20 minutes max, no oven, dinner for one"),
+    aria: { label: t("Notes · optional") },
+  });
+  notes.value = recipeNotes.get();
+
+  const send = sendRow({
+    prompt: () =>
+      buildRecipePrompt({ settings: s, foods: ctx.state.foods, eaten, training }, notes.value, recipePhoto !== null),
+    photo: () => recipePhoto,
+    say: flash.say,
+  });
+  const syncReady = (): void => send.setDisabled(notes.value.trim() === "" && recipePhoto === null);
+  notes.addEventListener("input", () => {
+    recipeNotes.set(notes.value);
+    syncReady();
+  });
+  const photoRow = photoPicker({
+    get: () => recipePhoto,
+    set: (f) => {
+      recipePhoto = f;
+      syncReady();
+    },
+    prefix: "ingredients",
+  });
+  syncReady();
+
+  const hint = h("p", {
+    class: "plan-meta plan-note",
+    text: fill(
+      t(
+        "Your fridge, a shelf, ingredients on the counter or a dish you'd like to make — Claude suggests cut-friendly recipes around today's {0} kcal and {1} g protein left.",
+      ),
+      n0(Math.max(0, s.kcal - eaten.kcal)),
+      Math.round(Math.max(0, s.protein - eaten.p)),
+    ),
+  });
+
+  const paintPreview = (): void => {
+    clear(preview);
+    const list = recipes ?? [];
+    if (!list.length) return;
+    preview.append(
+      h(
+        "ul",
+        { class: "hl-list hl-recipes" },
+        list.map((r, i) => {
+          const total = r.items
+            .map((it) => lineMacros(ctx.state.foods, it))
+            .reduce<Macros>((a, l) => sumMacros(a, l), ZERO_MACROS);
+          return h("li", { class: "hl-recipe" }, [
+            h("div", { class: "hl-row hl-menu-row" }, [
+              h("span", { class: "hl-row-name" }, [
+                r.name,
+                r.minutes ? h("span", { class: "hl-tag", text: fill(t("{0} min"), r.minutes) }) : null,
+              ]),
+              h("span", {
+                class: "hl-row-soft hl-menu-items",
+                text: r.items.map((it) => `${it.name} ${it.g} g`).join(" · "),
+              }),
+              h("span", { class: "hl-row-soft", text: fill(t("Per serving · {0}"), fmtMacros(total)) }),
+              h("button", {
+                class: "icon-btn",
+                type: "button",
+                text: t("Drop"),
+                on: {
+                  click: () => {
+                    recipes = list.filter((_, j) => j !== i);
+                    paintPreview();
+                  },
+                },
+              }),
+            ]),
+            r.steps.length
+              ? h("details", { class: "hl-recipe-steps" }, [
+                  h("summary", { class: "plan-meta", text: t("Method") }),
+                  h("ol", {}, r.steps.map((st) => h("li", { class: "plan-meta plan-note", text: st }))),
+                ])
+              : null,
+            saveMealRow(ctx, r.name, (st) => resolveItems(st.foods, r.items)),
+            h("div", { class: "btn-row" }, [
+              h("button", {
+                class: "btn btn-small btn-accent",
+                type: "button",
+                text: t("Put on the plate"),
+                on: {
+                  click: () => {
+                    recipes = list.filter((_, j) => j !== i);
+                    if (!recipes.length) {
+                      recipes = null;
+                      recipeReply.set("");
+                      recipeNotes.set("");
+                      recipePhoto = null;
+                    }
+                    showAfter(fill(t("{0} on the plate."), r.name));
+                    logEstimate(ctx, day, r.items);
+                  },
+                },
+              }),
+            ]),
+          ]);
+        }),
+      ),
+      h("p", {
+        class: "plan-meta plan-note",
+        text: t("Recipes are one serving; new ingredients join the pantry at Claude's values, pantry names use yours."),
+      }),
+    );
+  };
+
+  const reply = replyBox({
+    initial: recipeReply.get(),
+    onReply: (text) => {
+      recipeReply.set(text);
+      read(text);
+    },
+  });
+  const read = (text: string): void => {
+    if (!text.trim()) {
+      recipes = null;
+      reply.setError(null);
+    } else {
+      try {
+        recipes = parseRecipeReply(text);
+        reply.setError(null);
+      } catch (e) {
+        recipes = null;
+        reply.setError((e as Error).message);
+      }
+    }
+    paintPreview();
+  };
+  if (recipes === null) read(recipeReply.get());
+  else paintPreview();
+
+  return panel("recipes", t("Recipes from a photo with Claude"), [
+    step(1, t("Snap your ingredients"), [hint, photoRow, notes, send.el]),
+    step(2, t("Paste Claude's recipes"), [reply.el]),
     preview,
     flash.el,
   ]);

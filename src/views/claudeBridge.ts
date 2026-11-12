@@ -46,6 +46,8 @@ registerTranslations({
   "Choose photo": "Alege o fotografie",
   "Change photo": "Schimbă fotografia",
   "Remove photo": "Elimină fotografia",
+  'No recipe found — the reply needs the JSON block with "recipes", each with its items.':
+    "Nu s-a găsit nicio rețetă — răspunsul trebuie să conțină blocul JSON cu „recipes”, fiecare cu alimentele sale.",
   'No menu found — the reply needs the JSON block with "meals", each with its items.':
     "Nu s-a găsit niciun meniu — răspunsul trebuie să conțină blocul JSON cu „meals”, fiecare cu alimentele sale.",
 });
@@ -70,11 +72,11 @@ export function flashLine(): { el: HTMLElement; say: (msg: string) => void } {
 
 /**
  * A reply shared into the installed app, if it belongs to this kind of panel
- * (a supplement read goes to Supps, a menu reply to the menu planner,
- * anything else to the meal estimate).
+ * (a supplement read goes to Supps, recipes to the recipe panel, a menu reply
+ * to the menu planner, anything else to the meal estimate).
  * Taken once, then forgotten.
  */
-export function takeSharedReply(kind: "supps" | "menu" | "meal"): string | null {
+export function takeSharedReply(kind: "supps" | "recipes" | "menu" | "meal"): string | null {
   const text = peekSharedReply();
   if (text === null || replyKind(text) !== kind) return null;
   clearSharedReply();

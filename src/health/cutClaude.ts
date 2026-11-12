@@ -276,6 +276,97 @@ export function parseMenuReply(text: string): MenuMeal[] {
   throw new Error(ERR_NO_MENU);
 }
 
+/* ─── recipes from a photo ───────────────────────────────────── */
+
+/** A recipe Claude suggests from a photo: one serving's foods plus the method. */
+export interface Recipe {
+  name: string;
+  /** One serving, as eaten. */
+  items: EstimateItem[];
+  /** Short method steps, in order. */
+  steps: string[];
+  /** Rough hands-on + cooking time, minutes (0 when not given). */
+  minutes: number;
+}
+
+export interface RecipeContext {
+  settings: CutSettings;
+  foods: readonly Food[];
+  /** What is already logged on the day. */
+  eaten: Macros;
+  training: TrainingNote | null;
+}
+
+export const ERR_NO_RECIPE =
+  'No recipe found — the reply needs the JSON block with "recipes", each with its items.';
+
+export function buildRecipePrompt(ctx: RecipeContext, wishes: string, withPhoto: boolean): string {
+  const { settings: s, foods, eaten, training } = ctx;
+  const kcalLeft = Math.max(0, Math.round(s.kcal - eaten.kcal));
+  const pLeft = Math.max(0, Math.round(s.protein - eaten.p));
+  const lines = [
+    withPhoto
+      ? "Suggest recipes I can cook from what's in this photo (ingredients, my fridge or pantry shelf, or a dish I'd like to make)."
+      : "Suggest recipes I can cook from the ingredients below.",
+    `I'm on a cut: ${s.kcal} kcal and at least ${s.protein} g protein a day. ` +
+      `Today ${kcalLeft} kcal and ${pLeft} g protein are still left.`,
+  ];
+  const tl = trainingLine(training);
+  if (tl) lines.push(tl);
+  const want = wishes.trim();
+  if (want) lines.push(`My notes: ${want}`);
+  lines.push(
+    "",
+    "Give two or three recipes, high in protein and sensible for a cut. Use mainly what you can see; name anything extra I'd need, and keep extras to staples.",
+  );
+  if (foods.length) lines.push(`If an ingredient is one of these, use exactly this name: ${foods.map((f) => f.name).join("; ")}.`);
+  lines.push(
+    "For each recipe list the ingredients for ONE serving with their weight in grams as eaten (cooked weight for cooked food) and that portion's totals (not per 100 g): kcal, protein, carbs and fat in grams.",
+    "Add the method as a few short steps and the total time in minutes.",
+    "",
+    "Describe the recipes briefly, then end with only this JSON in a ```json block:",
+    '{"recipes":[{"name":"Chicken & rice bowl","minutes":25,"steps":["Cook the rice.","Grill the chicken.","Serve over the rice."],"items":[{"name":"Grilled chicken breast","g":150,"kcal":248,"protein":46,"carbs":0,"fat":5}]}]}',
+  );
+  return lines.join("\n");
+}
+
+/** The recipes in a pasted reply; throws (English message) when there are none. */
+export function parseRecipeReply(text: string): Recipe[] {
+  if (!text.trim()) throw new Error(ERR_EMPTY);
+  for (const data of parsedCandidates(text)) {
+    const list = Array.isArray(data)
+      ? data
+      : data && typeof data === "object"
+        ? pick(data as Record<string, unknown>, ["recipes", "recipe", "dishes"])
+        : undefined;
+    if (!Array.isArray(list)) continue;
+    const recipes = list.flatMap((r: unknown, i): Recipe[] => {
+      if (!r || typeof r !== "object") return [];
+      const o = r as Record<string, unknown>;
+      const items = itemsOf(pick(o, ITEM_KEYS) ?? []);
+      if (!items.length) return [];
+      const name = pick(o, ["name", "title", "recipe", "dish"]);
+      const rawSteps = pick(o, ["steps", "method", "instructions", "directions"]);
+      const steps = Array.isArray(rawSteps)
+        ? rawSteps.filter((x): x is string => typeof x === "string" && x.trim() !== "").map((x) => x.trim())
+        : typeof rawSteps === "string" && rawSteps.trim()
+          ? rawSteps.split(/\n+/).map((x) => x.trim()).filter(Boolean)
+          : [];
+      const min = toNum(pick(o, ["minutes", "time", "total_time", "time_min", "duration"]));
+      return [
+        {
+          name: typeof name === "string" && name.trim() ? name.trim() : `Recipe ${i + 1}`,
+          items,
+          steps,
+          minutes: Number.isFinite(min) && min > 0 ? Math.round(min) : 0,
+        },
+      ];
+    });
+    if (recipes.length) return recipes;
+  }
+  throw new Error(ERR_NO_RECIPE);
+}
+
 /**
  * Turn named food lines into pantry ids: a name already in the pantry uses
  * that food (your own values win), anything else becomes a new food at
