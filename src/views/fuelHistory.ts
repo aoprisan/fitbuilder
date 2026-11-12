@@ -3,7 +3,9 @@ import { todayIso } from "../health/cutModel";
 import { loggedFoodDays, macroSeries, meanOf, weeklyKcal } from "../health/history";
 import { dateLocale, registerTranslations, t } from "../i18n";
 import type { Cleanup } from "../router";
+import { shareFuelHistory } from "../exporters";
 import { fill, type FuelCtx } from "./fuelCtx";
+import { shareRow } from "./shareButtons";
 import { dayLines, legend, rangeChips, responsiveChart, weekBars } from "./historyCharts";
 
 registerTranslations({
@@ -69,6 +71,7 @@ export function renderFuelHistory(host: HTMLElement, ctx: FuelCtx): Cleanup {
       range = r as Range;
       ctx.reload();
     }),
+    shareRow((format) => shareFuelHistory(range, format)),
   ]);
 
   // ── Calories per day ──

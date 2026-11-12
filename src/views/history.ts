@@ -10,10 +10,13 @@ import {
   exportSessionPng,
   exportSessionsJson,
   exportSessionsXml,
+  shareFullReport,
   shareSession,
+  shareTrainingHistory,
 } from "../exporters";
 import { registerTranslations, t } from "../i18n";
 import { exportStatus } from "./exportStatus";
+import { shareButton } from "./shareButtons";
 import { repeatSession } from "../log";
 import { clearProgress, loadProgress } from "../liveProgress";
 import { displayExerciseName } from "../movements";
@@ -88,6 +91,8 @@ registerTranslations({
   "open history for {0}": "deschide istoricul pentru {0}",
   "Export · Analyze": "Export · Analizează",
   "Share ▸": "Partajează ▸",
+  "Share the whole training history — totals, weekly volume and every session — as an image or a PDF.":
+    "Trimite tot istoricul antrenamentelor — totaluri, volum săptămânal și fiecare sesiune — ca imagine sau PDF.",
   "share {0}": "partajează {0}",
   "save {0} as PNG": "salvează {0} ca PNG",
   "save {0} as PDF": "salvează {0} ca PDF",
@@ -149,7 +154,8 @@ export function mountHistory(root: HTMLElement, nav: Nav): Cleanup {
   // ─────────────────────── Status + busy guard (shared) ──────────────────────
 
   // Persists across re-renders because the element is reused, not recreated.
-  const { el: statusEl, set: setStatus, run: runExport } = exportStatus();
+  const status = exportStatus();
+  const { el: statusEl, set: setStatus, run: runExport } = status;
   const analyzeMsg = (result: AnalyzeResult): string => {
     switch (result) {
       case "shared":
@@ -482,23 +488,12 @@ export function mountHistory(root: HTMLElement, nav: Nav): Cleanup {
                 }),
               ]),
               h("div", { class: "btn-row saved-actions" }, [
-                h("button", {
-                  class: "btn btn-small btn-accent",
-                  type: "button",
-                  text: t("Share ▸"),
-                  aria: { label: t("share {0}").replace("{0}", s.name || t("this session")) },
-                  on: {
-                    click: () =>
-                      runExport("Share ▸", async () => {
-                        const result = await shareSession(s, sessions);
-                        setStatus(
-                          result === "shared"
-                            ? t("Opened the share sheet — pick WhatsApp.")
-                            : t("Sharing isn't available here, so the PNG was downloaded instead."),
-                          "ok",
-                        );
-                      }),
-                  },
+                shareButton(status, "Share PNG ▸", () => shareSession(s, sessions, "png"), {
+                  accent: true,
+                  ariaLabel: t("share {0}").replace("{0}", s.name || t("this session")) + " · PNG",
+                }),
+                shareButton(status, "Share PDF ▸", () => shareSession(s, sessions, "pdf"), {
+                  ariaLabel: t("share {0}").replace("{0}", s.name || t("this session")) + " · PDF",
                 }),
                 h("button", {
                   class: "btn btn-small",
@@ -575,6 +570,21 @@ export function mountHistory(root: HTMLElement, nav: Nav): Cleanup {
           text: t("Download XML"),
           on: { click: () => exportSessionsXml(chronological) },
         }),
+      ]),
+      h("p", {
+        class: "plan-meta plan-note",
+        text: t("Share the whole training history — totals, weekly volume and every session — as an image or a PDF."),
+      }),
+      h("div", { class: "btn-row" }, [
+        shareButton(status, "Share PNG ▸", () => shareTrainingHistory(sessions, "png"), { accent: true }),
+        shareButton(status, "Share PDF ▸", () => shareTrainingHistory(sessions, "pdf")),
+      ]),
+      h("p", {
+        class: "plan-meta plan-note",
+        text: t("One PDF with everything: the body figure, training history, the latest session, water and food."),
+      }),
+      h("div", { class: "btn-row" }, [
+        shareButton(status, "Full report PDF ▸", () => shareFullReport("fatigue", sessions)),
       ]),
     ]);
   }

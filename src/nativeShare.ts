@@ -38,13 +38,20 @@ function base64Of(file: Blob): Promise<string> {
  * Share text (and optionally one file) through the native sheet. Resolves
  * "cancelled" when the person dismisses the sheet.
  */
-export async function nativeShare(data: { text: string; file?: File | null }): Promise<"shared" | "cancelled"> {
+export async function nativeShare(data: {
+  text: string;
+  file?: File | null;
+  /** Write the file under its own name (a report the receiving app shows by name) rather than a throwaway one. */
+  keepName?: boolean;
+}): Promise<"shared" | "cancelled"> {
   const { share, fs, cache } = await plugins();
   let files: string[] | undefined;
   if (data.file) {
     const ext = /\.(\w{2,5})$/.exec(data.file.name)?.[1] ?? "jpg";
     const written = await fs.writeFile({
-      path: `share/meal-${Date.now().toString(36)}.${ext}`,
+      path: data.keepName
+        ? `share/${data.file.name.replace(/[^\w.-]+/g, "-")}`
+        : `share/meal-${Date.now().toString(36)}.${ext}`,
       data: await base64Of(data.file),
       directory: cache,
       recursive: true,

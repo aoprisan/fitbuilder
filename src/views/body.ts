@@ -16,9 +16,11 @@ import {
   exportBodyMapPdf,
   exportBodyMapPng,
   shareBodyMap,
+  shareFullReport,
 } from "../exporters";
 import { registerTranslations, t } from "../i18n";
 import { exportStatus } from "./exportStatus";
+import { shareButton } from "./shareButtons";
 import { newTrainingSession } from "../log";
 import { clearProgress, loadProgress } from "../liveProgress";
 import { getSession, loadSessions, saveSession } from "../logStorage";
@@ -104,7 +106,7 @@ registerTranslations({
   Recovery: "Recuperare",
   // — export · share —
   "Export · Share": "Export · Distribuie",
-  "Share sends a PNG of your body map (front, back & side) to the native share sheet — or save a PNG/PDF.":
+  "Share sends your body map (front, back & side) as a PNG or PDF to the share sheet — WhatsApp or any other app — or save a PNG/PDF.":
     "Distribuie trimite un PNG al hărții corporale (față, spate și lateral) către meniul de partajare — sau salvează un PNG/PDF.",
   "Save a PNG or PDF of this body map. (Direct share works on phones.)":
     "Salvează un PNG sau PDF al acestei hărți corporale. (Distribuirea directă funcționează pe telefoane.)",
@@ -424,34 +426,20 @@ export function mountBody(root: HTMLElement, nav: Nav): Cleanup {
  * so the export always matches the toggle the user is looking at.
  */
 function renderExportPanel(sessions: TrainingSession[], getMetric: () => BodyMetric): HTMLElement {
-  const { el: statusEl, set: setStatus, run: runExport } = exportStatus();
+  const status = exportStatus();
+  const { el: statusEl, run: runExport } = status;
 
   return h("section", { class: "card live-export" }, [
     h("h2", { class: "section-title", text: t("Export · Share") }),
     h("p", {
       class: "plan-meta plan-note",
       text: canShareFiles()
-        ? t("Share sends a PNG of your body map (front, back & side) to the native share sheet — or save a PNG/PDF.")
+        ? t("Share sends your body map (front, back & side) as a PNG or PDF to the share sheet — WhatsApp or any other app — or save a PNG/PDF.")
         : t("Save a PNG or PDF of this body map. (Direct share works on phones.)"),
     }),
     h("div", { class: "btn-row" }, [
-      h("button", {
-        class: "btn btn-small btn-accent",
-        type: "button",
-        text: t("Share ▸"),
-        on: {
-          click: () =>
-            runExport("Share", async () => {
-              const result = await shareBodyMap(getMetric(), sessions);
-              setStatus(
-                result === "shared"
-                  ? t("Opened the share sheet — pick WhatsApp.")
-                  : t("Sharing isn't available here, so the PNG was downloaded instead."),
-                "ok",
-              );
-            }),
-        },
-      }),
+      shareButton(status, "Share PNG ▸", () => shareBodyMap(getMetric(), sessions, "png"), { accent: true }),
+      shareButton(status, "Share PDF ▸", () => shareBodyMap(getMetric(), sessions, "pdf")),
       h("button", {
         class: "btn btn-small",
         type: "button",
@@ -464,6 +452,13 @@ function renderExportPanel(sessions: TrainingSession[], getMetric: () => BodyMet
         text: "PDF",
         on: { click: () => runExport("Save PDF", () => exportBodyMapPdf(getMetric(), sessions)) },
       }),
+    ]),
+    h("p", {
+      class: "plan-meta plan-note",
+      text: t("One PDF with everything: the body figure, training history, the latest session, water and food."),
+    }),
+    h("div", { class: "btn-row" }, [
+      shareButton(status, "Full report PDF ▸", () => shareFullReport(getMetric(), sessions), { accent: true }),
     ]),
     statusEl,
   ]);

@@ -28,6 +28,8 @@ import { waterSeries } from "../health/history";
 import { decayCurve, glassProgress, glasswareIcon, hydrationMeter } from "./healthSvg";
 import { dayLines, legend, rangeChips, responsiveChart } from "./historyCharts";
 import { measuresForm } from "./measures";
+import { shareWaterDay, shareWaterHistory } from "../exporters";
+import { shareRow } from "./shareButtons";
 import { showUndo } from "./snackbar";
 
 registerTranslations({
@@ -537,6 +539,7 @@ export function mountWater(root: HTMLElement, _nav: Nav): Cleanup {
           }),
         ),
       ),
+      shareRow((format) => shareWaterDay(format)),
     );
   }
 
@@ -596,6 +599,7 @@ export function mountWater(root: HTMLElement, _nav: Nav): Cleanup {
       ]),
       chart.el,
       h("p", { class: "plan-meta plan-note", text: t("Dashes — daily goal (training days raise it) · gaps — days not logged") }),
+      shareRow((format) => shareWaterHistory(trendRange, format)),
     ]);
   }
 
