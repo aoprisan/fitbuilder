@@ -4738,6 +4738,122 @@ textarea:focus-visible {
   stroke-linejoin: round;
 }
 
+/* ── History charts (Water trend, Fuel → History) ── */
+.hl-range {
+  margin: 0 0 10px;
+  flex-wrap: nowrap;
+}
+
+.hl-range .toggle-btn {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.hl-range-card .hl-range {
+  margin: 0;
+}
+
+.hl-hist-water { --hist: var(--teal); }
+.hl-hist-volume { --hist: var(--ink-faint); }
+.hl-hist-kcal { --hist: var(--brick); }
+.hl-hist-p { --hist: var(--signal); }
+.hl-hist-c { --hist: var(--mustard); }
+.hl-hist-f { --hist: var(--ink); }
+
+/* The ledger's night press keeps the day's dark teal; lift it for the water line. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .hl-hist-water { --hist: #5fd6d0; }
+}
+:root[data-theme="dark"] .hl-hist-water { --hist: #5fd6d0; }
+
+.hl-hist-line {
+  fill: none;
+  stroke: var(--hist);
+  stroke-width: 2.2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.hl-hist-dot {
+  fill: var(--hist);
+}
+
+.hl-hist-target {
+  stroke: var(--hist);
+  stroke-width: 1.4;
+  stroke-dasharray: 5 4;
+  opacity: 0.8;
+}
+
+/* A halo in the card colour so a line crossing the target label stays readable. */
+.hl-hist-label {
+  paint-order: stroke;
+  stroke: var(--paper-deep);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
+.hl-hist-bar {
+  fill: var(--pine);
+}
+
+.hl-hist-bar.is-over {
+  fill: var(--signal);
+}
+
+.hl-hist-budget {
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.hl-hist-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0 0 6px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  color: var(--ink-soft);
+}
+
+.hl-hist-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hl-hist-swatch {
+  width: 14px;
+  height: 4px;
+  background: var(--hist);
+}
+
+.hl-hist-row {
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 10px;
+  background: none;
+  border: none;
+  border-bottom: var(--bw-1) var(--dash) var(--sep);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hl-hist-row > .hl-row-soft {
+  grid-column: 1 / -1;
+}
+
+.hl-list > li:last-child > .hl-hist-row {
+  border-bottom: none;
+}
+
+.hl-hist-row:hover .hl-row-time,
+.hl-hist-row:focus-visible .hl-row-time {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
 .hl-navel-wrap {
   display: grid;
   grid-template-columns: minmax(0, 150px) minmax(0, 1fr);
@@ -5424,7 +5540,7 @@ textarea:focus-visible {
   padding-inline: 4px;
 }
 
-/* Fuel's five pages on one row. */
+/* Fuel's six pages on one row. */
 :root[data-theme^="sport"] .hl-subtabs {
   flex-wrap: nowrap;
 }

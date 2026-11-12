@@ -7,9 +7,10 @@ import { registerTranslations, t } from "../i18n";
 import type { Cleanup, Nav } from "../router";
 import { fill, type FuelCtx } from "./fuelCtx";
 import { renderFuelFoods } from "./fuelFoods";
+import { renderFuelHistory } from "./fuelHistory";
 import { renderFuelSupps } from "./fuelSupps";
 import { renderFuelTerms } from "./fuelTerms";
-import { renderFuelToday, resetFuelDay } from "./fuelToday";
+import { renderFuelToday, resetFuelDay, seedFuelDay } from "./fuelToday";
 import { renderFuelWeight } from "./fuelWeight";
 
 registerTranslations({
@@ -23,13 +24,15 @@ registerTranslations({
   Foods: "Alimente",
   Targets: "Ținte",
   Supps: "Supl.",
+  History: "Istoric",
   "Fuel pages": "Paginile Nutriție",
 });
 
-export type FuelTab = "today" | "weight" | "foods" | "supps" | "terms";
+export type FuelTab = "today" | "history" | "weight" | "foods" | "supps" | "terms";
 type Tab = FuelTab;
 const TABS: ReadonlyArray<{ id: Tab; label: string }> = [
   { id: "today", label: "Today" },
+  { id: "history", label: "History" },
   { id: "weight", label: "Weight" },
   { id: "foods", label: "Foods" },
   { id: "supps", label: "Supps" },
@@ -54,7 +57,8 @@ function weekText(state: CutState): string {
 /**
  * Fuel — the cut: calories and macros against a daily target, the eating
  * window, weigh-ins (the shared body-weight log) and waist, the pantry and
- * menu, Claude estimates, and vitamins & supplements. Five sub-pages under one tab.
+ * menu, Claude estimates, the calorie / macro history, and vitamins & supplements.
+ * Six sub-pages under one tab.
  */
 export function mountFuel(root: HTMLElement, nav: Nav): Cleanup {
   const container = h("div", { class: "view view-fuel" });
@@ -83,6 +87,13 @@ export function mountFuel(root: HTMLElement, nav: Nav): Cleanup {
     reload() {
       state = loadCut();
       paint();
+    },
+    openDay(day) {
+      seedFuelDay(day);
+      lastTab = "today";
+      state = loadCut();
+      paint();
+      window.scrollTo(0, 0);
     },
   };
 
@@ -122,6 +133,9 @@ export function mountFuel(root: HTMLElement, nav: Nav): Cleanup {
     switch (lastTab) {
       case "today":
         result = renderFuelToday(body, ctx);
+        break;
+      case "history":
+        result = renderFuelHistory(body, ctx);
         break;
       case "weight":
         result = renderFuelWeight(body, ctx);

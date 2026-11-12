@@ -10,6 +10,8 @@ export interface FuelCtx {
   update(fn: (s: CutState) => CutState): void;
   /** Re-read storage (e.g. after a weigh-in went to the body-weight log) and repaint. */
   reload(): void;
+  /** Switch to Today, browsing `day` ("YYYY-MM-DD"). */
+  openDay(day: string): void;
 }
 
 /** "{0} of {1}" → filled. */

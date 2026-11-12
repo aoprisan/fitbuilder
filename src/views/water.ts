@@ -24,7 +24,9 @@ import {
 import { addDrink, loadWater, removeDrink, setWaterGoal, waterDay, waterDays } from "../health/waterStore";
 import { dateLocale, registerTranslations, t } from "../i18n";
 import type { Cleanup, Nav } from "../router";
+import { waterSeries } from "../health/history";
 import { decayCurve, glassProgress, glasswareIcon, hydrationMeter } from "./healthSvg";
+import { dayLines, legend, rangeChips, responsiveChart } from "./historyCharts";
 import { measuresForm } from "./measures";
 import { showUndo } from "./snackbar";
 
@@ -104,7 +106,22 @@ registerTranslations({
   "Strong beer": "Bere tare",
   Tea: "Ceai",
   Coffee: "Cafea",
+  "The trend": "Tendința",
+  "Hydration per day": "Hidratare pe zi",
+  "Effective hydration": "Hidratare efectivă",
+  "Raw volume": "Volum brut",
+  "{0} ml goal": "obiectiv {0} ml",
+  "Avg {0} ml/day over {1} logged days · goal kept on {2}":
+    "Medie {0} ml/zi în {1} zile înregistrate · obiectiv atins în {2}",
+  "Nothing logged in this range.": "Nimic înregistrat în acest interval.",
+  "No drinks logged yet — the trend starts with the first.": "Nicio băutură înregistrată încă — tendința începe cu prima.",
+  "Dashes — daily goal (training days raise it) · gaps — days not logged":
+    "Liniuțe — obiectivul zilnic (zilele de antrenament îl cresc) · goluri — zile neînregistrate",
 });
+
+const TREND_RANGES = [14, 30, 90] as const;
+// Survives remounts while the app is open.
+let trendRange: number = 30;
 
 const fmt = (n: number): string => Math.round(n).toLocaleString(dateLocale());
 
@@ -182,8 +199,10 @@ export function mountWater(root: HTMLElement, _nav: Nav): Cleanup {
   const loadHost = h("section", { class: "card" });
   const pourHost = h("section", { class: "card" });
   const todayHost = h("section", { class: "card" });
+  const trendHost = h("section", { class: "card" });
   const archiveHost = h("section", { class: "card" });
-  container.append(hero, loadHost, pourHost, todayHost, archiveHost);
+  container.append(hero, loadHost, pourHost, todayHost, trendHost, archiveHost);
+  let disposeTrend: (() => void) | null = null;
 
   function paintHero(): void {
     const water = loadWater();
@@ -521,6 +540,65 @@ export function mountWater(root: HTMLElement, _nav: Nav): Cleanup {
     );
   }
 
+  function paintTrend(): void {
+    const water = loadWater();
+    disposeTrend?.();
+    disposeTrend = null;
+    clear(trendHost);
+    trendHost.append(h("h2", { class: "section-title", text: t("The trend") }));
+    if (!water.entries.length) {
+      trendHost.append(h("p", { class: "empty", text: t("No drinks logged yet — the trend starts with the first.") }));
+      return;
+    }
+    const series = waterSeries(water, todayKey(), trendRange);
+    const dates = series.map((d) => d.date);
+    const hyd = series.map((d) => d.value);
+    // Raw volume per day (drink factor not applied).
+    const volByDay = new Map(waterDays(water.entries).map((d) => [d.date, d.totalMl]));
+    const vol = dates.map((d) => volByDay.get(d) ?? null);
+    const logged = series.filter((d) => d.value !== null);
+    const kept = logged.filter((d) => (d.value ?? 0) >= trainingWaterGoal(water.dailyGoalMl, trainingOn(d.date))).length;
+    const avg = logged.length ? logged.reduce((a, d) => a + (d.value ?? 0), 0) / logged.length : null;
+    const chart = responsiveChart(
+      (w) =>
+        dayLines(
+          {
+            dates,
+            series: [
+              { values: hyd, cls: "hl-hist-water" },
+              { values: vol, cls: "hl-hist-volume" },
+            ],
+            target: { value: water.dailyGoalMl, label: t("{0} ml goal").replace("{0}", fmt(water.dailyGoalMl)) },
+            label: t("Hydration per day"),
+          },
+          w,
+        ),
+      t("Nothing logged in this range."),
+    );
+    disposeTrend = chart.dispose;
+    append(trendHost, [
+      rangeChips(trendRange, TREND_RANGES, (r) => {
+        trendRange = r;
+        paintTrend();
+      }),
+      avg !== null
+        ? h("p", {
+            class: "plan-meta plan-note",
+            text: t("Avg {0} ml/day over {1} logged days · goal kept on {2}")
+              .replace("{0}", fmt(avg))
+              .replace("{1}", String(logged.length))
+              .replace("{2}", String(kept)),
+          })
+        : null,
+      legend([
+        { cls: "hl-hist-water", label: t("Effective hydration") },
+        { cls: "hl-hist-volume", label: t("Raw volume") },
+      ]),
+      chart.el,
+      h("p", { class: "plan-meta plan-note", text: t("Dashes — daily goal (training days raise it) · gaps — days not logged") }),
+    ]);
+  }
+
   function paintArchive(): void {
     const water = loadWater();
     const today = todayKey();
@@ -565,6 +643,7 @@ export function mountWater(root: HTMLElement, _nav: Nav): Cleanup {
     paintLoad();
     paintPour();
     paintToday();
+    paintTrend();
     paintArchive();
   }
 
@@ -574,5 +653,8 @@ export function mountWater(root: HTMLElement, _nav: Nav): Cleanup {
     // Skip while the user is typing in the panel (the measures form lives there).
     if (!document.hidden && !loadHost.contains(document.activeElement)) paintLoad();
   }, 30_000);
-  return () => window.clearInterval(tick);
+  return () => {
+    window.clearInterval(tick);
+    disposeTrend?.();
+  };
 }
