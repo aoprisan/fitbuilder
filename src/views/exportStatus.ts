@@ -17,9 +17,10 @@ export interface ExportStatus {
   set(msg: string, kind: StatusKind): void;
   /**
    * Run an (async) render / encode / share, reporting "{label}…", then ready or
-   * failed. Ignores taps while one is already running.
+   * failed. Ignores taps while one is already running. A string resolved by
+   * `fn` is shown in place of the generic "ready" line.
    */
-  run(label: string, fn: () => Promise<void>): Promise<void>;
+  run(label: string, fn: () => Promise<void | string>): Promise<void>;
 }
 
 /** The export status line + double-tap guard shared by Body, Train and History. */
@@ -30,14 +31,14 @@ export function exportStatus(): ExportStatus {
     el.className = `status status-${kind}`;
   };
   let busy = false;
-  const run = async (label: string, fn: () => Promise<void>): Promise<void> => {
+  const run = async (label: string, fn: () => Promise<void | string>): Promise<void> => {
     if (busy) return;
     busy = true;
     const tLabel = t(label);
     set(t("{0}…").replace("{0}", tLabel), "info");
     try {
-      await fn();
-      set(t("{0} ready.").replace("{0}", tLabel), "ok");
+      const msg = await fn();
+      set(typeof msg === "string" ? msg : t("{0} ready.").replace("{0}", tLabel), "ok");
     } catch {
       set(t("Could not {0}. Try again.").replace("{0}", tLabel.toLowerCase()), "err");
     } finally {

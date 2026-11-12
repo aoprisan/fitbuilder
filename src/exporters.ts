@@ -2,7 +2,17 @@ import { track } from "./analytics";
 import { BODY_METRIC_LABELS, type BodyMetric } from "./bodyMap";
 import { renderBodyMapToCanvas } from "./bodyMapRender";
 import { copyText } from "./clipboard";
-import { dataUrlToBytes, jpegToPdf } from "./pdf";
+import { hasNativeShare, nativeShare } from "./nativeShare";
+import { dataUrlToBytes, jpegsToPdf } from "./pdf";
+import {
+  hasFoodLog,
+  hasWaterLog,
+  renderFuelDayToCanvas,
+  renderFuelHistoryToCanvas,
+  renderTrainingHistoryToCanvas,
+  renderWaterDayToCanvas,
+  renderWaterHistoryToCanvas,
+} from "./reportRender";
 import { renderSessionToCanvas } from "./sessionRender";
 import type { TrainingSession } from "./types";
 import { sessionsToJson, sessionsToMarkdown as trainingMarkdown, sessionsToXml, slug } from "./util";
@@ -27,6 +37,7 @@ function shareNav(): ShareCapableNavigator {
 
 /** True when the platform can share files (i.e. the phone share sheet is available). */
 export function canShareFiles(): boolean {
+  if (hasNativeShare()) return true;
   const nav = shareNav();
   return typeof nav.share === "function" && typeof nav.canShare === "function";
 }
@@ -52,11 +63,21 @@ function downloadBlob(blob: Blob, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
-function pdfBlobFromCanvas(canvas: HTMLCanvasElement): Blob {
-  const jpeg = dataUrlToBytes(canvas.toDataURL("image/jpeg", 0.92));
-  const bytes = jpegToPdf(jpeg, canvas.width, canvas.height);
+/** One PDF, a page per canvas (each page the size of its canvas). */
+function pdfBlobFromCanvases(canvases: readonly HTMLCanvasElement[]): Blob {
+  const bytes = jpegsToPdf(
+    canvases.map((c) => ({
+      jpeg: dataUrlToBytes(c.toDataURL("image/jpeg", 0.92)),
+      width: c.width,
+      height: c.height,
+    })),
+  );
   // Copy into a fresh ArrayBuffer so the Blob part is a plain ArrayBuffer.
   return new Blob([bytes.slice()], { type: "application/pdf" });
+}
+
+function pdfBlobFromCanvas(canvas: HTMLCanvasElement): Blob {
+  return pdfBlobFromCanvases([canvas]);
 }
 
 /** Date-stamped filename for a session archive, e.g. "gym-log-sessions-2026-05-22.json". */
@@ -165,20 +186,22 @@ function downloadCanvasPdf(canvas: HTMLCanvasElement, filename: string): void {
 }
 
 export type ShareResult = "shared" | "downloaded";
+export type ShareFormat = "png" | "pdf";
 
 /**
- * Share a rendered canvas as a PNG via the native share sheet (best on phones,
- * where it can target WhatsApp directly). Falls back to a PNG download when the
- * platform can't share files. A user-cancelled share counts as "shared".
+ * Hand a file to the OS share sheet, where the person picks WhatsApp or any
+ * other app: the native sheet inside the Capacitor app (its WebView has no
+ * `navigator.share`), the Web Share API in a browser. Falls back to a download
+ * when the platform can't share files. A user-cancelled share counts as "shared".
  */
-async function shareCanvas(
-  canvas: HTMLCanvasElement,
-  filename: string,
-  title: string,
-): Promise<ShareResult> {
-  const blob = await canvasToBlob(canvas, "image/png");
-  const file = new File([blob], filename, { type: "image/png" });
-  track("share", { format: "image" });
+async function shareBlob(blob: Blob, filename: string, title: string): Promise<ShareResult> {
+  const file = new File([blob], filename, { type: blob.type });
+  track("share", { format: blob.type === "application/pdf" ? "pdf" : "image" });
+
+  if (hasNativeShare()) {
+    await nativeShare({ text: title, file, keepName: true });
+    return "shared";
+  }
 
   const nav = shareNav();
   if (nav.share && nav.canShare && nav.canShare({ files: [file] })) {
@@ -196,6 +219,19 @@ async function shareCanvas(
   downloadBlob(blob, file.name);
   return "downloaded";
 }
+
+/** Share a rendered page as a PNG or a one-page PDF (`slug` is the filename without extension). */
+async function shareCanvas(
+  canvas: HTMLCanvasElement,
+  slugName: string,
+  title: string,
+  format: ShareFormat = "png",
+): Promise<ShareResult> {
+  const blob = format === "pdf" ? pdfBlobFromCanvas(canvas) : await canvasToBlob(canvas, "image/png");
+  return shareBlob(blob, `${slugName}.${format}`, title);
+}
+
+const stamp = (): string => new Date().toISOString().slice(0, 10);
 
 /** Slug for a session recap file, e.g. "push-day-recap". */
 function sessionSlug(session: TrainingSession): string {
@@ -218,15 +254,17 @@ export async function exportSessionPdf(
   downloadCanvasPdf(await renderSessionToCanvas(session, allSessions), `${sessionSlug(session)}.pdf`);
 }
 
-/** Share a live-session recap as a PNG (native share sheet, download fallback). */
+/** Share a live-session recap as a PNG or PDF (share sheet, download fallback). */
 export async function shareSession(
   session: TrainingSession,
   allSessions: TrainingSession[],
+  format: ShareFormat = "png",
 ): Promise<ShareResult> {
   return shareCanvas(
     await renderSessionToCanvas(session, allSessions),
-    `${sessionSlug(session)}.png`,
+    sessionSlug(session),
     session.name || "Session recap",
+    format,
   );
 }
 
@@ -245,11 +283,82 @@ export async function exportBodyMapPdf(metric: BodyMetric, sessions: TrainingSes
   downloadCanvasPdf(await renderBodyMapToCanvas(metric, sessions), `${bodyMapSlug(metric)}.pdf`);
 }
 
-/** Share the body map as a PNG (native share sheet, download fallback). */
-export async function shareBodyMap(metric: BodyMetric, sessions: TrainingSession[]): Promise<ShareResult> {
+/** Share the body map as a PNG or PDF (share sheet, download fallback). */
+export async function shareBodyMap(
+  metric: BodyMetric,
+  sessions: TrainingSession[],
+  format: ShareFormat = "png",
+): Promise<ShareResult> {
   return shareCanvas(
     await renderBodyMapToCanvas(metric, sessions),
-    `${bodyMapSlug(metric)}.png`,
+    bodyMapSlug(metric),
     `Body map — ${BODY_METRIC_LABELS[metric]}`,
+    format,
   );
+}
+
+/** Share the whole training history (totals, weekly volume, session ledger). */
+export async function shareTrainingHistory(sessions: TrainingSession[], format: ShareFormat): Promise<ShareResult> {
+  return shareCanvas(
+    await renderTrainingHistoryToCanvas(sessions),
+    `gym-log-training-history-${stamp()}`,
+    "Training history",
+    format,
+  );
+}
+
+/** Share one day of water (`date` "YYYY-MM-DD", default today). */
+export async function shareWaterDay(format: ShareFormat, date?: string): Promise<ShareResult> {
+  return shareCanvas(await renderWaterDayToCanvas(date), `gym-log-water-${date ?? stamp()}`, "Water", format);
+}
+
+/** Share the water trend over the last `days` days. */
+export async function shareWaterHistory(days: number, format: ShareFormat): Promise<ShareResult> {
+  return shareCanvas(
+    await renderWaterHistoryToCanvas(days),
+    `gym-log-water-history-${stamp()}`,
+    "Water history",
+    format,
+  );
+}
+
+/** Share one day of food (`day` "YYYY-MM-DD"). */
+export async function shareFuelDay(day: string, format: ShareFormat): Promise<ShareResult> {
+  return shareCanvas(await renderFuelDayToCanvas(day), `gym-log-food-${day}`, "Food", format);
+}
+
+/** Share the food history over the last `days` days. */
+export async function shareFuelHistory(days: number, format: ShareFormat): Promise<ShareResult> {
+  return shareCanvas(
+    await renderFuelHistoryToCanvas(days),
+    `gym-log-food-history-${stamp()}`,
+    "Food history",
+    format,
+  );
+}
+
+/** Days of water / food history the full report carries. */
+const REPORT_DAYS = 30;
+
+/**
+ * Everything in one PDF, a page each: the body figure, the training history,
+ * the latest session, then today's water and food with their 30-day histories.
+ * Logs with nothing in them are left out.
+ */
+export async function shareFullReport(metric: BodyMetric, sessions: TrainingSession[]): Promise<ShareResult> {
+  const pages: HTMLCanvasElement[] = [await renderBodyMapToCanvas(metric, sessions)];
+  const logged = sessions.filter((s) => s.exercises.some((ex) => ex.sets.length > 0));
+  if (logged.length) {
+    pages.push(await renderTrainingHistoryToCanvas(sessions));
+    const latest = logged.reduce((a, b) => (b.startedAt > a.startedAt ? b : a));
+    pages.push(await renderSessionToCanvas(latest, sessions));
+  }
+  if (hasWaterLog()) {
+    pages.push(await renderWaterDayToCanvas(), await renderWaterHistoryToCanvas(REPORT_DAYS));
+  }
+  if (hasFoodLog()) {
+    pages.push(await renderFuelDayToCanvas(), await renderFuelHistoryToCanvas(REPORT_DAYS));
+  }
+  track("share", { format: "full-report" });
+  return shareBlob(pdfBlobFromCanvases(pages), `gym-log-report-${stamp()}.pdf`, "Gym Log report");
 }

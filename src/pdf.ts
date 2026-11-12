@@ -1,5 +1,5 @@
-/* A tiny, dependency-free PDF writer: wraps a single JPEG image in a one-page
-   PDF whose page exactly matches the image's pixel dimensions. This keeps the
+/* A tiny, dependency-free PDF writer: wraps JPEG images in a PDF, one
+   page per image, each page exactly matching its image's pixel dimensions. This keeps the
    exported PDF visually identical to the PNG while remaining a real document
    that WhatsApp (and anything else) can open. */
 
@@ -13,8 +13,19 @@ export function dataUrlToBytes(dataUrl: string): Uint8Array {
   return bytes;
 }
 
+export interface PdfPage {
+  jpeg: Uint8Array;
+  width: number;
+  height: number;
+}
+
 /** Build a one-page PDF (as bytes) that displays `jpeg` at `width`×`height`. */
 export function jpegToPdf(jpeg: Uint8Array, width: number, height: number): Uint8Array {
+  return jpegsToPdf([{ jpeg, width, height }]);
+}
+
+/** Build a PDF with one page per JPEG, each page sized to its own image. */
+export function jpegsToPdf(pages: readonly PdfPage[]): Uint8Array {
   const encoder = new TextEncoder();
   const chunks: Uint8Array[] = [];
   let length = 0;
@@ -25,37 +36,42 @@ export function jpegToPdf(jpeg: Uint8Array, width: number, height: number): Uint
     chunks.push(bytes);
     length += bytes.length;
   };
+  const obj = (id: number, body: string): void => {
+    offsets[id] = length;
+    put(`${id} 0 obj\n${body}\nendobj\n`);
+  };
 
   put("%PDF-1.3\n");
 
-  offsets[1] = length;
-  put("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+  // Objects: 1 catalog, 2 page tree, then page / image / content per page.
+  const pageId = (i: number): number => 3 + i * 3;
+  obj(1, "<< /Type /Catalog /Pages 2 0 R >>");
+  obj(2, `<< /Type /Pages /Kids [${pages.map((_, i) => `${pageId(i)} 0 R`).join(" ")}] /Count ${pages.length} >>`);
 
-  offsets[2] = length;
-  put("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n");
+  pages.forEach(({ jpeg, width, height }, i) => {
+    const id = pageId(i);
+    obj(
+      id,
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${width} ${height}] ` +
+        `/Resources << /XObject << /Im0 ${id + 1} 0 R >> >> /Contents ${id + 2} 0 R >>`,
+    );
 
-  offsets[3] = length;
-  put(
-    `3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${width} ${height}] ` +
-      `/Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>\nendobj\n`,
-  );
+    offsets[id + 1] = length;
+    put(
+      `${id + 1} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${width} /Height ${height} ` +
+        `/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode ` +
+        `/Length ${jpeg.length} >>\nstream\n`,
+    );
+    put(jpeg);
+    put("\nendstream\nendobj\n");
 
-  offsets[4] = length;
-  put(
-    `4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${width} /Height ${height} ` +
-      `/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode ` +
-      `/Length ${jpeg.length} >>\nstream\n`,
-  );
-  put(jpeg);
-  put("\nendstream\nendobj\n");
-
-  // Content stream: map the unit square to the page, then paint the image.
-  const content = `q\n${width} 0 0 ${height} 0 0 cm\n/Im0 Do\nQ\n`;
-  offsets[5] = length;
-  put(`5 0 obj\n<< /Length ${content.length} >>\nstream\n${content}endstream\nendobj\n`);
+    // Content stream: map the unit square to the page, then paint the image.
+    const content = `q\n${width} 0 0 ${height} 0 0 cm\n/Im0 Do\nQ\n`;
+    obj(id + 2, `<< /Length ${content.length} >>\nstream\n${content}endstream`);
+  });
 
   const xrefStart = length;
-  const objCount = 6; // free entry 0 plus objects 1–5
+  const objCount = 3 + pages.length * 3; // free entry 0 plus every object
   let xref = `xref\n0 ${objCount}\n0000000000 65535 f \n`;
   for (let i = 1; i < objCount; i++) {
     const offset = offsets[i] ?? 0;

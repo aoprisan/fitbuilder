@@ -1,4 +1,6 @@
 import { h } from "../dom";
+import { shareFuelDay } from "../exporters";
+import { shareRow } from "./shareButtons";
 import { dayLedger } from "../health/crossData";
 import {
   addDays,
@@ -309,6 +311,7 @@ export function renderFuelToday(host: HTMLElement, ctx: FuelCtx): void {
           })),
         ])
       : null,
+    entries.length ? shareRow((format) => shareFuelDay(day, format)) : null,
   ]);
 
   host.append(hero, cross, table, plate);

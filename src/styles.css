@@ -5667,3 +5667,11 @@ textarea:focus-visible {
   background: var(--ink);
   color: var(--paper);
 }
+
+/* Share PNG / PDF row under a day or a history (views/shareButtons.ts). */
+.share-row {
+  margin-top: 14px;
+}
+.share-row > .plan-note {
+  margin-bottom: 8px;
+}
