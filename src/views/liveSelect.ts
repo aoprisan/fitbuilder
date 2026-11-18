@@ -351,8 +351,15 @@ export function renderSelect(ctx: LiveCtx): void {
     const recentPicks = recentMovements(allSessions, QUICK_PICK_RING * 4).filter((mv) =>
       st.selectMode === "compound" ? isCompoundMovement(mv) : true,
     );
+    // With a muscle dialled, the inner ring only offers what works it (as the
+    // prime mover or a secondary) — a recent curl under Side Delts is noise, so
+    // when nothing fits the ring is left blank rather than padded.
+    const worksMuscle = (mv: Movement): boolean =>
+      st.selectMode === "compound" ||
+      mv.primaryMuscle === st.muscle ||
+      mv.secondaryMuscles.includes(st.muscle);
     const quickPicks = (): readonly Movement[] =>
-      (recentPicks.length > 0 ? recentPicks : compounds).slice(0, QUICK_PICK_RING);
+      (recentPicks.length > 0 ? recentPicks : compounds).filter(worksMuscle).slice(0, QUICK_PICK_RING);
 
     const filtered = (movements: readonly Movement[]): readonly Movement[] => {
       const shown = movements.filter(
@@ -408,6 +415,7 @@ export function renderSelect(ctx: LiveCtx): void {
           capacity: QUICK_PICK_RING,
           weight: 1.15,
           tone: "quick",
+          keepEmpty: true,
         },
       ];
       const picked = findMovement(st.movementId);
