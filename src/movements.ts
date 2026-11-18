@@ -154,7 +154,9 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
   ],
   triceps: [
     { id: "triceps::machine", name: "Triceps Press Machine", primaryMuscle: "triceps", secondaryMuscles: [], equipment: "machine", aliases: ["Triceps Machine", "Triceps Dip Machine", "Triceps Press"] },
-    { id: "triceps::cable", name: "Triceps Pushdown", primaryMuscle: "triceps", secondaryMuscles: [], equipment: "cable", aliases: ["Cable Pushdown", "Triceps Pushdowns", "Rope Pushdown"] },
+    { id: "triceps::cable", name: "Triceps Pushdown", primaryMuscle: "triceps", secondaryMuscles: [], equipment: "cable", aliases: ["Cable Pushdown", "Triceps Pushdowns"] },
+    { id: "triceps-rope-pushdown", name: "Rope Pushdown", primaryMuscle: "triceps", secondaryMuscles: [], equipment: "cable", aliases: ["Triceps Rope Pushdown", "Rope Pushdowns", "Rope Triceps Extension", "Extensii Triceps cu Funie"] },
+    { id: "triceps-v-bar-pushdown", name: "V-Bar Pushdown", primaryMuscle: "triceps", secondaryMuscles: [], equipment: "cable", aliases: ["V Bar Pushdown", "V-Bar Pushdowns", "Multi-Grip Pushdown", "Triceps Bar Pushdown", "Angled Bar Pushdown"] },
   ],
   legs: [
     { id: "deadlift", name: "Deadlift", primaryMuscle: "legs", secondaryMuscles: ["glutes", "lower-back"], equipment: "barbell", referenceLoadKg: 150 },
@@ -312,6 +314,8 @@ registerTranslations({
   "Cable Curl": "Flexii la Cablu",
   "Triceps Press Machine": "Aparat Presă Triceps",
   "Triceps Pushdown": "Extensii Triceps la Cablu",
+  "Rope Pushdown": "Extensii Triceps la Cablu cu Funie",
+  "V-Bar Pushdown": "Extensii Triceps la Cablu cu Bară V",
   "Cable Crunch": "Abdomene la Cablu",
   "Dumbbell Wrist Curl": "Flexii din Încheietură cu Gantere",
   "Barbell Wrist Curl": "Flexii din Încheietură cu Bara",
