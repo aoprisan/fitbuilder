@@ -101,8 +101,8 @@ function genericMovement(muscle: MuscleGroup, equipment: Equipment): Movement {
  * A named movement that took over a generic-gear slot keeps the legacy
  * `"${muscle}::${equipment}"` id (e.g. "traps::barbell" is now "Barbell Shrug"),
  * so sets logged under the old "Traps · Barbell" pick stay in the same progress
- * series and are shown under the new name. The remaining generic entries are
- * gear-only picks that were logged but don't map to one clear lift.
+ * series and are shown under the new name. Gear-only picks that were really a
+ * named lift are folded into it by {@link LEGACY_KEYS} instead.
  */
 const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
   chest: [
@@ -115,7 +115,6 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
     { id: "incline-chest-press-machine", name: "Incline Chest Press Machine", primaryMuscle: "chest", secondaryMuscles: ["front-delts", "triceps"], equipment: "machine" },
     { id: "medium-incline-chest-press-machine", name: "Vertical Bench Press Machine", primaryMuscle: "chest", secondaryMuscles: ["front-delts", "triceps"], equipment: "machine", aliases: ["Medium Incline Chest Press Machine"] },
     { id: "chest-fly-machine", name: "Chest Fly Machine", primaryMuscle: "chest", secondaryMuscles: [], equipment: "machine" },
-    genericMovement("chest", "barbell"),
   ],
   back: [
     { id: "pull-up", name: "Pull-Up", primaryMuscle: "back", secondaryMuscles: ["biceps"], equipment: "calisthenics", aliases: ["Pull-Ups", "Pull Ups", "Tractiuni", "Tractiuni Pronate"] },
@@ -134,12 +133,10 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
   // spread credit across heads via secondaries.
   "front-delts": [
     { id: "overhead-press", name: "Overhead Press", primaryMuscle: "front-delts", secondaryMuscles: ["side-delts", "triceps"], equipment: "barbell", aliases: ["Shoulder Press", "Military Press", "Presa Umeri"] },
-    genericMovement("front-delts", "barbell"),
   ],
   "side-delts": [
     { id: "lateral-raise-machine", name: "Lateral Raise Machine", primaryMuscle: "side-delts", secondaryMuscles: [], equipment: "lateral-raise", aliases: ["Machine Lateral Raise", "Lateral Raises Machine"] },
     { id: "cable-lateral-raise", name: "Cable Lateral Raise (Behind Back)", primaryMuscle: "side-delts", secondaryMuscles: [], equipment: "cable", aliases: ["Behind-the-Back Cable Lateral Raise", "Behind Back Cable Lateral Raise", "Cable Side Raise"] },
-    genericMovement("side-delts", "cable"),
   ],
   "rear-delts": [
     { id: "rear-delt-fly-machine", name: "Rear Delt Fly Machine", primaryMuscle: "rear-delts", secondaryMuscles: ["traps"], isolation: true, equipment: "rear-delt-fly", aliases: ["Reverse Pec Deck", "Reverse Fly Machine", "Rear Delt Machine"] },
@@ -173,9 +170,9 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
     { id: "leg-extension", name: "Leg Extension", primaryMuscle: "legs", secondaryMuscles: [], equipment: "machine", referenceLoadKg: 70 },
     { id: "prone-leg-curl", name: "Prone Leg Curl", primaryMuscle: "legs", secondaryMuscles: [], equipment: "machine", referenceLoadKg: 55 },
   ],
-  glutes: [
-    { id: "glutes::calisthenics", name: "Hip Thrust", primaryMuscle: "glutes", secondaryMuscles: [], equipment: "calisthenics", aliases: ["Hip Thrusts", "Glute Bridge", "Glute Bridges"] },
-  ],
+  // Nothing glute-primary is trained yet; the squats and deadlifts credit it as
+  // a secondary. Empty (not absent) so it doesn't fall back to every gear type.
+  glutes: [],
   calves: [
     { id: "calf-raise", name: "Standing Calf Raise", primaryMuscle: "calves", secondaryMuscles: [], equipment: "machine", aliases: ["Calf Raise", "Standing Calf Raise", "Standing Calf Raises"] },
     { id: "seated-calf-raise", name: "Seated Calf Raise", primaryMuscle: "calves", secondaryMuscles: [], equipment: "machine", aliases: ["Seated Calf Raises", "Sitting Calf Raise"] },
@@ -210,6 +207,12 @@ const LEGACY_KEYS: Readonly<Record<string, string>> = {
   "side-delts::rear-delt-fly": "rear-delt-fly-machine",
   "rear-delts::rear-delt-fly": "rear-delt-fly-machine",
   "triceps::triceps-press": "triceps::machine",
+  // Gear-only picks that were a named lift.
+  "chest::barbell": "bench-press",
+  "front-delts::barbell": "overhead-press",
+  "side-delts::barbell": "overhead-press",
+  "side-delts::cable": "cable-lateral-raise",
+  "glutes::calisthenics": "bodyweight-squat",
 };
 
 /** The current id for an exercise key/id, resolving {@link LEGACY_KEYS}. */
@@ -309,7 +312,6 @@ registerTranslations({
   "Cable Curl": "Flexii la Cablu",
   "Triceps Press Machine": "Aparat Presă Triceps",
   "Triceps Pushdown": "Extensii Triceps la Cablu",
-  "Hip Thrust": "Hip Thrust",
   "Cable Crunch": "Abdomene la Cablu",
   "Dumbbell Wrist Curl": "Flexii din Încheietură cu Gantere",
   "Barbell Wrist Curl": "Flexii din Încheietură cu Bara",
