@@ -281,7 +281,10 @@ export function renderSelect(ctx: LiveCtx): void {
   const orderedMuscles = ((): readonly MuscleGroup[] => {
     const freqOrder = musclesByFrequency(allSessions);
     const rank = new Map(freqOrder.map((m, i) => [m, i] as const));
-    return [...freqOrder].sort((a, b) => {
+    // Custom mode lists isolation picks only, so a muscle trained purely through
+    // compounds (back, front delts) has nothing to show there — leave it off the
+    // ring; its lifts are in Compound mode.
+    return freqOrder.filter((m) => isolationMovementsForMuscle(m).length > 0).sort((a, b) => {
       const bandA = readiness(a) >= RECOVERY_WARN_BELOW ? 0 : 1;
       const bandB = readiness(b) >= RECOVERY_WARN_BELOW ? 0 : 1;
       return bandA - bandB || (rank.get(a) ?? 0) - (rank.get(b) ?? 0);

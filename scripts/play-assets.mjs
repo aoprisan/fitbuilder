@@ -86,12 +86,12 @@ const MOVES = {
   incline: { name: "Incline Bench Press", muscle: "chest", equipment: "barbell", exerciseId: "incline-bench-press", secondaryMuscles: ["front-delts", "triceps"] },
   fly: { name: "Chest Fly Machine", muscle: "chest", equipment: "machine", exerciseId: "chest-fly-machine", secondaryMuscles: [] },
   ohp: { name: "Overhead Press", muscle: "front-delts", equipment: "barbell", exerciseId: "overhead-press", secondaryMuscles: ["side-delts", "triceps"] },
-  lateral: { name: "Dumbbell Lateral Raise", muscle: "side-delts", equipment: "dumbbell", exerciseId: "dumbbell-lateral-raise", secondaryMuscles: [] },
+  lateral: { name: "Lateral Raise Machine", muscle: "side-delts", equipment: "lateral-raise", exerciseId: "lateral-raise-machine", secondaryMuscles: [] },
   pulldown: { name: "Pronated Grip Pulldown", muscle: "back", equipment: "lat-pulldown", exerciseId: "pronated-grip-pulldown", secondaryMuscles: ["biceps", "forearms"] },
   row: { name: "Cable Row Machine", muscle: "back", equipment: "cable", exerciseId: "cable-row", secondaryMuscles: ["biceps", "traps", "rear-delts"] },
-  facepull: { name: "Face Pull", muscle: "rear-delts", equipment: "cable", exerciseId: "face-pull", secondaryMuscles: ["traps"] },
+  facepull: { name: "Rear Delt Fly Machine", muscle: "rear-delts", equipment: "rear-delt-fly", exerciseId: "rear-delt-fly-machine", secondaryMuscles: ["traps"] },
   curl: { name: "Wall Barbell Curl", muscle: "biceps", equipment: "barbell", exerciseId: "wall-barbell-curl", secondaryMuscles: [] },
-  squat: { name: "Barbell Squat", muscle: "legs", equipment: "barbell", exerciseId: "barbell-squat", secondaryMuscles: ["glutes", "lower-back"] },
+  squat: { name: "Dumbbell Squat", muscle: "legs", equipment: "dumbbell", exerciseId: "dumbbell-squat", secondaryMuscles: ["glutes"] },
   rdl: { name: "Romanian Deadlift", muscle: "legs", equipment: "barbell", exerciseId: "romanian-deadlift", secondaryMuscles: ["glutes", "lower-back"] },
   legpress: { name: "Leg Press", muscle: "legs", equipment: "machine", exerciseId: "leg-press", secondaryMuscles: [] },
   calf: { name: "Standing Calf Raise", muscle: "calves", equipment: "machine", exerciseId: "calf-raise", secondaryMuscles: [] },
@@ -99,9 +99,9 @@ const MOVES = {
 
 // [move, sets, reps, start kg, kg added per week]
 const DAYS = {
-  push: [["bench", 4, 8, 70, 2.5], ["incline", 3, 10, 55, 2.5], ["fly", 3, 12, 45, 2.5], ["ohp", 3, 8, 40, 1.25], ["lateral", 3, 14, 10, 0.5]],
-  pull: [["pulldown", 4, 10, 60, 2.5], ["row", 4, 10, 55, 2.5], ["facepull", 3, 15, 20, 1.25], ["curl", 3, 10, 27.5, 1.25]],
-  legs: [["squat", 4, 6, 90, 2.5], ["rdl", 3, 8, 80, 2.5], ["legpress", 3, 12, 160, 5], ["calf", 4, 12, 70, 2.5]],
+  push: [["bench", 4, 8, 70, 2.5], ["incline", 3, 10, 55, 2.5], ["fly", 3, 12, 45, 2.5], ["ohp", 3, 8, 40, 1.25], ["lateral", 3, 12, 45, 2.5]],
+  pull: [["pulldown", 4, 10, 60, 2.5], ["row", 4, 10, 55, 2.5], ["facepull", 3, 12, 50, 2.5], ["curl", 3, 10, 27.5, 1.25]],
+  legs: [["squat", 4, 8, 60, 2.5], ["rdl", 3, 8, 80, 2.5], ["legpress", 3, 12, 160, 5], ["calf", 4, 12, 70, 2.5]],
 };
 
 const uuid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;

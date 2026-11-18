@@ -1,7 +1,7 @@
 import { CARDIO_LEG_CREDIT, cardioLegDose, stimulusProximity } from "./effort";
 import { dateLocale, t } from "./i18n";
 import { effectiveLoadKg, hypertrophyFactor, strengthFactor } from "./loadProfile";
-import { compoundMovements, findMovement, type Movement, SECONDARY_MUSCLE_SHARE } from "./movements";
+import { canonicalExerciseId, compoundMovements, findMovement, type Movement, SECONDARY_MUSCLE_SHARE } from "./movements";
 import {
   EQUIPMENT_LABELS,
   isCardio,
@@ -82,9 +82,9 @@ export function exerciseKey(ex: {
   equipment: Equipment;
   exerciseId?: string;
 }): ExerciseKey {
-  return ex.exerciseId !== undefined && ex.exerciseId !== ""
-    ? ex.exerciseId
-    : `${ex.muscle}::${ex.equipment}`;
+  return canonicalExerciseId(
+    ex.exerciseId !== undefined && ex.exerciseId !== "" ? ex.exerciseId : `${ex.muscle}::${ex.equipment}`,
+  );
 }
 
 /**
@@ -104,12 +104,13 @@ export function isCardioExerciseKey(key: ExerciseKey): boolean {
 
 /** Human-readable label for an exercise key, e.g. "Chest · Incline Bench Press", in the app language. */
 export function exerciseKeyLabel(key: ExerciseKey): string {
+  const movement = findMovement(key);
+  if (movement) return `${t(MUSCLE_LABELS[movement.primaryMuscle])} · ${t(movement.name)}`;
   if (key.includes("::")) {
     const [muscle, equipment] = key.split("::") as [MuscleGroup, Equipment];
     return `${t(MUSCLE_LABELS[muscle])} · ${t(EQUIPMENT_LABELS[equipment])}`;
   }
-  const movement = findMovement(key);
-  return movement ? `${t(MUSCLE_LABELS[movement.primaryMuscle])} · ${t(movement.name)}` : key;
+  return key;
 }
 
 /**
@@ -178,10 +179,9 @@ export function musclesByFrequency(sessions: readonly TrainingSession[]): readon
 /**
  * The catalog movements trained most recently, newest first and deduped — the
  * quick-access ring in the live picker, so a lifter's current staples are one
- * tap away whatever muscle the picker is pointed at. Only exercises carrying a
- * catalog `exerciseId` qualify (a legacy muscle+gear row has no movement
- * identity to offer), and only those with a logged set; within a session the
- * last-logged exercise leads.
+ * tap away whatever muscle the picker is pointed at. Only exercises that resolve
+ * to a catalog movement (legacy keys included, via {@link exerciseKey}) and have
+ * a logged set qualify; within a session the last-logged exercise leads.
  */
 export function recentMovements(
   sessions: readonly TrainingSession[],
@@ -193,11 +193,10 @@ export function recentMovements(
   for (const session of newestFirst) {
     for (let i = session.exercises.length - 1; i >= 0; i--) {
       const ex = session.exercises[i]!;
-      const id = ex.exerciseId;
-      if (ex.sets.length === 0 || id === undefined || seen.has(id)) continue;
-      const mv = findMovement(id);
-      if (!mv) continue;
-      seen.add(id);
+      if (ex.sets.length === 0) continue;
+      const mv = findMovement(exerciseKey(ex));
+      if (!mv || seen.has(mv.id)) continue;
+      seen.add(mv.id);
       recent.push(mv);
       if (recent.length >= limit) return recent;
     }

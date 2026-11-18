@@ -94,129 +94,100 @@ function genericMovement(muscle: MuscleGroup, equipment: Equipment): Movement {
   };
 }
 
-/** Curated, named movements per muscle group; the rest fall back to generic gear. */
+/**
+ * Curated, named movements per muscle group — trimmed to the lifts actually
+ * trained (2026-11 catalog cleanup); add a movement here when you start doing it.
+ *
+ * A named movement that took over a generic-gear slot keeps the legacy
+ * `"${muscle}::${equipment}"` id (e.g. "traps::barbell" is now "Barbell Shrug"),
+ * so sets logged under the old "Traps · Barbell" pick stay in the same progress
+ * series and are shown under the new name. Gear-only picks that were really a
+ * named lift are folded into it by {@link LEGACY_KEYS} instead.
+ */
 const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
   chest: [
     { id: "bench-press", name: "Bench Press", primaryMuscle: "chest", secondaryMuscles: ["triceps", "front-delts"], equipment: "barbell" },
     { id: "incline-bench-press", name: "Incline Bench Press", primaryMuscle: "chest", secondaryMuscles: ["front-delts", "triceps"], equipment: "barbell" },
     { id: "larsen-press", name: "Larsen Press", primaryMuscle: "chest", secondaryMuscles: ["triceps", "front-delts"], equipment: "barbell", aliases: ["Larson Press", "Legs-Up Bench Press"] },
-    { id: "dips", name: "Dips", primaryMuscle: "chest", secondaryMuscles: ["triceps"], equipment: "calisthenics", aliases: ["Triceps Dips", "Straight Bar Dips"] },
     { id: "push-up", name: "Push-Up", primaryMuscle: "chest", secondaryMuscles: ["triceps", "front-delts"], equipment: "calisthenics", aliases: ["Push-Ups", "Push Ups", "Pushup", "Pushups", "Flotari", "Flotari pe Sol", "Flotari Sol"] },
     { id: "decline-push-up", name: "Decline Push-Up", primaryMuscle: "chest", secondaryMuscles: ["front-delts", "triceps"], equipment: "calisthenics", aliases: ["Decline Push-Ups", "Decline Push Ups", "Feet-Elevated Push-Up", "Flotari Inclinate", "Flotari cu Picioarele Sus"] },
     { id: "diamond-push-up", name: "Diamond Push-Up", primaryMuscle: "triceps", secondaryMuscles: ["chest", "front-delts"], equipment: "calisthenics", aliases: ["Diamond Push-Ups", "Diamond Push Ups", "Flotari Diamant"] },
-    { id: "chest-press-machine", name: "Chest Press Machine", primaryMuscle: "chest", secondaryMuscles: ["triceps", "front-delts"], equipment: "machine" },
     { id: "incline-chest-press-machine", name: "Incline Chest Press Machine", primaryMuscle: "chest", secondaryMuscles: ["front-delts", "triceps"], equipment: "machine" },
-    { id: "medium-incline-chest-press-machine", name: "Vertical Bench Press Machine", primaryMuscle: "chest", secondaryMuscles: ["front-delts", "triceps"], equipment: "machine" },
-    { id: "smith-machine-vertical-press", name: "Vertical Press (Smith Machine)", primaryMuscle: "chest", secondaryMuscles: ["triceps", "front-delts"], equipment: "machine", aliases: ["Smith Machine Vertical Press", "Smith Vertical Press", "Vertical Press Smith Machine", "Smith Machine Chest Press"] },
+    { id: "medium-incline-chest-press-machine", name: "Vertical Bench Press Machine", primaryMuscle: "chest", secondaryMuscles: ["front-delts", "triceps"], equipment: "machine", aliases: ["Medium Incline Chest Press Machine"] },
     { id: "chest-fly-machine", name: "Chest Fly Machine", primaryMuscle: "chest", secondaryMuscles: [], equipment: "machine" },
-    genericMovement("chest", "dumbbell"),
-    genericMovement("chest", "barbell"),
-    genericMovement("chest", "cable"),
   ],
   back: [
     { id: "pull-up", name: "Pull-Up", primaryMuscle: "back", secondaryMuscles: ["biceps"], equipment: "calisthenics", aliases: ["Pull-Ups", "Pull Ups", "Tractiuni", "Tractiuni Pronate"] },
     { id: "chin-up", name: "Chin-Up", primaryMuscle: "back", secondaryMuscles: ["biceps"], equipment: "calisthenics", aliases: ["Chin-Ups", "Chin Ups", "Tractiuni Supinate"] },
-    { id: "inverted-row", name: "Inverted Row", primaryMuscle: "back", secondaryMuscles: ["biceps", "rear-delts"], equipment: "calisthenics", aliases: ["Australian Pull-Up", "Australian Pull-Ups", "Australiene", "Ramat", "Ramat Banda Elastica"] },
-    { id: "muscle-up", name: "Muscle-Up", primaryMuscle: "back", secondaryMuscles: ["chest", "triceps"], equipment: "calisthenics", aliases: ["Muscle-Ups", "Muscle Up", "Muscle Ups"] },
-    { id: "dead-hang", name: "Dead Hang", primaryMuscle: "forearms", secondaryMuscles: ["back"], isolation: true, hold: true, equipment: "calisthenics", aliases: ["Dead Hangs"] },
     { id: "pronated-grip-pulldown", name: "Pronated Grip Pulldown", primaryMuscle: "back", secondaryMuscles: ["biceps", "forearms"], equipment: "lat-pulldown", aliases: ["Pronated Pulldown", "Wide Grip Pulldown", "Lat Pulldown Pronated"] },
     { id: "neutral-grip-pulldown", name: "Neutral Grip Pulldown", primaryMuscle: "back", secondaryMuscles: ["biceps", "forearms"], equipment: "lat-pulldown", aliases: ["Neutral Pulldown", "Neutral Grip Lat Pulldown", "Close Grip Pulldown"] },
     { id: "cable-row", name: "Cable Row Machine", primaryMuscle: "back", secondaryMuscles: ["biceps", "traps", "rear-delts"], equipment: "cable", aliases: ["Cable Row", "Seated Cable Row", "Ramat la Cablu"] },
     { id: "seated-row", name: "Seated Row Machine", primaryMuscle: "back", secondaryMuscles: ["biceps", "traps", "rear-delts"], equipment: "machine", aliases: ["Seated Row", "Row Machine", "Machine Row"] },
-    { id: "straight-arm-pulldown", name: "Straight-Arm Pulldown", primaryMuscle: "back", secondaryMuscles: ["triceps"], isolation: true, equipment: "cable", aliases: ["Straight Arm Pulldown", "Straight-Arm Pull-Down", "Cable Straight-Arm Pulldown", "Lat Pushdown"] },
-    { id: "lat-pullover", name: "Lat Pullover", primaryMuscle: "back", secondaryMuscles: ["chest"], isolation: true, equipment: "dumbbell", aliases: ["Pullover", "Dumbbell Pullover", "Cable Pullover"] },
-    genericMovement("back", "barbell"),
-    genericMovement("back", "dumbbell"),
-    genericMovement("back", "cable"),
-    genericMovement("back", "machine"),
-    genericMovement("back", "lat-pulldown"),
   ],
   "lower-back": [
     { id: "back-extension", name: "Back Extension", primaryMuscle: "lower-back", secondaryMuscles: ["glutes"], isolation: true, equipment: "calisthenics", referenceLoadKg: 40, aliases: ["Hyperextension", "Hyperextensions", "Superman", "Hiper Extensii", "Hiper Extensii Superman"] },
-    { id: "good-morning", name: "Good Morning", primaryMuscle: "lower-back", secondaryMuscles: ["glutes", "legs"], equipment: "barbell", referenceLoadKg: 80, aliases: ["Good Mornings"] },
     { id: "back-extension-machine", name: "Back Extension Machine", primaryMuscle: "lower-back", secondaryMuscles: ["glutes"], isolation: true, equipment: "machine", referenceLoadKg: 90 },
-    genericMovement("lower-back", "barbell"),
-    genericMovement("lower-back", "machine"),
   ],
-  // Deltoids split by head. Pressing (overhead / pike / handstand) is anterior-
-  // dominant, lateral raises isolate the medial head, and reverse-fly / face-pull
-  // work the posterior head. Compounds spread credit across heads via secondaries.
+  // Deltoids split by head. Pressing is anterior-dominant, lateral raises isolate
+  // the medial head, and the reverse fly works the posterior head. Compounds
+  // spread credit across heads via secondaries.
   "front-delts": [
     { id: "overhead-press", name: "Overhead Press", primaryMuscle: "front-delts", secondaryMuscles: ["side-delts", "triceps"], equipment: "barbell", aliases: ["Shoulder Press", "Military Press", "Presa Umeri"] },
-    { id: "seated-dumbbell-press", name: "Seated Dumbbell Press", primaryMuscle: "front-delts", secondaryMuscles: ["side-delts", "triceps"], equipment: "dumbbell", aliases: ["Dumbbell Shoulder Press", "Dumbbell Overhead Press", "Seated Shoulder Press"] },
-    { id: "arnold-press", name: "Arnold Press", primaryMuscle: "front-delts", secondaryMuscles: ["side-delts", "triceps"], equipment: "dumbbell", aliases: ["Arnold Dumbbell Press"] },
-    { id: "shoulder-press-machine", name: "Shoulder Press Machine", primaryMuscle: "front-delts", secondaryMuscles: ["side-delts", "triceps"], equipment: "machine", aliases: ["Machine Shoulder Press", "Machine Overhead Press"] },
-    { id: "front-raise", name: "Front Raise", primaryMuscle: "front-delts", secondaryMuscles: [], equipment: "dumbbell", aliases: ["Dumbbell Front Raise", "Ridicari Frontale"] },
-    { id: "pike-push-up", name: "Pike Push-Up", primaryMuscle: "front-delts", secondaryMuscles: ["triceps"], equipment: "calisthenics", aliases: ["Pike Push-Ups", "Pike Push Ups"] },
-    { id: "handstand-push-up", name: "Handstand Push-Up", primaryMuscle: "front-delts", secondaryMuscles: ["side-delts", "triceps"], equipment: "calisthenics", aliases: ["Handstand Push-Ups", "Handstand Push Ups"] },
-    genericMovement("front-delts", "dumbbell"),
-    genericMovement("front-delts", "barbell"),
-    genericMovement("front-delts", "cable"),
-    genericMovement("front-delts", "machine"),
   ],
   "side-delts": [
-    { id: "dumbbell-lateral-raise", name: "Dumbbell Lateral Raise", primaryMuscle: "side-delts", secondaryMuscles: [], equipment: "dumbbell", aliases: ["Lateral Raise", "Lateral Raises", "Side Raise", "Dumbbell Side Raise", "Ridicari Laterale"] },
     { id: "lateral-raise-machine", name: "Lateral Raise Machine", primaryMuscle: "side-delts", secondaryMuscles: [], equipment: "lateral-raise", aliases: ["Machine Lateral Raise", "Lateral Raises Machine"] },
     { id: "cable-lateral-raise", name: "Cable Lateral Raise (Behind Back)", primaryMuscle: "side-delts", secondaryMuscles: [], equipment: "cable", aliases: ["Behind-the-Back Cable Lateral Raise", "Behind Back Cable Lateral Raise", "Cable Side Raise"] },
-    { id: "upright-row", name: "Upright Row", primaryMuscle: "side-delts", secondaryMuscles: ["traps", "front-delts"], equipment: "barbell", aliases: ["Barbell Upright Row", "Cable Upright Row"] },
-    genericMovement("side-delts", "dumbbell"),
-    genericMovement("side-delts", "cable"),
-    genericMovement("side-delts", "lateral-raise"),
   ],
   "rear-delts": [
     { id: "rear-delt-fly-machine", name: "Rear Delt Fly Machine", primaryMuscle: "rear-delts", secondaryMuscles: ["traps"], isolation: true, equipment: "rear-delt-fly", aliases: ["Reverse Pec Deck", "Reverse Fly Machine", "Rear Delt Machine"] },
-    { id: "dumbbell-rear-delt-fly", name: "Bent-Over Reverse Fly", primaryMuscle: "rear-delts", secondaryMuscles: ["traps"], isolation: true, equipment: "dumbbell", aliases: ["Reverse Fly", "Rear Delt Fly", "Bent-Over Reverse Fly", "Bent Over Lateral Raise", "Reverse Dumbbell Fly"] },
-    { id: "face-pull", name: "Face Pull", primaryMuscle: "rear-delts", secondaryMuscles: ["traps"], isolation: true, equipment: "cable", aliases: ["Cable Face Pull", "Rope Face Pull"] },
-    genericMovement("rear-delts", "dumbbell"),
-    genericMovement("rear-delts", "cable"),
-    genericMovement("rear-delts", "rear-delt-fly"),
+  ],
+  traps: [
+    { id: "traps::barbell", name: "Barbell Shrug", primaryMuscle: "traps", secondaryMuscles: [], equipment: "barbell", aliases: ["Barbell Shrugs", "Shrug", "Shrugs"] },
+    { id: "traps::dumbbell", name: "Dumbbell Shrug", primaryMuscle: "traps", secondaryMuscles: [], equipment: "dumbbell", aliases: ["Dumbbell Shrugs"] },
+    { id: "traps::cable", name: "Cable Shrug", primaryMuscle: "traps", secondaryMuscles: [], equipment: "cable", aliases: ["Cable Shrugs"] },
   ],
   biceps: [
+    { id: "biceps::barbell", name: "Barbell Curl", primaryMuscle: "biceps", secondaryMuscles: [], equipment: "barbell", aliases: ["Barbell Curls", "Standing Barbell Curl"] },
     { id: "wall-barbell-curl", name: "Wall Barbell Curl", primaryMuscle: "biceps", secondaryMuscles: [], equipment: "barbell", aliases: ["Barbell Wall Curl", "Wall Curl", "Strict Barbell Curl"] },
-    genericMovement("biceps", "dumbbell"),
-    genericMovement("biceps", "barbell"),
-    genericMovement("biceps", "cable"),
-    genericMovement("biceps", "machine"),
+    { id: "biceps::dumbbell", name: "Dumbbell Curl", primaryMuscle: "biceps", secondaryMuscles: [], equipment: "dumbbell", aliases: ["Dumbbell Curls"] },
+    { id: "biceps::cable", name: "Cable Curl", primaryMuscle: "biceps", secondaryMuscles: [], equipment: "cable", aliases: ["Cable Curls"] },
+  ],
+  triceps: [
+    { id: "triceps::machine", name: "Triceps Press Machine", primaryMuscle: "triceps", secondaryMuscles: [], equipment: "machine", aliases: ["Triceps Machine", "Triceps Dip Machine", "Triceps Press"] },
+    { id: "triceps::cable", name: "Triceps Pushdown", primaryMuscle: "triceps", secondaryMuscles: [], equipment: "cable", aliases: ["Cable Pushdown", "Triceps Pushdowns", "Rope Pushdown"] },
   ],
   legs: [
     { id: "deadlift", name: "Deadlift", primaryMuscle: "legs", secondaryMuscles: ["glutes", "lower-back"], equipment: "barbell", referenceLoadKg: 150 },
     { id: "romanian-deadlift", name: "Romanian Deadlift", primaryMuscle: "legs", secondaryMuscles: ["glutes", "lower-back"], equipment: "barbell", referenceLoadKg: 120 },
-    { id: "barbell-squat", name: "Barbell Squat", primaryMuscle: "legs", secondaryMuscles: ["glutes", "lower-back"], equipment: "barbell", referenceLoadKg: 130, aliases: ["Back Squat", "Barbell Back Squat", "Squat cu Bara", "Genuflexiuni cu Bara"] },
     { id: "dumbbell-squat", name: "Dumbbell Squat", primaryMuscle: "legs", secondaryMuscles: ["glutes"], equipment: "dumbbell", referenceLoadKg: 40, aliases: ["Goblet Squat", "Goblet Squats", "Genuflexiuni cu Gantere"] },
     { id: "bodyweight-squat", name: "Bodyweight Squat", primaryMuscle: "legs", secondaryMuscles: ["glutes"], equipment: "calisthenics", aliases: ["Squat", "Squats", "Genuflexiuni"] },
     // Partner-loaded squat: the training partner riding on your back *is* the
     // load, so it logs as bodyweight gear with their weight as the added kg —
     // hence a reference near a person rather than the leg baseline.
     { id: "partner-back-squat", name: "Partner Squat (Human on Back)", primaryMuscle: "legs", secondaryMuscles: ["glutes", "lower-back"], equipment: "calisthenics", referenceLoadKg: 70, aliases: ["Human on Back Squat", "Human Back Squat", "Piggyback Squat", "Partner Squat", "Partner Back Squat", "Genuflexiuni cu Partener", "Genuflexiuni cu Om in Spate"] },
-    { id: "barbell-lunge", name: "Barbell Lunge", primaryMuscle: "legs", secondaryMuscles: ["glutes"], equipment: "barbell", referenceLoadKg: 60, aliases: ["Lunge", "Lunges", "Walking Lunge", "Fandari cu Bara"] },
     { id: "dumbbell-lunge", name: "Dumbbell Lunge", primaryMuscle: "legs", secondaryMuscles: ["glutes"], equipment: "dumbbell", referenceLoadKg: 24, aliases: ["Walking Lunges", "Dumbbell Lunges", "Fandari cu Gantere"] },
-    { id: "bodyweight-lunge", name: "Bodyweight Lunge", primaryMuscle: "legs", secondaryMuscles: ["glutes"], equipment: "calisthenics", aliases: ["Bodyweight Lunges", "Alternating Lunge", "Reverse Lunge", "Reverse Lunges", "Split Squat", "Fandari", "Fandari pe Loc"] },
     { id: "leg-press", name: "Leg Press", primaryMuscle: "legs", secondaryMuscles: [], equipment: "machine", referenceLoadKg: 200 },
     { id: "leg-extension", name: "Leg Extension", primaryMuscle: "legs", secondaryMuscles: [], equipment: "machine", referenceLoadKg: 70 },
     { id: "prone-leg-curl", name: "Prone Leg Curl", primaryMuscle: "legs", secondaryMuscles: [], equipment: "machine", referenceLoadKg: 55 },
-    genericMovement("legs", "barbell"),
-    genericMovement("legs", "dumbbell"),
-    genericMovement("legs", "cable"),
   ],
+  // Nothing glute-primary is trained yet; the squats and deadlifts credit it as
+  // a secondary. Empty (not absent) so it doesn't fall back to every gear type.
+  glutes: [],
   calves: [
     { id: "calf-raise", name: "Standing Calf Raise", primaryMuscle: "calves", secondaryMuscles: [], equipment: "machine", aliases: ["Calf Raise", "Standing Calf Raise", "Standing Calf Raises"] },
     { id: "seated-calf-raise", name: "Seated Calf Raise", primaryMuscle: "calves", secondaryMuscles: [], equipment: "machine", aliases: ["Seated Calf Raises", "Sitting Calf Raise"] },
-    // Tibialis anterior (shin) work — the antagonist of the calf, so it rides the
-    // calves group. It handles a fraction of a calf raise's load, hence the low
-    // reference: each kg on the shins must count for far more than a kg of calves.
-    { id: "tibialis-raise", name: "Tibialis Raise", primaryMuscle: "calves", secondaryMuscles: [], equipment: "calisthenics", referenceLoadKg: 20, aliases: ["Tibia", "Tibia Raise", "Tibia Raises", "Tibialis", "Tibialis Raises", "Tibialis Anterior Raise", "Toe Raise", "Toe Raises", "Ridicari Varfuri", "Tibie"] },
-    { id: "tibialis-raise-machine", name: "Tibialis Raise Machine", primaryMuscle: "calves", secondaryMuscles: [], equipment: "machine", referenceLoadKg: 30, aliases: ["Tib Bar", "Tib Bar Raise", "Machine Tibialis Raise", "Dorsiflexion Machine"] },
-    genericMovement("calves", "dumbbell"),
-    genericMovement("calves", "barbell"),
   ],
   core: [
     { id: "plank", name: "Plank", primaryMuscle: "core", secondaryMuscles: ["front-delts", "glutes"], hold: true, equipment: "calisthenics", aliases: ["Front Plank", "Forearm Plank", "Planca"] },
     { id: "bench-crunches", name: "Bench Crunches", primaryMuscle: "core", secondaryMuscles: [], equipment: "calisthenics" },
     { id: "knee-raises", name: "Knee Raises", primaryMuscle: "core", secondaryMuscles: [], equipment: "calisthenics", aliases: ["Knee Raise", "Lying Knee Raises", "Captain's Chair Knee Raises"] },
     { id: "hanging-knee-raises", name: "Hanging Knee Raises", primaryMuscle: "core", secondaryMuscles: ["forearms"], isolation: true, equipment: "calisthenics", aliases: ["Hanging Knee Raise", "Hanging Leg Raises", "Hanging Leg Raise"] },
+    { id: "core::cable", name: "Cable Crunch", primaryMuscle: "core", secondaryMuscles: [], equipment: "cable", aliases: ["Cable Crunches", "Kneeling Cable Crunch"] },
     { id: "lateral-abs-machine", name: "Lateral Abs Machine", primaryMuscle: "core", secondaryMuscles: [], equipment: "lateral-abs-machine" },
-    genericMovement("core", "cable"),
-    genericMovement("core", "dumbbell"),
+  ],
+  forearms: [
+    { id: "forearms::dumbbell", name: "Dumbbell Wrist Curl", primaryMuscle: "forearms", secondaryMuscles: [], equipment: "dumbbell", aliases: ["Dumbbell Wrist Curls", "Wrist Curl", "Wrist Curls"] },
+    { id: "forearms::barbell", name: "Barbell Wrist Curl", primaryMuscle: "forearms", secondaryMuscles: [], equipment: "barbell", aliases: ["Barbell Wrist Curls"] },
   ],
   cardio: [
     { id: "treadmill", name: "Treadmill", primaryMuscle: "cardio", secondaryMuscles: [], equipment: "treadmill", aliases: ["Run", "Running", "Jog", "Jogging", "Walk", "Alergare", "Banda", "Banda de Alergat"] },
@@ -224,6 +195,30 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
     { id: "boxing", name: "Boxing", primaryMuscle: "cardio", secondaryMuscles: ["front-delts", "core"], isolation: true, equipment: "calisthenics", aliases: ["Box", "Boxing Rounds", "Shadow Boxing", "Bag Work", "Heavy Bag", "Sparring", "Box Fitness"] },
   ],
 };
+
+/**
+ * Legacy exercise keys folded into a current movement, so their sets join that
+ * movement's progress series. Early logs used the machine's equipment as a
+ * generic pick ("Side Delts · Lateral Raise" was the lateral raise machine, the
+ * "Triceps Press" gear was the triceps machine).
+ */
+const LEGACY_KEYS: Readonly<Record<string, string>> = {
+  "side-delts::lateral-raise": "lateral-raise-machine",
+  "side-delts::rear-delt-fly": "rear-delt-fly-machine",
+  "rear-delts::rear-delt-fly": "rear-delt-fly-machine",
+  "triceps::triceps-press": "triceps::machine",
+  // Gear-only picks that were a named lift.
+  "chest::barbell": "bench-press",
+  "front-delts::barbell": "overhead-press",
+  "side-delts::barbell": "overhead-press",
+  "side-delts::cable": "cable-lateral-raise",
+  "glutes::calisthenics": "bodyweight-squat",
+};
+
+/** The current id for an exercise key/id, resolving {@link LEGACY_KEYS}. */
+export function canonicalExerciseId(id: string): string {
+  return LEGACY_KEYS[id] ?? id;
+}
 
 /**
  * Movements to offer for a muscle group. Curated muscles get their named list;
@@ -259,9 +254,14 @@ const REGISTRY: ReadonlyMap<string, Movement> = new Map(
   MUSCLE_GROUPS.flatMap((m) => movementsForMuscle(m)).map((mv) => [mv.id, mv]),
 );
 
-/** Look up a movement by id, or undefined for an unknown/legacy id. */
+/** Look up a movement by id (legacy keys resolved), or undefined for an unknown id. */
 export function findMovement(id: string): Movement | undefined {
-  return REGISTRY.get(id);
+  return REGISTRY.get(canonicalExerciseId(id));
+}
+
+/** A gear-only pick ("Cable", "Barbell", …) rather than a named lift. */
+function isGenericMovement(mv: Movement): boolean {
+  return mv.name === EQUIPMENT_LABELS[mv.equipment];
 }
 
 // Romanian display names for the curated catalog (generic gear is translated
@@ -270,64 +270,51 @@ export function findMovement(id: string): Movement | undefined {
 registerTranslations({
   "Incline Bench Press": "Împins la Bancă Înclinată",
   "Larsen Press": "Împins Larsen",
-  Dips: "Flotări la Paralele",
   "Push-Up": "Flotări",
   "Decline Push-Up": "Flotări cu Picioarele Sus",
   "Diamond Push-Up": "Flotări Diamant",
-  "Chest Press Machine": "Aparat Împins Piept",
   "Incline Chest Press Machine": "Aparat Împins Piept Înclinat",
   "Vertical Bench Press Machine": "Aparat Împins Vertical",
-  "Vertical Press (Smith Machine)": "Împins Vertical (Aparat Smith)",
   "Chest Fly Machine": "Aparat Fluturări Piept",
   "Pull-Up": "Tracțiuni Pronate",
   "Chin-Up": "Tracțiuni Supinate",
-  "Inverted Row": "Ramat Australian",
-  "Muscle-Up": "Muscle-Up",
-  "Dead Hang": "Atârnare la Bară",
   "Pronated Grip Pulldown": "Helcometru Priză Pronată",
   "Neutral Grip Pulldown": "Helcometru Priză Neutră",
   "Cable Row Machine": "Ramat la Cablu",
   "Seated Row Machine": "Aparat Ramat Șezând",
-  "Straight-Arm Pulldown": "Tragere la Cablu cu Brațele Întinse",
-  "Lat Pullover": "Pullover",
   "Back Extension": "Hiperextensii",
-  "Good Morning": "Good Morning",
   "Back Extension Machine": "Aparat Hiperextensii",
   "Overhead Press": "Împins Deasupra Capului",
-  "Seated Dumbbell Press": "Împins cu Gantere Șezând",
-  "Arnold Press": "Împins Arnold",
-  "Shoulder Press Machine": "Aparat Împins Umeri",
-  "Front Raise": "Ridicări Frontale",
-  "Pike Push-Up": "Flotări Pike",
-  "Handstand Push-Up": "Flotări în Stand pe Mâini",
-  "Dumbbell Lateral Raise": "Ridicări Laterale cu Gantere",
   "Lateral Raise Machine": "Aparat Ridicări Laterale",
   "Cable Lateral Raise (Behind Back)": "Ridicări Laterale la Cablu (Pe la Spate)",
-  "Upright Row": "Ramat Vertical",
   "Rear Delt Fly Machine": "Aparat Fluturări Umăr Posterior",
-  "Bent-Over Reverse Fly": "Fluturări Inverse din Aplecat",
-  "Face Pull": "Face Pull",
   "Wall Barbell Curl": "Flexii cu Bara la Perete",
   Deadlift: "Îndreptări",
   "Romanian Deadlift": "Îndreptări Românești",
-  "Barbell Squat": "Genuflexiuni cu Bara",
   "Dumbbell Squat": "Genuflexiuni cu Gantere",
   "Bodyweight Squat": "Genuflexiuni",
   "Partner Squat (Human on Back)": "Genuflexiuni cu Partener (Om în Spate)",
-  "Barbell Lunge": "Fandări cu Bara",
   "Dumbbell Lunge": "Fandări cu Gantere",
-  "Bodyweight Lunge": "Fandări",
   "Leg Press": "Presă Picioare",
   "Leg Extension": "Extensii Picioare",
   "Prone Leg Curl": "Flexii Picioare din Culcat",
   "Standing Calf Raise": "Ridicări pe Vârfuri din Picioare",
   "Seated Calf Raise": "Ridicări pe Vârfuri Șezând",
-  "Tibialis Raise": "Ridicări Tibiale",
-  "Tibialis Raise Machine": "Aparat Ridicări Tibiale",
   Plank: "Planșă",
   "Bench Crunches": "Abdomene pe Bancă",
   "Knee Raises": "Ridicări de Genunchi",
   "Hanging Knee Raises": "Ridicări de Genunchi din Atârnat",
+  "Barbell Shrug": "Ridicări din Umeri cu Bara",
+  "Dumbbell Shrug": "Ridicări din Umeri cu Gantere",
+  "Cable Shrug": "Ridicări din Umeri la Cablu",
+  "Barbell Curl": "Flexii cu Bara",
+  "Dumbbell Curl": "Flexii cu Gantere",
+  "Cable Curl": "Flexii la Cablu",
+  "Triceps Press Machine": "Aparat Presă Triceps",
+  "Triceps Pushdown": "Extensii Triceps la Cablu",
+  "Cable Crunch": "Abdomene la Cablu",
+  "Dumbbell Wrist Curl": "Flexii din Încheietură cu Gantere",
+  "Barbell Wrist Curl": "Flexii din Încheietură cu Bara",
   Treadmill: "Bandă de Alergare",
   "Treadmill Intervals": "Intervale pe Bandă",
   Boxing: "Box",
@@ -338,9 +325,36 @@ registerTranslations({
  * catalog name is shown in the app language; anything renamed or free-text
  * keeps the name it was logged with.
  */
-export function displayExerciseName(ex: { name: string; exerciseId?: string }): string {
-  const mv = ex.exerciseId !== undefined ? REGISTRY.get(ex.exerciseId) : undefined;
-  return mv !== undefined && ex.name === mv.name ? t(ex.name) : ex.name;
+export function displayExerciseName(ex: ExerciseNameSource): string {
+  const name = catalogExerciseName(ex);
+  return findLogged(ex)?.name === name ? t(name) : name;
+}
+
+/** What a logged exercise carries that names it. */
+interface ExerciseNameSource {
+  name: string;
+  exerciseId?: string;
+  muscle?: MuscleGroup;
+  equipment?: Equipment;
+}
+
+/** The catalog movement a logged exercise points at (legacy keys resolved). */
+function findLogged(ex: ExerciseNameSource): Movement | undefined {
+  if (ex.exerciseId !== undefined && ex.exerciseId !== "") return findMovement(ex.exerciseId);
+  if (ex.muscle !== undefined && ex.equipment !== undefined) return findMovement(`${ex.muscle}::${ex.equipment}`);
+  return undefined;
+}
+
+/**
+ * English name for a logged exercise: the catalog name when it was logged
+ * under that name *or* under the old generic gear label (so a "Barbell" set on
+ * traps reads "Barbell Shrug"); a renamed / free-text exercise keeps its own.
+ */
+export function catalogExerciseName(ex: ExerciseNameSource): string {
+  const mv = findLogged(ex);
+  if (mv === undefined) return ex.name;
+  const legacyLabel = ex.equipment !== undefined ? EQUIPMENT_LABELS[ex.equipment] : EQUIPMENT_LABELS[mv.equipment];
+  return ex.name === mv.name || ex.name === legacyLabel ? mv.name : ex.name;
 }
 
 /**
@@ -349,7 +363,7 @@ export function displayExerciseName(ex: { name: string; exerciseId?: string }): 
  * (or undefined) is treated as a normal reps × load movement.
  */
 export function isIsometricHold(exerciseId: string | undefined): boolean {
-  return exerciseId !== undefined && REGISTRY.get(exerciseId)?.hold === true;
+  return exerciseId !== undefined && findMovement(exerciseId)?.hold === true;
 }
 
 /**
@@ -365,7 +379,7 @@ export function movementLoadReferenceKg(
   exerciseId: string | undefined,
   muscle: MuscleGroup,
 ): number {
-  const mv = exerciseId !== undefined ? REGISTRY.get(exerciseId) : undefined;
+  const mv = exerciseId !== undefined ? findMovement(exerciseId) : undefined;
   return mv?.referenceLoadKg ?? MUSCLE_REFERENCE_LOAD_KG[muscle];
 }
 
@@ -379,7 +393,7 @@ function normalizeName(name: string): string {
     .trim();
 }
 
-// Curated lifts only (ids without "::"). Generic-gear movements are named just
+// Named lifts only. Generic-gear movements are named just
 // "Dumbbell"/"Cable"/… and repeat across muscles, so matching them by name would
 // be ambiguous and let an equipment word masquerade as a movement. Aliases are
 // indexed alongside the canonical name; first-write wins, so canonical names go
@@ -387,12 +401,12 @@ function normalizeName(name: string): string {
 const BY_NAME: ReadonlyMap<string, Movement> = (() => {
   const map = new Map<string, Movement>();
   for (const mv of REGISTRY.values()) {
-    if (mv.id.includes("::")) continue;
+    if (isGenericMovement(mv)) continue;
     const key = normalizeName(mv.name);
     if (key !== "" && !map.has(key)) map.set(key, mv);
   }
   for (const mv of REGISTRY.values()) {
-    if (mv.id.includes("::")) continue;
+    if (isGenericMovement(mv)) continue;
     for (const alias of mv.aliases ?? []) {
       const key = normalizeName(alias);
       if (key !== "" && !map.has(key)) map.set(key, mv);

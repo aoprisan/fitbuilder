@@ -19,7 +19,7 @@ import {
   type VolumeTarget,
   type WorkSet,
 } from "./types";
-import { isIsometricHold } from "./movements";
+import { catalogExerciseName, isIsometricHold } from "./movements";
 
 /** Generate a RFC4122 v4 uuid, falling back when crypto.randomUUID is absent. */
 export function uuid(): string {
@@ -331,7 +331,7 @@ function sessionToMarkdown(session: TrainingSession): string {
 
   session.exercises.forEach((ex, i) => {
     lines.push("");
-    lines.push(`### ${i + 1}. ${ex.name} — ${MUSCLE_LABELS[ex.muscle]} · ${EQUIPMENT_LABELS[ex.equipment]}`);
+    lines.push(`### ${i + 1}. ${catalogExerciseName(ex)} — ${MUSCLE_LABELS[ex.muscle]} · ${EQUIPMENT_LABELS[ex.equipment]}`);
     if (ex.prescription) lines.push(`Target: ${ex.prescription}`);
     if (ex.oneRmKg !== undefined) lines.push(`Logged 1RM: ${round2(ex.oneRmKg)} kg`);
     if (ex.sets.length === 0) {
