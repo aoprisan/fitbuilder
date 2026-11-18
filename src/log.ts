@@ -22,6 +22,24 @@ export function newTrainingSession(): TrainingSession {
   };
 }
 
+/**
+ * An empty session logged after the fact: it starts at `start` and ends
+ * `minutes` later, both as entered, and is flagged {@link TrainingSession.backfilled}
+ * so the live logger skips its stopwatch and rest clock.
+ */
+export function newPastSession(start: Date, minutes: number): TrainingSession {
+  const base = newTrainingSession();
+  const startedAt = start.toISOString();
+  const end = new Date(start.getTime() + Math.max(1, Math.round(minutes)) * 60_000);
+  return {
+    ...base,
+    name: formatSessionDate(startedAt),
+    startedAt,
+    endedAt: end.toISOString(),
+    backfilled: true,
+  };
+}
+
 /** A new logged exercise built from a catalog movement. */
 export function newLoggedExercise(movement: Movement): LoggedExercise {
   return {

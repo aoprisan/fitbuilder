@@ -2,7 +2,7 @@ import { track } from "../analytics";
 import { nextSetTarget } from "../benchmark";
 import { clear, h, scrollBehavior } from "../dom";
 import { exportSessionPdf, exportSessionPng, shareSession } from "../exporters";
-import { newLoggedExercise, newTrainingSession } from "../log";
+import { newLoggedExercise, newPastSession, newTrainingSession } from "../log";
 import { clearProgress, loadProgress, saveProgress } from "../liveProgress";
 import {
   deleteSession,
@@ -30,7 +30,7 @@ import {
   type TrainingSession,
   type WorkSet,
 } from "../types";
-import { formatClock, round2, sessionSetCount } from "../util";
+import { formatClock, formatSessionTime, round2, sessionSetCount } from "../util";
 import { type Expectation, expectNow } from "../expectation";
 import { loadBodyweights } from "../bodyweightStore";
 import { registerTranslations, t } from "../i18n";
@@ -322,6 +322,8 @@ registerTranslations({
   "Resting — recover, then start your next set":
     "Pauză — recuperează-te, apoi pornește următoarea serie",
   "Set time {0}": "Timp serie {0}",
+  "＋ Log set": "＋ Adaugă serie",
+  "Past session · {0}": "Sesiune trecută · {0}",
   "✓ Done": "✓ Gata",
   Reps: "Repetări",
   "Hold (sec)": "Menținere (sec)",
@@ -440,11 +442,18 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
    */
   function renderHud(session: TrainingSession): HTMLElement {
     const time = h("span", { class: "live-hud-time" });
-    const tick = (): void => {
-      const secs = (Date.now() - new Date(session.startedAt).getTime()) / 1000;
-      time.textContent = formatClock(Math.max(0, secs));
-    };
-    timers.everySecond(tick);
+    if (session.backfilled) {
+      // A past session has no running clock — show the span it was entered with.
+      time.textContent =
+        formatSessionTime(session.startedAt) +
+        (session.endedAt !== undefined ? `–${formatSessionTime(session.endedAt)}` : "");
+    } else {
+      const tick = (): void => {
+        const secs = (Date.now() - new Date(session.startedAt).getTime()) / 1000;
+        time.textContent = formatClock(Math.max(0, secs));
+      };
+      timers.everySecond(tick);
+    }
     const sets = sessionSetCount(session);
     return h("div", { class: st.stage === "exercise" ? "live-hud is-flow" : "live-hud" }, [
       h("span", { class: "live-hud-name", text: session.name || t("Live Session") }),
@@ -617,13 +626,35 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     render();
   }
 
+  /**
+   * Open a session that happened earlier ("Log a past session"): stamped with
+   * the entered start and duration, and logged set by set without the
+   * stopwatch or rest clock.
+   */
+  function startPastSession(start: Date, minutes: number): void {
+    setActiveLog(saveSession(newPastSession(start, minutes)));
+    clearProgress();
+    selectMuscle("chest");
+    st.currentEx = null;
+    st.sub = "idle";
+    st.stage = "select";
+    track("past_session_started");
+    render();
+  }
+
+  /** Whether the open session is being logged after the fact (no timers). */
+  function pastMode(): boolean {
+    return state.activeLog?.backfilled === true;
+  }
+
   function endSession(): void {
     timers.stopAll();
     const s = state.activeLog;
     if (s) {
       if (s.exercises.some((ex) => ex.sets.length > 0)) {
         // Stamp the end so the session carries its wall-clock duration (start → end).
-        s.endedAt = new Date().toISOString();
+        // A past session keeps the end it was entered with.
+        if (!s.backfilled || s.endedAt === undefined) s.endedAt = new Date().toISOString();
         saveSession(s);
       } else deleteSession(s.id); // discard a session with nothing logged
     }
@@ -706,6 +737,13 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     render();
   }
 
+  /** Past-session mode: skip the stopwatch and go straight to the dials. */
+  function logSet(): void {
+    st.prFlash = [];
+    st.setStartEpoch = Date.now();
+    stopSet();
+  }
+
   function stopSet(): void {
     timers.stopAll();
     // A set left running (forgotten Stop, resumed hours later) would otherwise
@@ -716,6 +754,9 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     );
     const last =
       st.currentEx && st.currentEx.sets.length ? st.currentEx.sets[st.currentEx.sets.length - 1]! : null;
+    // Nothing was timed in a past session: a cardio bout's duration is entered
+    // on a dial instead, seeded from the last bout (or 20 min).
+    if (pastMode() && isCardio(st.equipment)) st.setElapsedMs = (last?.durationSec ?? 20 * 60) * 1000;
     if (isCardio(st.equipment)) {
       // Carry the last bout's speed/incline forward; estimate distance from speed
       // over the elapsed time as a starting point the user reads off the machine.
@@ -774,7 +815,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
         : {
             reps: st.setReps,
             weightKg: st.setWeight,
-            durationSec,
+            // A set dialled in after the fact was never timed — leave it unknown.
+            ...(pastMode() ? {} : { durationSec }),
             ...(st.pendingRir !== null ? { rir: st.pendingRir } : {}),
             ...(st.pendingSetType !== null ? { setType: st.pendingSetType } : {}),
           };
@@ -795,7 +837,8 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     track("set_logged", { cardio: isCardio(st.equipment) });
     persist();
     st.restStartEpoch = Date.now();
-    st.sub = "resting";
+    // No rest clock for a past session: straight back to "log the next set".
+    st.sub = pastMode() ? "idle" : "resting";
     render();
   }
 
@@ -907,6 +950,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     persist,
     snapshot,
     startSession,
+    startPastSession,
     endSession,
     sessionExportRow,
     selectMovement,
@@ -918,6 +962,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     resumeExercise,
     finishExercise,
     startSet,
+    logSet,
     stopSet,
     commitSet,
     deleteSet,
@@ -926,6 +971,7 @@ export function mountLive(root: HTMLElement, nav: Nav): Cleanup {
     cancelEditSet,
     currentKey,
     holdActive,
+    pastMode,
     historyGhost,
     expectationFor,
     renderToggle,

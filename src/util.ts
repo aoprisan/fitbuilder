@@ -211,7 +211,7 @@ export function sessionsToXml(sessions: TrainingSession[]): string {
   );
   for (const s of sessions) {
     lines.push(
-      `  <session${attr("id", s.id)}${attr("name", s.name)}${attr("startedAt", s.startedAt)}${attr("endedAt", s.endedAt)}${attr("startFatigue", s.startFatigue)}${attr("updatedAt", s.updatedAt)}>`,
+      `  <session${attr("id", s.id)}${attr("name", s.name)}${attr("startedAt", s.startedAt)}${attr("endedAt", s.endedAt)}${attr("startFatigue", s.startFatigue)}${attr("backfilled", s.backfilled ? "true" : undefined)}${attr("updatedAt", s.updatedAt)}>`,
     );
     for (const ex of s.exercises) {
       lines.push(

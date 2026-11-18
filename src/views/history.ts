@@ -125,6 +125,7 @@ registerTranslations({
   "Template name": "Numele șablonului",
   Save: "Salvează",
   Cancel: "Anulează",
+  "Logged afterwards": "Înregistrată ulterior",
   'Saved template "{0}" — start it from Train.': "S-a salvat șablonul „{0}” — pornește-l din Antrenament.",
   "Couldn't save the template — storage is full.":
     "Șablonul nu a putut fi salvat — spațiul de stocare este plin.",
@@ -394,6 +395,7 @@ export function mountHistory(root: HTMLElement, nav: Nav): Cleanup {
         ? t("Duration {0}").replace("{0}", formatDuration(durSec))
         : t("In progress"),
     );
+    if (s.backfilled) timingParts.push(t("Logged afterwards"));
     const summary = renderSessionSummary(s, sessions);
     const chips = exerciseChips(s);
     const { button: templateBtn, form: templateForm } = saveTemplateControls(s);

@@ -166,6 +166,8 @@ export interface LiveCtx {
 
   // — session —
   startSession: () => void;
+  /** Open a session that happened earlier, logged without timers. */
+  startPastSession: (start: Date, minutes: number) => void;
   endSession: () => void;
   sessionExportRow: (s: TrainingSession) => HTMLElement;
 
@@ -182,6 +184,8 @@ export interface LiveCtx {
 
   // — sets —
   startSet: () => void;
+  /** Past-session mode: open the dials for a set without timing it. */
+  logSet: () => void;
   stopSet: () => void;
   commitSet: () => void;
   deleteSet: (i: number) => void;
@@ -194,6 +198,8 @@ export interface LiveCtx {
   currentKey: () => string;
   /** Whether the exercise being worked is a timed isometric hold. */
   holdActive: () => boolean;
+  /** Whether the open session is a past one being logged after the fact. */
+  pastMode: () => boolean;
   /** Last time's set at this index, for the ghost row / presets. */
   historyGhost: (setIndex: number) => WorkSet | null;
   expectationFor: (m: MuscleGroup, eq: Equipment, id: string) => Expectation | null;

@@ -419,6 +419,13 @@ export interface TrainingSession {
    * compare-to-plan analytics — filter sessions by their source routine.
    */
   fromSheetId?: string;
+  /**
+   * Logged after the fact ("Log a past session"): sets were dialled in from
+   * memory, not timed, so they carry no stopwatch duration (cardio bouts carry
+   * the entered duration) and {@link startedAt} / {@link endedAt} are the times
+   * the lifter entered. Absent on sessions logged live.
+   */
+  backfilled?: true;
   /** ISO timestamp of last save. */
   updatedAt?: string;
 }

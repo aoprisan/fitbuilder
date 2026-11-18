@@ -3945,6 +3945,8 @@ textarea:focus-visible {
 /* Fields the ledger doesn't style globally: dates, times, selects. */
 .view-fuel input[type="date"],
 .view-fuel input[type="time"],
+.past-session-card input[type="date"],
+.past-session-card input[type="time"],
 .hl-select {
   font-family: var(--font-mono);
   font-weight: 500;
@@ -5171,6 +5173,8 @@ textarea:focus-visible {
 :root[data-theme^="sport"] .hl-claude,
 :root[data-theme^="sport"] .view-fuel input[type="date"],
 :root[data-theme^="sport"] .view-fuel input[type="time"],
+:root[data-theme^="sport"] .past-session-card input[type="date"],
+:root[data-theme^="sport"] .past-session-card input[type="time"],
 :root[data-theme^="sport"] .hl-select,
 :root[data-theme^="sport"] .hl-supp-cell {
   border-radius: var(--radius-sm);
@@ -5674,4 +5678,16 @@ textarea:focus-visible {
 }
 .share-row > .plan-note {
   margin-bottom: 8px;
+}
+
+/* Train → "Log a past session": the form card under the Start button. */
+.past-session-card {
+  margin-top: 10px;
+}
+.past-session-card .field {
+  margin-bottom: 10px;
+}
+.past-session-card input[type="date"],
+.past-session-card input[type="time"] {
+  width: 100%;
 }

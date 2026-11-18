@@ -1,4 +1,5 @@
 import { h } from "../dom";
+import { todayKey } from "../bodyweightStore";
 import { repeatSession } from "../log";
 import { clearProgress, loadProgress } from "../liveProgress";
 import { deleteEmptySessions, loadSessions, saveSession } from "../logStorage";
@@ -27,6 +28,13 @@ registerTranslations({
   "{0} exercises": "{0} exerciții",
   "1 exercise": "1 exercițiu",
   'Deleted template "{0}".': "S-a șters șablonul „{0}”.",
+  "＋ Log a past session": "＋ Înregistrează o sesiune trecută",
+  "Log a session you already did — pick when it was, then add exercises and sets without the timers.":
+    "Înregistrează o sesiune deja făcută — alege când a fost, apoi adaugă exerciții și serii fără cronometre.",
+  "Started at": "Început la",
+  "Duration (min)": "Durată (min)",
+  "Start logging ▸": "Începe înregistrarea ▸",
+  "Pick a date and time that isn't in the future.": "Alege o dată și o oră care nu sunt în viitor.",
 });
 
 /* =============================================================================
@@ -58,6 +66,7 @@ export function renderList(ctx: LiveCtx): void {
         on: { click: ctx.startSession },
       }),
     ]),
+    renderPastSession(ctx),
     ...renderTemplates(ctx),
     ...(count > 0 ? renderTrainBrief(ctx) : []),
     ...(count > 0
@@ -77,6 +86,76 @@ export function renderList(ctx: LiveCtx): void {
         ]
       : []),
   );
+}
+
+/** "HH:MM" for a Date, local time. */
+function hhmm(d: Date): string {
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/**
+ * "Log a past session": a collapsed button that opens a small form — date,
+ * start time and duration — then hands off to the live logger in its
+ * timer-free mode. Defaults to an hour-long session ending about now.
+ */
+function renderPastSession(ctx: LiveCtx): HTMLElement {
+  const now = new Date();
+  const defStart = new Date(now.getTime() - 60 * 60_000);
+  defStart.setMinutes(Math.floor(defStart.getMinutes() / 15) * 15, 0, 0);
+  const today = todayKey(now);
+  const date = h("input", { type: "date", value: todayKey(defStart), max: today });
+  const time = h("input", { type: "time", value: hhmm(defStart), step: "60" });
+  const minutes = h("input", {
+    type: "number",
+    inputmode: "numeric",
+    min: "1",
+    max: "600",
+    step: "5",
+    value: "60",
+  });
+  const error = h("p", { class: "plan-meta plan-note", role: "alert" });
+  const start = (): void => {
+    const [y, mo, d] = date.value.split("-").map(Number);
+    const [hh, mm] = (time.value || "00:00").split(":").map(Number);
+    const when =
+      y && mo && d ? new Date(y, mo - 1, d, hh ?? 0, mm ?? 0, 0, 0) : null;
+    const mins = Math.round(Number(minutes.value));
+    if (!when || Number.isNaN(when.getTime()) || when.getTime() > Date.now()) {
+      error.textContent = t("Pick a date and time that isn't in the future.");
+      return;
+    }
+    ctx.startPastSession(when, mins >= 1 && mins <= 600 ? mins : 60);
+  };
+  const field = (label: string, input: HTMLElement): HTMLElement =>
+    h("label", { class: "field" }, [h("span", { class: "field-label", text: label }), input]);
+  const form = h("section", { class: "card past-session-card", hidden: true }, [
+    h("p", { class: "eyebrow", text: t("＋ Log a past session") }),
+    h("p", {
+      class: "plan-meta plan-note",
+      text: t("Log a session you already did — pick when it was, then add exercises and sets without the timers."),
+    }),
+    field(t("Date"), date),
+    field(t("Started at"), time),
+    field(t("Duration (min)"), minutes),
+    error,
+    h("div", { class: "btn-row" }, [
+      h("button", { class: "btn btn-primary", type: "button", text: t("Start logging ▸"), on: { click: start } }),
+    ]),
+  ]);
+  const toggle = h("button", {
+    class: "btn btn-small",
+    type: "button",
+    text: t("＋ Log a past session"),
+    aria: { expanded: "false" },
+    on: {
+      click: () => {
+        form.hidden = !form.hidden;
+        toggle.setAttribute("aria-expanded", String(!form.hidden));
+        if (!form.hidden) date.focus();
+      },
+    },
+  });
+  return h("div", { class: "past-session" }, [h("div", { class: "btn-row" }, [toggle]), form]);
 }
 
 /** Start the session a template describes and land on its exercise list. */
