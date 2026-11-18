@@ -1,7 +1,7 @@
 import { CARDIO_LEG_CREDIT, cardioLegDose, stimulusProximity } from "./effort";
 import { dateLocale, t } from "./i18n";
 import { effectiveLoadKg, hypertrophyFactor, strengthFactor } from "./loadProfile";
-import { compoundMovements, findMovement, type Movement, SECONDARY_MUSCLE_SHARE } from "./movements";
+import { canonicalExerciseId, compoundMovements, findMovement, type Movement, SECONDARY_MUSCLE_SHARE } from "./movements";
 import {
   EQUIPMENT_LABELS,
   isCardio,
@@ -82,9 +82,9 @@ export function exerciseKey(ex: {
   equipment: Equipment;
   exerciseId?: string;
 }): ExerciseKey {
-  return ex.exerciseId !== undefined && ex.exerciseId !== ""
-    ? ex.exerciseId
-    : `${ex.muscle}::${ex.equipment}`;
+  return canonicalExerciseId(
+    ex.exerciseId !== undefined && ex.exerciseId !== "" ? ex.exerciseId : `${ex.muscle}::${ex.equipment}`,
+  );
 }
 
 /**
@@ -104,12 +104,13 @@ export function isCardioExerciseKey(key: ExerciseKey): boolean {
 
 /** Human-readable label for an exercise key, e.g. "Chest · Incline Bench Press", in the app language. */
 export function exerciseKeyLabel(key: ExerciseKey): string {
+  const movement = findMovement(key);
+  if (movement) return `${t(MUSCLE_LABELS[movement.primaryMuscle])} · ${t(movement.name)}`;
   if (key.includes("::")) {
     const [muscle, equipment] = key.split("::") as [MuscleGroup, Equipment];
     return `${t(MUSCLE_LABELS[muscle])} · ${t(EQUIPMENT_LABELS[equipment])}`;
   }
-  const movement = findMovement(key);
-  return movement ? `${t(MUSCLE_LABELS[movement.primaryMuscle])} · ${t(movement.name)}` : key;
+  return key;
 }
 
 /**
