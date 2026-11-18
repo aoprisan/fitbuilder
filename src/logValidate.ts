@@ -193,6 +193,7 @@ export function coerceSession(input: unknown): TrainingSession | null {
     exercises,
     ...(source === "live" || source === "routine" ? { source } : {}),
     ...(typeof fromSheetId === "string" && fromSheetId !== "" ? { fromSheetId } : {}),
+    ...(input["backfilled"] === true ? { backfilled: true as const } : {}),
     ...(typeof updatedAt === "string" ? { updatedAt } : {}),
   };
 }

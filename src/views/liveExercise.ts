@@ -25,6 +25,7 @@ import {
   formatCardioSet,
   formatClock,
   formatLoad,
+  formatSessionDate,
   round2,
 } from "../util";
 import { warmupRamp } from "../warmup";
@@ -630,15 +631,21 @@ export function renderExercise(ctx: LiveCtx): void {
   // top of the screen, with the performed-sets read-out dropping below it.
 
   if (st.sub === "idle") {
+    // A past session has nothing to time: one tap opens the dials for the next
+    // set, and the records the last set broke stay in view here instead of on
+    // the (skipped) rest screen.
+    const past = ctx.pastMode();
+    const pr = past ? renderPrFlash(st.prFlash) : null;
     ctx.container.append(
       h("div", { class: "btn-row live-actions" }, [
         h("button", {
           class: "btn btn-primary btn-jumbo",
           type: "button",
-          text: t("▶ Start set"),
-          on: { click: ctx.startSet },
+          text: past ? t("＋ Log set") : t("▶ Start set"),
+          on: { click: past ? ctx.logSet : ctx.startSet },
         }),
       ]),
+      ...(pr ? [pr] : []),
       h("div", { class: "btn-row" }, [
         h("button", {
           class: "btn",
@@ -852,6 +859,24 @@ export function renderExercise(ctx: LiveCtx): void {
   let presetsCard = null as HTMLElement | null;
   const dials = isCardio(st.equipment)
     ? [
+        // Past session: the bout wasn't timed, so its duration is dialled in.
+        ...(ctx.pastMode()
+          ? [
+              dialField({
+                label: t("Duration (min)"),
+                value: Math.round(st.setElapsedMs / 60_000),
+                step: 1,
+                min: 1,
+                integer: true,
+                unit: "min",
+                tone: "signal",
+                onCommit: (n) => {
+                  st.setElapsedMs = Math.max(1, n) * 60_000;
+                  ctx.snapshot();
+                },
+              }),
+            ]
+          : []),
         dialField({
           label: t("Distance (km)"),
           value: st.setDistanceKm,
@@ -1016,7 +1041,10 @@ export function renderExercise(ctx: LiveCtx): void {
       })();
   const setTimeEl = h("p", {
     class: "set-time live-scroll-anchor",
-    text: t("Set time {0}").replace("{0}", formatClock(st.setElapsedMs / 1000)),
+    text:
+      ctx.pastMode() && state.activeLog
+        ? t("Past session · {0}").replace("{0}", formatSessionDate(state.activeLog.startedAt))
+        : t("Set time {0}").replace("{0}", formatClock(st.setElapsedMs / 1000)),
   });
   const warmupCard = renderWarmupRamp(ctx);
   ctx.container.append(
