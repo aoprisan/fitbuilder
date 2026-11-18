@@ -114,6 +114,12 @@ export interface RadialRing {
   weight?: number;
   /** Ink class suffix — `radial-ring-<tone>` styles the ring's wedges. */
   tone?: string;
+  /**
+   * Draw the ring as blank stock when it has no items, instead of dropping it —
+   * so a ring with nothing relevant to offer leaves a gap rather than reflowing
+   * the other rings.
+   */
+  keepEmpty?: boolean;
 }
 
 export interface RadialHub {
@@ -126,7 +132,7 @@ export interface RadialHub {
 }
 
 export interface RadialSelectorOpts {
-  /** Outermost ring first. Empty rings are dropped. */
+  /** Outermost ring first. Empty rings are dropped unless `keepEmpty`. */
   rings: readonly RadialRing[];
   hub: RadialHub;
 }
@@ -137,7 +143,7 @@ export interface RadialSelectorOpts {
  * page each ring is showing.
  */
 export function radialSelector(opts: RadialSelectorOpts): HTMLElement {
-  const rings = opts.rings.filter((r) => r.items.length > 0);
+  const rings = opts.rings.filter((r) => r.items.length > 0 || r.keepEmpty === true);
 
   const svg = svgEl("svg", {
     class: "radial-svg",
@@ -351,6 +357,22 @@ export function radialSelector(opts: RadialSelectorOpts): HTMLElement {
       const ringG = svgEl("g", { class: `radial-ring radial-ring-${ring.tone ?? "plain"}` });
       svg.appendChild(ringG);
       const { slots, perPage, pages } = slotsOf(ring);
+      if (slots === 0) {
+        // Nothing to offer: one unbroken band of blank stock keeps the ring round.
+        const blank = svgEl("g", { class: "radial-seg is-blank", "aria-hidden": "true" });
+        const annulus = (r: number): string =>
+          `M${C} ${C - r}A${r} ${r} 0 1 1 ${C} ${C + r}A${r} ${r} 0 1 1 ${C} ${C - r}Z`;
+        blank.appendChild(
+          svgEl("path", {
+            class: "radial-seg-face",
+            d: `${annulus(rOut)}${annulus(rIn)}`,
+            "fill-rule": "evenodd",
+          }),
+        );
+        ringG.appendChild(blank);
+        rOut = rIn - RING_GAP;
+        return;
+      }
       const page = Math.min(pageOf[i] ?? 0, pages - 1);
       const shown = ring.items.slice(page * perPage, page * perPage + perPage);
       const step = (2 * Math.PI) / Math.max(1, slots);
