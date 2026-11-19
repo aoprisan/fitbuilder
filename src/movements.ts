@@ -112,6 +112,10 @@ const CURATED: Partial<Record<MuscleGroup, readonly Movement[]>> = {
     { id: "push-up", name: "Push-Up", primaryMuscle: "chest", secondaryMuscles: ["triceps", "front-delts"], equipment: "calisthenics", aliases: ["Push-Ups", "Push Ups", "Pushup", "Pushups", "Flotari", "Flotari pe Sol", "Flotari Sol"] },
     { id: "decline-push-up", name: "Decline Push-Up", primaryMuscle: "chest", secondaryMuscles: ["front-delts", "triceps"], equipment: "calisthenics", aliases: ["Decline Push-Ups", "Decline Push Ups", "Feet-Elevated Push-Up", "Flotari Inclinate", "Flotari cu Picioarele Sus"] },
     { id: "diamond-push-up", name: "Diamond Push-Up", primaryMuscle: "triceps", secondaryMuscles: ["chest", "front-delts"], equipment: "calisthenics", aliases: ["Diamond Push-Ups", "Diamond Push Ups", "Flotari Diamant"] },
+    // Parallel-bar dip: bodyweight gear, so the kg dial is the *added* load
+    // (belt/vest), 0 = bodyweight only. Effort counts only that added kg, so the
+    // reference sits at a typical belt load rather than the chest baseline.
+    { id: "dip", name: "Dips", primaryMuscle: "chest", secondaryMuscles: ["triceps", "front-delts"], equipment: "calisthenics", referenceLoadKg: 30, aliases: ["Dip", "Parallel Bar Dips", "Parallel Bar Dip", "Bar Dips", "Chest Dips", "Weighted Dips", "Weighted Dip", "Flotari la Paralele", "Paralele"] },
     { id: "incline-chest-press-machine", name: "Incline Chest Press Machine", primaryMuscle: "chest", secondaryMuscles: ["front-delts", "triceps"], equipment: "machine" },
     { id: "medium-incline-chest-press-machine", name: "Vertical Bench Press Machine", primaryMuscle: "chest", secondaryMuscles: ["front-delts", "triceps"], equipment: "machine", aliases: ["Medium Incline Chest Press Machine"] },
     { id: "chest-fly-machine", name: "Chest Fly Machine", primaryMuscle: "chest", secondaryMuscles: [], equipment: "machine" },
@@ -275,6 +279,7 @@ registerTranslations({
   "Push-Up": "Flotări",
   "Decline Push-Up": "Flotări cu Picioarele Sus",
   "Diamond Push-Up": "Flotări Diamant",
+  Dips: "Flotări la Paralele",
   "Incline Chest Press Machine": "Aparat Împins Piept Înclinat",
   "Vertical Bench Press Machine": "Aparat Împins Vertical",
   "Chest Fly Machine": "Aparat Fluturări Piept",
